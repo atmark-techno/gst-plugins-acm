@@ -106,3 +106,4 @@ noinst_HEADERS += \
 	acmalsasink/gstacmalsasink.h
 
 
+CPPFLAGS=-I ../include
