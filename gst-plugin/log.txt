@@ -1,0 +1,91 @@
+Setting pipeline to PAUSED ...
+Pipeline is PREROLLING ...
+Pipeline is PREROLLED ...
+Setting pipeline to PLAYING ...
+New clock: GstSystemClock
+WARNING: from element /GstPipeline:pipeline0/GstRtoFBDevSink:rtofbdevsink0: A lot of buffers are being dropped.
+Additional debug info:
+gstbasesink.c(2675): gst_base_sink_is_too_late (): /GstPipeline:pipeline0/GstRtoFBDevSink:rtofbdevsink0:
+There may be a timestamping problem, or this computer is too slow.
+WARNING: from element /GstPipeline:pipeline0/GstRtoFBDevSink:rtofbdevsink0: A lot of buffers are being dropped.
+Additional debug info:
+gstbasesink.c(2675): gst_base_sink_is_too_late (): /GstPipeline:pipeline0/GstRtoFBDevSink:rtofbdevsink0:
+There may be a timestamping problem, or this computer is too slow.
+WARNING: from element /GstPipeline:pipeline0/GstRtoFBDevSink:rtofbdevsink0: A lot of buffers are being dropped.
+Additional debug info:
+gstbasesink.c(2675): gst_base_sink_is_too_late (): /GstPipeline:pipeline0/GstRtoFBDevSink:rtofbdevsink0:
+There may be a timestamping problem, or this computer is too slow.
+WARNING: from element /GstPipeline:pipeline0/GstRtoFBDevSink:rtofbdevsink0: A lot of buffers are being dropped.
+Additional debug info:
+gstbasesink.c(2675): gst_base_sink_is_too_late (): /GstPipeline:pipeline0/GstRtoFBDevSink:rtofbdevsink0:
+There may be a timestamping problem, or this computer is too slow.
+WARNING: from element /GstPipeline:pipeline0/GstRtoFBDevSink:rtofbdevsink0: A lot of buffers are being dropped.
+Additional debug info:
+gstbasesink.c(2675): gst_base_sink_is_too_late (): /GstPipeline:pipeline0/GstRtoFBDevSink:rtofbdevsink0:
+There may be a timestamping problem, or this computer is too slow.
+WARNING: from element /GstPipeline:pipeline0/GstRtoFBDevSink:rtofbdevsink0: A lot of buffers are being dropped.
+Additional debug info:
+gstbasesink.c(2675): gst_base_sink_is_too_late (): /GstPipeline:pipeline0/GstRtoFBDevSink:rtofbdevsink0:
+There may be a timestamping problem, or this computer is too slow.
+WARNING: from element /GstPipeline:pipeline0/GstRtoFBDevSink:rtofbdevsink0: A lot of buffers are being dropped.
+Additional debug info:
+gstbasesink.c(2675): gst_base_sink_is_too_late (): /GstPipeline:pipeline0/GstRtoFBDevSink:rtofbdevsink0:
+There may be a timestamping problem, or this computer is too slow.
+WARNING: from element /GstPipeline:pipeline0/GstRtoFBDevSink:rtofbdevsink0: A lot of buffers are being dropped.
+Additional debug info:
+gstbasesink.c(2675): gst_base_sink_is_too_late (): /GstPipeline:pipeline0/GstRtoFBDevSink:rtofbdevsink0:
+There may be a timestamping problem, or this computer is too slow.
+WARNING: from element /GstPipeline:pipeline0/GstRtoFBDevSink:rtofbdevsink0: A lot of buffers are being dropped.
+Additional debug info:
+gstbasesink.c(2675): gst_base_sink_is_too_late (): /GstPipeline:pipeline0/GstRtoFBDevSink:rtofbdevsink0:
+There may be a timestamping problem, or this computer is too slow.
+WARNING: from element /GstPipeline:pipeline0/GstRtoFBDevSink:rtofbdevsink0: A lot of buffers are being dropped.
+Additional debug info:
+gstbasesink.c(2675): gst_base_sink_is_too_late (): /GstPipeline:pipeline0/GstRtoFBDevSink:rtofbdevsink0:
+There may be a timestamping problem, or this computer is too slow.
+WARNING: from element /GstPipeline:pipeline0/GstRtoFBDevSink:rtofbdevsink0: A lot of buffers are being dropped.
+Additional debug info:
+gstbasesink.c(2675): gst_base_sink_is_too_late (): /GstPipeline:pipeline0/GstRtoFBDevSink:rtofbdevsink0:
+There may be a timestamping problem, or this computer is too slow.
+WARNING: from element /GstPipeline:pipeline0/GstRtoFBDevSink:rtofbdevsink0: A lot of buffers are being dropped.
+Additional debug info:
+gstbasesink.c(2675): gst_base_sink_is_too_late (): /GstPipeline:pipeline0/GstRtoFBDevSink:rtofbdevsink0:
+There may be a timestamping problem, or this computer is too slow.
+WARNING: from element /GstPipeline:pipeline0/GstRtoFBDevSink:rtofbdevsink0: A lot of buffers are being dropped.
+Additional debug info:
+gstbasesink.c(2675): gst_base_sink_is_too_late (): /GstPipeline:pipeline0/GstRtoFBDevSink:rtofbdevsink0:
+There may be a timestamping problem, or this computer is too slow.
+WARNING: from element /GstPipeline:pipeline0/GstRtoFBDevSink:rtofbdevsink0: A lot of buffers are being dropped.
+Additional debug info:
+gstbasesink.c(2675): gst_base_sink_is_too_late (): /GstPipeline:pipeline0/GstRtoFBDevSink:rtofbdevsink0:
+There may be a timestamping problem, or this computer is too slow.
+WARNING: from element /GstPipeline:pipeline0/GstRtoFBDevSink:rtofbdevsink0: A lot of buffers are being dropped.
+Additional debug info:
+gstbasesink.c(2675): gst_base_sink_is_too_late (): /GstPipeline:pipeline0/GstRtoFBDevSink:rtofbdevsink0:
+There may be a timestamping problem, or this computer is too slow.
+WARNING: from element /GstPipeline:pipeline0/GstRtoFBDevSink:rtofbdevsink0: A lot of buffers are being dropped.
+Additional debug info:
+gstbasesink.c(2675): gst_base_sink_is_too_late (): /GstPipeline:pipeline0/GstRtoFBDevSink:rtofbdevsink0:
+There may be a timestamping problem, or this computer is too slow.
+WARNING: from element /GstPipeline:pipeline0/GstRtoFBDevSink:rtofbdevsink0: A lot of buffers are being dropped.
+Additional debug info:
+gstbasesink.c(2675): gst_base_sink_is_too_late (): /GstPipeline:pipeline0/GstRtoFBDevSink:rtofbdevsink0:
+There may be a timestamping problem, or this computer is too slow.
+WARNING: from element /GstPipeline:pipeline0/GstRtoFBDevSink:rtofbdevsink0: A lot of buffers are being dropped.
+Additional debug info:
+gstbasesink.c(2675): gst_base_sink_is_too_late (): /GstPipeline:pipeline0/GstRtoFBDevSink:rtofbdevsink0:
+There may be a timestamping problem, or this computer is too slow.
+WARNING: from element /GstPipeline:pipeline0/GstRtoFBDevSink:rtofbdevsink0: A lot of buffers are being dropped.
+Additional debug info:
+gstbasesink.c(2675): gst_base_sink_is_too_late (): /GstPipeline:pipeline0/GstRtoFBDevSink:rtofbdevsink0:
+There may be a timestamping problem, or this computer is too slow.
+WARNING: from element /GstPipeline:pipeline0/GstRtoFBDevSink:rtofbdevsink0: A lot of buffers are being dropped.
+Additional debug info:
+gstbasesink.c(2675): gst_base_sink_is_too_late (): /GstPipeline:pipeline0/GstRtoFBDevSink:rtofbdevsink0:
+There may be a timestamping problem, or this computer is too slow.
+Got EOS from element "pipeline0".
+Execution ended after 37965885004 ns.
+Setting pipeline to PAUSED ...
+Setting pipeline to READY ...
+Setting pipeline to NULL ...
+Freeing pipeline ...

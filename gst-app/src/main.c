@@ -1,139 +1,248 @@
-/* Copyright (C) 2006 Tim-Philipp Müller <tim centricular net>
- * 
- * Permission is hereby granted, free of charge, to any person obtaining a
- * copy of this software and associated documentation files (the "Software"),
- * to deal in the Software without restriction, including without limitation
- * the rights to use, copy, modify, merge, publish, distribute, sublicense,
- * and/or sell copies of the Software, and to permit persons to whom the
- * Software is furnished to do so, subject to the following conditions:
- *
- * The above copyright notice and this permission notice shall be included in
- * all copies or substantial portions of the Software.
- *
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
- * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
- * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
- * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
- * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
- * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
- * DEALINGS IN THE SOFTWARE.
- *
- * Alternatively, the contents of this file may be used under the
- * GNU Lesser General Public License Version 2.1 (the "LGPL"), in
- * which case the following provisions apply instead of the ones
- * mentioned above:
- *
- * This library is free software; you can redistribute it and/or
- * modify it under the terms of the GNU Library General Public
- * License as published by the Free Software Foundation; either
- * version 2 of the License, or (at your option) any later version.
- *
- * This library is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
- * Library General Public License for more details.
- *
- * You should have received a copy of the GNU Library General Public
- * License along with this library; if not, write to the
- * Free Software Foundation, Inc., 59 Temple Place - Suite 330,
- * Boston, MA 02111-1307, USA.
- */
+/////////////////////////////////////////////////////////////////////////
+// main.c: GStreamer プラグインのテストアプリケーション
+//
+// Author       Nobutaka Kimura (kimura@stprec.co.jp)
+// Created:     Feb. 07, 2013
+// Last update: Feb. 21, 2013
+/////////////////////////////////////////////////////////////////////////
 
-#ifdef HAVE_CONFIG_H
-#include "config.h"
-#endif
+//      #########################################################       //
+//      #               I N C L U D E   F I L E S               #       //
+//      #########################################################       //
 
-#include "gst-app.h"
+#include "tp_cui.h"
+#include "tp_gst_ctrl.h"
+#include "tp_log_util.h"
+
+#include <unistd.h> // STDIN_FILENO
+#include <signal.h>
+
+//      #########################################################       //
+//      #               L O C A L   D E F I N E S               #       //
+//      #########################################################       //
+
+/* コマンド */
+typedef struct _TpCommand
+{
+    gchar *name;                  /* コマンド名 */
+    gchar key;                    /* キー */
+    TpCuiCallbackFunc callback;   /* コマンドのコールバック */
+    gpointer cb_arg;              /* コールバックの引数 */
+} TpCommand;
+
+//      #########################################################       //
+//      #               L O C A L   S T O R A G E               #       //
+//      #########################################################       //
+
+TpCui *g_cui_handle = NULL;
+TpGstCtrl *g_ctrl = NULL;
+
+//      #########################################################       //
+//      #            P R I V A T E   F U N C T I O N S          #       //
+//      #########################################################       //
+
+// シグナルハンドラ
+static void
+sig_catch(int sig)
+{
+	g_print("catch signal. (%d)\n", sig);
+	
+	if (g_ctrl) {
+		// 再生停止
+		tp_gst_ctrl_stop (g_ctrl);
+		
+		// パイプラインの解放
+		tp_gst_ctrl_cleanup_pipeline (g_ctrl);
+
+		// GStreamer コントロールオブジェクトの解放
+		tp_gst_ctrl_destroy (g_ctrl);
+		
+		g_ctrl = NULL;
+	}
+	
+	if (g_cui_handle) {
+    	// CUI ハンドルの解放
+		tp_cui_destroy (g_cui_handle);
+		
+		g_cui_handle = NULL;
+	}
+	
+	// シグナルハンドラをデフォルトに戻す
+	signal(sig, SIG_DFL);
+	
+	exit(1);
+}
 
 static void
-handle_file_or_directory (const gchar * filename)
+print_commands (const TpCommand * cmdTable)
 {
-  GError *err = NULL;
-  GDir *dir;
-  gchar *uri;
+    const TpCommand *cmd;
 
-  if ((dir = g_dir_open (filename, 0, NULL))) {
-    const gchar *entry;
-
-    while ((entry = g_dir_read_name (dir))) {
-      gchar *path;
-
-      path = g_strconcat (filename, G_DIR_SEPARATOR_S, entry, NULL);
-      handle_file_or_directory (path);
-      g_free (path);
+    for (cmd = cmdTable; 0 != cmd->key; cmd++) {
+        if (' ' == cmd->key) {
+            g_print ("[SPACE]:%s", cmd->name);
+        } else {
+            g_print ("[%c]:%s", cmd->key, cmd->name);
+        }
+        if (0 != (cmd + 1)->key) {
+            g_print (", ");
+        }
     }
-
-    g_dir_close (dir);
-    return;
-  }
-
-  if (g_path_is_absolute (filename)) {
-    uri = g_filename_to_uri (filename, NULL, &err);
-  } else {
-    gchar *curdir, *absolute_path;
-
-    curdir = g_get_current_dir ();
-    absolute_path = g_strconcat ( curdir, G_DIR_SEPARATOR_S, filename, NULL);
-    uri = g_filename_to_uri (absolute_path, NULL, &err);
-    g_free (absolute_path);
-    g_free (curdir);
-  }
-
-  if (uri) {
-    /* great, we have a proper file:// URI, let's play it! */
-    play_uri (uri);
-  } else {
-    g_warning ("Failed to convert filename '%s' to URI: %s", filename,
-        err->message);
-    g_error_free (err);
-  }
-
-  g_free (uri);
+    g_print ("\n-----\n");
 }
 
-int
-main (int argc, char *argv[])
+// 再生位置を先頭に戻す
+static gboolean
+rewind_cb (gpointer data)
 {
-  gchar **filenames = NULL;
-  const GOptionEntry entries[] = {
-    /* you can add your won command line options here */
-    { G_OPTION_REMAINING, 0, 0, G_OPTION_ARG_FILENAME_ARRAY, &filenames,
-      "Special option that collects any remaining arguments for us" },
-    { NULL, }
-  };
-  GOptionContext *ctx;
-  GError *err = NULL;
-  gint i, num;
-
-  /* Before calling any GLib or GStreamer function, we must initialise
-   * the GLib threading system */
-  if (!g_thread_supported())
-    g_thread_init (NULL);
-
-  ctx = g_option_context_new ("[FILE1] [FILE2] ...");
-  g_option_context_add_group (ctx, gst_init_get_option_group ());
-  g_option_context_add_main_entries (ctx, entries, NULL);
-
-  if (!g_option_context_parse (ctx, &argc, &argv, &err)) {
-    g_print ("Error initializing: %s\n", GST_STR_NULL (err->message));
-    return -1;
-  }
-  g_option_context_free (ctx);
-
-  if (filenames == NULL || *filenames == NULL) {
-    g_print ("Please specify a file to play\n\n");
-    return -1;
-  }
-
-
-
-  num = g_strv_length (filenames);
-
-  for (i = 0; i < num; ++i) {
-    handle_file_or_directory (filenames[i]);
-  }
-
-  g_strfreev (filenames);
-
-  return 0;
+    TpGstCtrl **ctrl = (TpGstCtrl **) data;
+    tp_gst_ctrl_rewind (*ctrl);
+    return TRUE;
 }
+
+// 前方への seek
+static gboolean
+seek_forward_cb (gpointer data)
+{
+    TpGstCtrl **ctrl = (TpGstCtrl **) data;
+    tp_gst_ctrl_seek_forward (*ctrl);
+    return TRUE;
+}
+
+// 後方への seek
+static gboolean
+seek_backword_cb (gpointer data)
+{
+    TpGstCtrl **ctrl = (TpGstCtrl **) data;
+    tp_gst_ctrl_seek_backward (*ctrl);
+    return TRUE;
+}
+
+// 一時停止・再開のトグル
+static gboolean
+toggle_pause_cb (gpointer data)
+{
+    static gboolean isPaused = FALSE;
+    TpGstCtrl **ctrl = (TpGstCtrl **) data;
+
+    if (isPaused) {
+        tp_gst_ctrl_resume (*ctrl);
+    } else {
+        tp_gst_ctrl_pause (*ctrl);
+    }
+    isPaused = !isPaused;
+
+    return TRUE;
+}
+
+// 停止・再開のトグル
+static gboolean
+toggle_stop_cb (gpointer data)
+{
+    static gboolean isStopped = FALSE;
+    TpGstCtrl **ctrl = (TpGstCtrl **) data;
+	
+    if (isStopped) {
+        tp_gst_ctrl_start (*ctrl);
+    } else {
+        tp_gst_ctrl_stop (*ctrl);
+    }
+    isStopped = !isStopped;
+	
+    return TRUE;
+}
+
+// 終了
+static gboolean
+quit_cb (gpointer data)
+{
+    TP_LOG_INFO ("quit\n");
+    /* コールバックが FALSE を返すとメインループが停止する */
+    return FALSE;
+}
+
+//      #########################################################       //
+//      #             P U B L I C   F U N C T I O N S           #       //
+//      #########################################################       //
+
+gint
+main (gint argc, gchar * argv[])
+{
+    gint ret = 1;
+    TpCui *cui_handle = NULL;
+    TpGstCtrl *ctrl = NULL;
+    GMainLoop *loop = NULL;
+    gchar *media = NULL;
+    const TpCommand *cmd;
+
+    // コマンド定義
+    const TpCommand commandTable[] = {
+        {"Quit", 'q', quit_cb, NULL},
+        {"Pause/Resume", ' ', toggle_pause_cb, &ctrl},
+        {"Stop/Restart", 's', toggle_stop_cb, &ctrl},
+        {"Seek forward", 'f', seek_forward_cb, &ctrl},
+        {"Seek backward", 'b', seek_backword_cb, &ctrl},
+        {"Rewind", 'r', rewind_cb, &ctrl},
+        {NULL, 0, NULL, NULL}
+    };
+
+	// シグナルハンドラの設定
+	if (SIG_ERR == signal(SIGINT, sig_catch)) {
+    	g_print("failed to set signal handler.\n");
+        return 1;
+	}
+
+    // UI 初期化
+    cui_handle = tp_cui_create (STDIN_FILENO);
+    if (NULL == cui_handle) {
+        return 1;
+    }
+	g_cui_handle = cui_handle;
+
+    // コマンド登録
+    for (cmd = commandTable; 0 != cmd->key; cmd++) {
+        tp_cui_add_command (cui_handle, cmd->key, cmd->callback, cmd->cb_arg);
+    }
+    loop = tp_cui_get_main_loop (cui_handle);
+
+    // GStreamer 初期化
+    ctrl = tp_gst_ctrl_create (&argc, &argv);
+    if (NULL == ctrl) {
+        goto CUI_RELEASE_EXIT;
+    }
+	g_ctrl = ctrl;
+    if (argc > 1) {
+        media = argv[1];
+    }
+    print_commands (commandTable);
+
+    // パイプラインのセットアップ
+    if (!tp_gst_ctrl_setup_pipeline (ctrl, loop, media)) {
+        goto GST_RELASE_EXIT;
+    }
+    // 再生開始
+    tp_gst_ctrl_start (ctrl);
+
+    // メインループスタート
+    tp_cui_run (cui_handle);
+
+    // 再生停止
+    tp_gst_ctrl_stop (ctrl);
+
+    // パイプラインの解放
+    tp_gst_ctrl_cleanup_pipeline (ctrl);
+    ret = 0;
+
+GST_RELASE_EXIT:
+    // GStreamer コントロールオブジェクトの解放
+    tp_gst_ctrl_destroy (ctrl);
+
+CUI_RELEASE_EXIT:
+    // CUI ハンドルの解放
+    tp_cui_destroy (cui_handle);
+    return ret;
+}
+
+//
+// End of File
+//

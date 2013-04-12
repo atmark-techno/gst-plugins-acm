@@ -1,0 +1,12 @@
+
+How to build RTO GStreamer plugin
+
+$ cd gst-plugin
+$ autoreconf -vfi
+$ ./configure CPPFLAGS=-I/path/to/linux-3.4-at1/include
+$ make
+
+
+#
+# end of file
+#

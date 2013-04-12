@@ -2,7 +2,7 @@ dnl required version of autoconf
 AC_PREREQ([2.53])
 
 dnl TODO: fill in your package name and package version here
-AC_INIT([my-app],[1.0.0])
+AC_INIT([test_player],[1.0.0])
 
 dnl required version of gstreamer and gst-plugins-base
 GST_REQUIRED=1.0.0
@@ -81,7 +81,44 @@ AC_COMPILE_IFELSE([AC_LANG_PROGRAM([ ], [ ])], [
 ], [
   AC_MSG_RESULT([no])
 ])
-                                                                                
+
+dnl debug
+AC_ARG_ENABLE(debug,
+AS_HELP_STRING([--enable-debug],
+               [enable debugging [default=no]]),
+[case "${enableval}" in
+             yes) debug=true ;;
+             no)  debug=false ;;
+             *)   AC_MSG_ERROR([bad value ${enableval} for --enable-debug]) ;;
+esac],
+[debug=false])
+AM_CONDITIONAL(DEBUG, test x"$debug" = x"true")
+
+dnl SW decoder
+AC_ARG_ENABLE(swdecoder,
+AS_HELP_STRING([--enable-swdecoder],
+               [enable SW decoder [default=no]]),
+[case "${enableval}" in
+             yes) swdecoder=true ;;
+             no)  swdecoder=false ;;
+             *)   AC_MSG_ERROR([bad value ${enableval} for --enable-swdecoder]) ;;
+esac],
+[swdecoder=false])
+AM_CONDITIONAL(SWDECODER, test x"$swdecoder" = x"true")
+
+dnl unittest
+AC_ARG_ENABLE(unittest,
+AS_HELP_STRING([--enable-unittest],
+               [enable unit tests [default=no]]),
+[case "${enableval}" in
+             yes) unittest=true ;;
+             no)  unittest=false ;;
+             *)   AC_MSG_ERROR([bad value ${enableval} for --enable-unittest]) ;;
+esac],
+[unittest=false])
+AM_CONDITIONAL(UNITTEST, test x"$unittest" = x"true")
+
+
 dnl =======================================================================
 dnl Finally, create Makefiles in all directories
 dnl =======================================================================

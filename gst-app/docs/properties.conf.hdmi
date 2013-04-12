@@ -1,0 +1,18 @@
+[rtoaacdec]
+device = "/dev/video1"
+
+[acmalsasink]
+device = hw:0
+buffer-time=400000
+latency-time=20000
+
+[audio-capsfilter]
+caps = "audio/x-raw, rate=48000, channels=2"
+
+[rtoh264dec]
+device = "/dev/video2"
+width=1920
+height=1080
+
+[rtofbdevsink]
+device = "/dev/fb0"
