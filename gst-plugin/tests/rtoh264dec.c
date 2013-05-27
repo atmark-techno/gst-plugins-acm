@@ -184,7 +184,7 @@ GST_START_TEST (test_properties)
 				  "height", 		1080,
 				  "fmem-num", 		4,
 				  "buf-pic-cnt", 	8,
-				  "format", 		"RGB16",
+				  "format", 		"RGBx",
 				  "enable-vio6", 	FALSE,
 				  NULL);
 	g_object_get (rtoh264dec,
@@ -201,7 +201,7 @@ GST_START_TEST (test_properties)
 	fail_unless_equals_int (height, 1080);
 	fail_unless_equals_int (fmem_num, 4);
 	fail_unless_equals_int (buf_pic_cnt, 8);
-	fail_unless (g_str_equal (format, "RGB16"));
+	fail_unless (g_str_equal (format, "RGBx"));
 	fail_unless (enable_vio6 == FALSE);
 	g_free (device);
 	device = NULL;
@@ -247,7 +247,7 @@ test_decode_mp4_chain(GstPad * pad, GstObject * parent, GstBuffer * buf)
 		
 		buffers = g_list_remove (buffers, outbuffer);
 		
-		ASSERT_BUFFER_REFCOUNT (outbuffer, "outbuffer", 3);
+		ASSERT_BUFFER_REFCOUNT (outbuffer, "outbuffer", 2);
 		gst_buffer_unref (outbuffer);
 		outbuffer = NULL;
 	}
@@ -364,7 +364,7 @@ test_decode_ts_chain(GstPad * pad, GstObject * parent, GstBuffer * buf)
 		
 		buffers = g_list_remove (buffers, outbuffer);
 		
-		ASSERT_BUFFER_REFCOUNT (outbuffer, "outbuffer", 3);
+		ASSERT_BUFFER_REFCOUNT (outbuffer, "outbuffer", 2);
 		gst_buffer_unref (outbuffer);
 		outbuffer = NULL;
 	}

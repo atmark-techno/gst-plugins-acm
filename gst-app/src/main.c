@@ -16,6 +16,7 @@
 
 #include <unistd.h> // STDIN_FILENO
 #include <signal.h>
+#include <stdlib.h>
 
 //      #########################################################       //
 //      #               L O C A L   D E F I N E S               #       //
@@ -118,6 +119,51 @@ seek_backword_cb (gpointer data)
     return TRUE;
 }
 
+// 1.5倍速早送り
+static gboolean
+fast_forwarding_15_cb (gpointer data)
+{
+    TpGstCtrl **ctrl = (TpGstCtrl **) data;
+    tp_gst_ctrl_fast_forwarding_15 (*ctrl);
+    return TRUE;
+}
+
+// 2倍速早送り
+static gboolean
+fast_forwarding_20_cb (gpointer data)
+{
+    TpGstCtrl **ctrl = (TpGstCtrl **) data;
+    tp_gst_ctrl_fast_forwarding_20 (*ctrl);
+    return TRUE;
+}
+
+// 1倍速巻き戻し
+static gboolean
+fast_rewinding_10_cb (gpointer data)
+{
+    TpGstCtrl **ctrl = (TpGstCtrl **) data;
+    tp_gst_ctrl_fast_rewinding_10 (*ctrl);
+    return TRUE;
+}
+
+// 1.5倍速巻き戻し
+static gboolean
+fast_rewinding_15_cb (gpointer data)
+{
+    TpGstCtrl **ctrl = (TpGstCtrl **) data;
+    tp_gst_ctrl_fast_rewinding_15 (*ctrl);
+    return TRUE;
+}
+
+// 2倍速巻き戻し
+static gboolean
+fast_rewinding_20_cb (gpointer data)
+{
+    TpGstCtrl **ctrl = (TpGstCtrl **) data;
+    tp_gst_ctrl_fast_rewinding_20 (*ctrl);
+    return TRUE;
+}
+
 // 一時停止・再開のトグル
 static gboolean
 toggle_pause_cb (gpointer data)
@@ -182,7 +228,12 @@ main (gint argc, gchar * argv[])
         {"Stop/Restart", 's', toggle_stop_cb, &ctrl},
         {"Seek forward", 'f', seek_forward_cb, &ctrl},
         {"Seek backward", 'b', seek_backword_cb, &ctrl},
-        {"Rewind", 'r', rewind_cb, &ctrl},
+		{"Rewind", 'r', rewind_cb, &ctrl},
+        {"Fast forwarding 1.5x", '1', fast_forwarding_15_cb, &ctrl},
+        {"Fast forwarding 2.0x", '2', fast_forwarding_20_cb, &ctrl},
+        {"Fast rewinding 1.0x", '4', fast_rewinding_10_cb, &ctrl},
+        {"Fast rewinding 1.5x", '5', fast_rewinding_15_cb, &ctrl},
+        {"Fast rewinding 2.0x", '6', fast_rewinding_20_cb, &ctrl},
         {NULL, 0, NULL, NULL}
     };
 

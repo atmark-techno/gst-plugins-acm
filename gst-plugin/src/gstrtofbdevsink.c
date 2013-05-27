@@ -42,6 +42,10 @@
 /* デコーダ初期化パラメータのデフォルト値	*/
 #define DEFAULT_FB_DEVICE		"/dev/fb0"
 #define DEFAULT_USE_DMABUF		TRUE
+#define DEFAULT_ENABLE_VSYNC	TRUE
+
+/* 表示遅延許容時間	*/
+#define LATENESS_SEC			0.0167
 
 /* デバッグログ出力フラグ		*/
 #define DBG_LOG_RENDER		0
@@ -52,7 +56,6 @@
 # define DBG_MEASURE_PERF_RENDER		0
 #endif
 
-#if DBG_MEASURE_PERF
 static double
 gettimeofday_sec()
 {
@@ -61,7 +64,6 @@ gettimeofday_sec()
 	gettimeofday(&t, NULL);
 	return (double)t.tv_sec + (double)t.tv_usec * 1e-6;
 }
-#endif
 
 struct _GstRtoFBDevSinkPrivate
 {
@@ -75,6 +77,12 @@ struct _GstRtoFBDevSinkPrivate
 	 * デコードデータを上書きされてしまい、画面が乱れてしまう
 	 */
 	GstBuffer* displaying_buf;
+
+	/* フレームレート（秒）		*/
+	double framerate_sec;
+
+	/* 前回表示時刻（秒）	*/
+	double prev_display_time_sec;
 };
 
 GST_DEBUG_CATEGORY_STATIC (rtofbdevsink_debug);
@@ -89,6 +97,7 @@ enum
 	PROP_0,
 	PROP_DEVICE,
 	PROP_USE_DMABUF,
+	PROP_ENABLE_VSYNC,
 };
 
 #define GST_FBDEV_TEMPLATE_CAPS_RGB \
@@ -129,6 +138,8 @@ static gboolean gst_rto_fbdevsink_setcaps (GstBaseSink * bsink, GstCaps * caps);
 static gboolean gst_rto_fbdevsink_start (GstBaseSink * bsink);
 static gboolean gst_rto_fbdevsink_stop (GstBaseSink * bsink);
 static gboolean gst_rto_fbdevsink_query (GstBaseSink * sink, GstQuery * query);
+static GstFlowReturn gst_rto_fbdevsink_preroll (GstBaseSink * bsink,
+	GstBuffer * buff);
 static GstFlowReturn gst_rto_fbdevsink_render (GstBaseSink * bsink,
 	GstBuffer * buff);
 
@@ -190,6 +201,67 @@ fbioget_failed:
 	}
 }
 
+static gboolean
+do_blank_screen(GstRtoFBDevSink *me)
+{
+	gboolean ret = TRUE;
+	int vsyncArg = 0;
+	int r;
+
+	GST_INFO_OBJECT (me, "do blank screen");
+
+	/* 先頭のフレームバッファに PAN する */
+	me->varinfo.yoffset = 0;
+	r = ioctl (me->fd, FBIOPAN_DISPLAY, &(me->varinfo));
+	if (0 != r) {
+		goto fbiopan_display_failed;
+	}
+
+	/* ブランクスクリーンにする	*/
+	r = ioctl (me->fd, FBIOBLANK, FB_BLANK_UNBLANK);
+	if (0 != r) {
+		goto fbioblank_failed;
+	}
+	r = ioctl (me->fd, FBIOBLANK, FB_BLANK_NORMAL);
+	if (0 != r) {
+		goto fbioblank_failed;
+	}
+	r = ioctl (me->fd, FBIOBLANK, FB_BLANK_UNBLANK);
+	if (0 != r) {
+		goto fbioblank_failed;
+	}
+
+	r = ioctl (me->fd, FBIO_WAITFORVSYNC, &vsyncArg);
+	if (0 != r) {
+		goto fbio_waitforvsync_failed;
+	}
+
+out:
+	return ret;
+
+fbiopan_display_failed:
+	{
+		GST_ELEMENT_ERROR (me, RESOURCE, SETTINGS, (NULL),
+			("error with ioctl(FBIOPAN_DISPLAY) %d (%s)", errno, g_strerror (errno)));
+		ret = FALSE;
+		goto out;
+	}
+fbioblank_failed:
+	{
+		GST_ELEMENT_ERROR (me, RESOURCE, SETTINGS, (NULL),
+			("error with ioctl(FBIOBLANK) %d (%s)", errno, g_strerror (errno)));
+		ret = FALSE;
+		goto out;
+	}
+fbio_waitforvsync_failed:
+	{
+		GST_ELEMENT_ERROR (me, RESOURCE, SETTINGS, (NULL),
+			("error with ioctl(FBIO_WAITFORVSYNC) %d (%s)", errno, g_strerror (errno)));
+		ret = FALSE;
+		goto out;
+	}
+}
+
 static void
 gst_rto_fbdevsink_class_init (GstRtoFBDevSinkClass * klass)
 {
@@ -221,6 +293,11 @@ gst_rto_fbdevsink_class_init (GstRtoFBDevSinkClass * klass)
 			"FALSE: do not use dma-buf, TRUE: use dma-buf",
 			DEFAULT_USE_DMABUF, G_PARAM_READWRITE));
 
+	g_object_class_install_property (gobject_class, PROP_ENABLE_VSYNC,
+		g_param_spec_boolean ("enable-vsync", "Enable VSYNC",
+			"FALSE: disable, TRUE: enable",
+			DEFAULT_ENABLE_VSYNC, G_PARAM_READWRITE));
+
 	gst_element_class_set_details_simple (gstelement_class,
 		"RTO fbdev video sink", "Sink/Video",
 		"A linux framebuffer videosink", "atmark techno");
@@ -231,9 +308,7 @@ gst_rto_fbdevsink_class_init (GstRtoFBDevSinkClass * klass)
 	gstvs_class->set_caps = GST_DEBUG_FUNCPTR (gst_rto_fbdevsink_setcaps);
 	gstvs_class->get_caps = GST_DEBUG_FUNCPTR (gst_rto_fbdevsink_getcaps);
 	gstvs_class->get_times = GST_DEBUG_FUNCPTR (gst_rto_fbdevsink_get_times);
-#if 0	/* 同じバッファを、2度 PAN してしまう */
-	gstvs_class->preroll = GST_DEBUG_FUNCPTR (gst_rto_fbdevsink_render);
-#endif
+	gstvs_class->preroll = GST_DEBUG_FUNCPTR (gst_rto_fbdevsink_preroll);
 	gstvs_class->render = GST_DEBUG_FUNCPTR (gst_rto_fbdevsink_render);
 	gstvs_class->start = GST_DEBUG_FUNCPTR (gst_rto_fbdevsink_start);
 	gstvs_class->stop = GST_DEBUG_FUNCPTR (gst_rto_fbdevsink_stop);
@@ -250,7 +325,7 @@ gst_rto_fbdevsink_init (GstRtoFBDevSink * me)
 	me->fd = -1;
 	me->framebuffer = NULL;
 	me->device = NULL;
-	
+
 	me->width = 0;
 	me->height = 0;
 	me->cx = 0;
@@ -258,11 +333,14 @@ gst_rto_fbdevsink_init (GstRtoFBDevSink * me)
 	me->linelen = 0;
 	me->lines = 0;
 	me->bytespp = 0;
-	
+
 	me->fps_n = 0;
 	me->fps_d = 0;
 
 	me->is_changed_fb_varinfo = FALSE;
+
+	me->priv->framerate_sec = 0;
+	me->priv->prev_display_time_sec = 0;
 
 	/* last buffer 保持無効にする
 	 * 遅延して drop された時に、バッファが解放されず、v4l2bufferpool に戻らないため。
@@ -279,20 +357,21 @@ gst_rto_fbdevsink_init (GstRtoFBDevSink * me)
 	gst_base_sink_set_qos_enabled (GST_BASE_SINK (me), FALSE);
 
 	me->use_dmabuf = DEFAULT_USE_DMABUF;
+	me->enable_vsync = DEFAULT_ENABLE_VSYNC;
 }
 
 static void
 gst_rto_fbdevsink_finalize (GObject * object)
 {
 	GstRtoFBDevSink *me = GST_RTOFBDEVSINK (object);
-	
+
     GST_INFO_OBJECT (me, "RTOFBDEVSINK FINALIZE");
 
 	if (me->device) {
 		g_free (me->device);
 		me->device = NULL;
 	}
-	
+
 	G_OBJECT_CLASS (parent_class)->finalize (object);
 }
 
@@ -302,14 +381,14 @@ gst_rto_fbdevsink_start (GstBaseSink * bsink)
 	GstRtoFBDevSink *me;
 	gboolean ret = TRUE;
 	gint i = 0;
-	
+
 	me = GST_RTOFBDEVSINK (bsink);
-	
+
 	/* プロパティとしてセットされていなければ、デフォルト値を設定		*/
 	if (! me->device) {
 		me->device = g_strdup (DEFAULT_FB_DEVICE);
 	}
-	
+
 	GST_INFO_OBJECT (me, "RTOFBDEVSINK START. (%s)", me->device);
 
 	/* open device */
@@ -319,7 +398,7 @@ gst_rto_fbdevsink_start (GstBaseSink * bsink)
 			goto open_device_failed;
 		}
 	}
-	
+
 	/* get the fixed screen info */
 	if (0 != ioctl (me->fd, FBIOGET_FSCREENINFO, &(me->fixinfo))) {
 		goto fbioget_failed;
@@ -342,7 +421,7 @@ gst_rto_fbdevsink_start (GstBaseSink * bsink)
 
 	/* レストア用にオリジナル情報を保存		*/
 	me->saved_varinfo = me->varinfo;
-	
+
 	if (me->use_dmabuf) {
 		/* DMABUF FDを取得 */
 		GST_INFO_OBJECT (me, "get the dma buf's fd...");
@@ -414,11 +493,14 @@ gst_rto_fbdevsink_stop (GstBaseSink * bsink)
 	int r = 0;
 
 	me = GST_RTOFBDEVSINK (bsink);
-	
+
 	GST_INFO_OBJECT (me, "RTOFBDEVSINK STOP. (%s)", me->device);
 
-	/* clear screen (when non use dma buf)	*/
-	if (! me->use_dmabuf) {
+	/* clear screen	*/
+	if (me->use_dmabuf) {
+		do_blank_screen(me);
+	}
+	else {
 		if (me->framebuffer) {
 			memset (me->framebuffer, 0x00, me->fixinfo.smem_len);
 		}
@@ -492,7 +574,7 @@ gst_rto_fbdevsink_get_times (GstBaseSink * basesink, GstBuffer * buffer,
     GstClockTime * start, GstClockTime * end)
 {
 	GstRtoFBDevSink *me;
-	
+
 	me = GST_RTOFBDEVSINK (basesink);
 
 #if 0	/* for debug	*/
@@ -529,7 +611,7 @@ gst_rto_fbdevsink_query (GstBaseSink * sink, GstQuery * query)
 {
 	GstRtoFBDevSink *me;
 	gboolean ret = TRUE;
-	
+
 	me = GST_RTOFBDEVSINK (sink);
 
 	GST_INFO_OBJECT (me, "query:%" GST_PTR_FORMAT, query);
@@ -642,7 +724,7 @@ gst_rto_fbdevsink_getcaps (GstBaseSink * bsink, GstCaps *filter)
 	GST_INFO_OBJECT (bsink, "getcaps - filter:%" GST_PTR_FORMAT, filter);
 
 	me = GST_RTOFBDEVSINK (bsink);
-	
+
 	if (-1 == me->fd) {
 		return gst_caps_from_string (GST_FBDEV_TEMPLATE_CAPS);
 	}
@@ -683,9 +765,9 @@ gst_rto_fbdevsink_getcaps (GstBaseSink * bsink, GstCaps *filter)
 			<< me->varinfo.green.offset;
 	bmask = ((1 << me->varinfo.blue.length) - 1)
 			<< me->varinfo.blue.offset;
-	
+
 	endianness = 0;
-	
+
 	switch (me->varinfo.bits_per_pixel) {
 	case 32:
 		/* swap endian of masks */
@@ -713,7 +795,7 @@ gst_rto_fbdevsink_getcaps (GstBaseSink * bsink, GstCaps *filter)
 				   me->varinfo.bits_per_pixel);
 		return NULL;
 	}
-	
+
 	/* replace all but width, height, and framerate */
 	if (24 == me->varinfo.bits_per_pixel) {
 		caps = gst_caps_from_string (GST_FBDEV_TEMPLATE_CAPS_RGB);
@@ -738,7 +820,6 @@ gst_rto_fbdevsink_getcaps (GstBaseSink * bsink, GstCaps *filter)
 	GST_INFO_OBJECT (me, "return caps: %" GST_PTR_FORMAT, caps);
 
 	return caps;
-
 }
 
 /* notify subclass of new caps */
@@ -748,49 +829,96 @@ gst_rto_fbdevsink_setcaps (GstBaseSink * bsink, GstCaps * vscapslist)
 	GstRtoFBDevSink *me;
 	GstStructure *structure;
 	const GValue *fps;
-	
+
 	me = GST_RTOFBDEVSINK (bsink);
-	
+
 	GST_INFO_OBJECT (me, "receive caps: %" GST_PTR_FORMAT, vscapslist);
-	
+
 	structure = gst_caps_get_structure (vscapslist, 0);
-	
+
 	fps = gst_structure_get_value (structure, "framerate");
 	me->fps_n = gst_value_get_fraction_numerator (fps);
 	me->fps_d = gst_value_get_fraction_denominator (fps);
-	
+
+	me->priv->framerate_sec = (double)1.0 / ( (double)me->fps_n / me->fps_d );
+	GST_INFO_OBJECT (me, "framerate_sec: %f", me->priv->framerate_sec);
+
 	gst_structure_get_int (structure, "width", &(me->width));
 	gst_structure_get_int (structure, "height", &(me->height));
-	
+
 	/* calculate centering and scanlengths for the video */
 #if 0
 	me->bytespp = me->fixinfo.line_length / me->varinfo.xres;
 #else
 	me->bytespp = me->varinfo.bits_per_pixel / 8;
 #endif
-	
+
 	me->cx = ((int) me->varinfo.xres - me->width) / 2;
 	if (me->cx < 0)
 		me->cx = 0;
-	
+
 	me->cy = ((int) me->varinfo.yres - me->height) / 2;
 	if (me->cy < 0)
 		me->cy = 0;
-	
+
 	me->linelen = me->width * me->bytespp;
 	if (me->linelen > me->fixinfo.line_length)
 		me->linelen = me->fixinfo.line_length;
-	
+
 	me->lines = me->height;
 	if (me->lines > me->varinfo.yres)
 		me->lines = me->varinfo.yres;
-	
+
 	GST_INFO_OBJECT (me,
 		"width:%d, height:%d, bytespp:%d, cx:%d, cy:%d, linelen:%d, lines:%d",
 		me->width, me->height, me->bytespp,
 		me->cx, me->cy, me->linelen, me->lines);
 
 	return TRUE;
+}
+
+static GstFlowReturn
+gst_rto_fbdevsink_preroll (GstBaseSink * bsink, GstBuffer * buf)
+{
+	GstRtoFBDevSink *me;
+	int vsyncArg = 0;
+	int r;
+#if DBG_MEASURE_PERF_RENDER
+	double time_start = 0, time_end = 0;
+#endif
+
+	me = GST_RTOFBDEVSINK (bsink);
+
+//	GST_INFO_OBJECT (me, "RTOFBDEVSINK PREROLL : %p", buf);
+
+#if DBG_MEASURE_PERF_RENDER
+	time_start = gettimeofday_sec();
+#endif
+
+	me->priv->prev_display_time_sec = gettimeofday_sec();
+
+	if (me->enable_vsync) {
+		/* Wait for the vertical sync of the display device */
+		r = ioctl (me->fd, FBIO_WAITFORVSYNC, &vsyncArg);
+		if (0 != r) {
+			goto fbio_waitforvsync_failed;
+		}
+	}
+
+#if DBG_MEASURE_PERF_RENDER
+	time_end = gettimeofday_sec();
+	GST_INFO_OBJECT(me, "preroll : %10.10f", time_end - time_start);
+#endif
+
+	return GST_FLOW_OK;
+
+	/* ERRORS */
+fbio_waitforvsync_failed:
+	{
+		GST_ELEMENT_ERROR (me, RESOURCE, SETTINGS, (NULL),
+			("error with ioctl(FBIO_WAITFORVSYNC) %d (%s)", errno, g_strerror (errno)));
+		return GST_FLOW_ERROR;
+	}
 }
 
 static GstFlowReturn
@@ -806,7 +934,7 @@ gst_rto_fbdevsink_render (GstBaseSink * bsink, GstBuffer * buf)
 #endif
 
 	me = GST_RTOFBDEVSINK (bsink);
-	
+
 //	GST_INFO_OBJECT (me, "RTOFBDEVSINK RENDER BEGIN : %p", buf);
 
 	if (! me->use_dmabuf) {
@@ -833,6 +961,7 @@ gst_rto_fbdevsink_render (GstBaseSink * bsink, GstBuffer * buf)
 	}
 	else {
 		GstRtoDmabufMeta *meta = NULL;
+		gboolean isFrameSkipped = FALSE;
 
 		/* バッファからDMABUF index取得	*/
 		meta = gst_buffer_get_rto_dmabuf_meta (buf);
@@ -865,15 +994,59 @@ gst_rto_fbdevsink_render (GstBaseSink * bsink, GstBuffer * buf)
 									meta->index);
 			}
 
-			r = ioctl (me->fd, FBIOPAN_DISPLAY, &(me->varinfo));
-			if (0 != r) {
-				goto fbiopan_display_failed;
-			}
+			if (me->enable_vsync) {
+				/* 垂直同期を行う場合は、前回表示時刻からの差分で判断する。
+				 * そうしないと、永久にフレームがドロップされるケースが出てくる。
+				 * フレームレート + 垂直同期の最大待ち時間を超える場合は、スキップする
+				 * ただし、3 フレーム分以上経過している場合は絵が止まったままになるので、
+				 * 表示は行う。
+				 */
+				double displayTime = gettimeofday_sec();
+				double timeDiff = displayTime - me->priv->prev_display_time_sec;
+				
+				if (timeDiff < (me->priv->framerate_sec + LATENESS_SEC)) {
+					r = ioctl (me->fd, FBIOPAN_DISPLAY, &(me->varinfo));
+					if (0 != r) {
+						goto fbiopan_display_failed;
+					}
+					
+					if (1.0 == GST_BASE_SINK(me)->segment.rate) {
+						/* Wait for the vertical sync of the display device
+						 * 倍速再生の際は、コマ落ちするので、同期しない
+						 */
+						r = ioctl (me->fd, FBIO_WAITFORVSYNC, &vsyncArg);
+						if (0 != r) {
+							goto fbio_waitforvsync_failed;
+						}
+					}
+				}
+				else if (timeDiff > me->priv->framerate_sec * 3) {
+					r = ioctl (me->fd, FBIOPAN_DISPLAY, &(me->varinfo));
+					if (0 != r) {
+						goto fbiopan_display_failed;
+					}
+#if 0 /* for debug */
+					GST_WARNING_OBJECT (me, "too late frame - at time : %f",
+										timeDiff);
+#endif
+				}
+				else {
+					isFrameSkipped = TRUE;
+				
+#if 0 /* for debug */
+					GST_WARNING_OBJECT (me, "skipping frame - at time : %f",
+						timeDiff);
+#endif
+				}
 
-			/* Wait for the vertical sync of the display device */
-			r = ioctl (me->fd, FBIO_WAITFORVSYNC, &vsyncArg);
-			if (0 != r) {
-				goto fbio_waitforvsync_failed;
+				me->priv->prev_display_time_sec = displayTime;
+			}
+			else {
+				/* 垂直同期を行わない場合は、パンするだけ	*/
+				r = ioctl (me->fd, FBIOPAN_DISPLAY, &(me->varinfo));
+				if (0 != r) {
+					goto fbiopan_display_failed;
+				}
 			}
 
 #if DBG_MEASURE_PERF_RENDER
@@ -886,11 +1059,18 @@ gst_rto_fbdevsink_render (GstBaseSink * bsink, GstBuffer * buf)
 			/* ディスプレイ表示中のバッファは ref して保持し、次のバッファを表示した後、
 			 * unref してデバイスに queue する
 			 */
-			if (NULL != me->priv->displaying_buf) {
-				gst_buffer_unref(me->priv->displaying_buf);
-				me->priv->displaying_buf = NULL;
+			if (! isFrameSkipped) {
+				if (NULL != me->priv->displaying_buf) {
+					gst_buffer_unref(me->priv->displaying_buf);
+					me->priv->displaying_buf = NULL;
+				}
+				me->priv->displaying_buf = gst_buffer_ref(buf);
 			}
-			me->priv->displaying_buf = gst_buffer_ref(buf);
+#if 0 /* for debug */
+			else {
+				GST_WARNING_OBJECT (me, "not ref buf");
+			}
+#endif
 
 			me->priv->last_show_fb_dmabuf_index = meta->index;
 		}
@@ -903,6 +1083,7 @@ gst_rto_fbdevsink_render (GstBaseSink * bsink, GstBuffer * buf)
 
 	return GST_FLOW_OK;
 
+	/* ERRORS */
 get_meta_failed:
 	{
 		GST_ELEMENT_ERROR (me, RESOURCE, SETTINGS, (NULL),
@@ -928,9 +1109,9 @@ gst_rto_fbdevsink_set_property (GObject * object, guint prop_id,
     const GValue * value, GParamSpec * pspec)
 {
 	GstRtoFBDevSink *me;
-	
+
 	me = GST_RTOFBDEVSINK (object);
-	
+
 	switch (prop_id) {
 	case PROP_DEVICE:
 		if (me->device) {
@@ -940,6 +1121,9 @@ gst_rto_fbdevsink_set_property (GObject * object, guint prop_id,
 		break;
 	case PROP_USE_DMABUF:
 		me->use_dmabuf = g_value_get_boolean (value);
+		break;
+	case PROP_ENABLE_VSYNC:
+		me->enable_vsync = g_value_get_boolean (value);
 		break;
 	default:
 		G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
@@ -952,15 +1136,18 @@ gst_rto_fbdevsink_get_property (GObject * object, guint prop_id, GValue * value,
     GParamSpec * pspec)
 {
 	GstRtoFBDevSink *me;
-	
+
 	me = GST_RTOFBDEVSINK (object);
-	
+
 	switch (prop_id) {
 	case PROP_DEVICE:
 		g_value_set_string (value, me->device);
 		break;
 	case PROP_USE_DMABUF:
 		g_value_set_boolean (value, me->use_dmabuf);
+		break;
+	case PROP_ENABLE_VSYNC:
+		g_value_set_boolean (value, me->enable_vsync);
 		break;
 	default:
 		G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
@@ -972,12 +1159,21 @@ static GstStateChangeReturn
 gst_rto_fbdevsink_change_state (GstElement * element, GstStateChange transition)
 {
 	GstStateChangeReturn ret = GST_STATE_CHANGE_SUCCESS;
+	GstRtoFBDevSink *me;
 	
+	me = GST_RTOFBDEVSINK (element);
+
 	g_return_val_if_fail (GST_IS_RTOFBDEVSINK (element), GST_STATE_CHANGE_FAILURE);
-	
+
 	ret = GST_ELEMENT_CLASS (parent_class)->change_state (element, transition);
-	
+
 	switch (transition) {
+	case GST_STATE_CHANGE_PLAYING_TO_PAUSED:
+	{
+		/* PAUSE 時、ブランクスクリーンにする	*/
+		do_blank_screen(me);
+		break;
+	}
 	default:
 		break;
 	}

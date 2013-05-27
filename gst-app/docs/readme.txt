@@ -6,7 +6,7 @@
 //
 
 ■ビルド方法
-  $ ./autogens.h
+  $ ./autogen.sh
   $ make
 
 ■起動方法
@@ -28,6 +28,11 @@
   Seek（前方）     [f]       前方に Seek します
   Seek（後方）     [b]       後方に Seek します
   Seek（先頭）     [r]       先頭に戻ります
+  Trick Play       [1]       1.5倍速早送り再生
+  Trick Play       [2]       2倍速早送り再生
+  Trick Play       [4]       等倍速巻き戻し再生
+  Trick Play       [5]       1.5倍速巻き戻し再生
+  Trick Play       [6]       2倍速巻き戻し再生
 
 ■プロパティの設定
 ・プロパティ設定ファイル
@@ -51,16 +56,6 @@
 
 ・エレメント名について
   エレメント名は gst_element_register() で登録した名前で指定します。
-  ただし、queue についてはデコーダの前段と後段に挿入するので以下のように
-  区別します。
-
-  - video
-    デコーダの前段 pre-vdec-queue
-    デコーダの後段 post-vdec-queue
-
-  - audio
-    デコーダの前段 pre-adec-queue
-    デコーダの後段 post-adec-queue
 
 ・型について
   対応しているプロパティの型は以下のとおりです。

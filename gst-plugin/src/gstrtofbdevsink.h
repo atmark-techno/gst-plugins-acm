@@ -72,6 +72,12 @@ struct _GstRtoFBDevSink {
 
 	gboolean use_dmabuf;
 
+	/* 垂直同期の有効無効フラグ
+	 * 0 : 無効
+	 * 1 : 有効
+	 */
+	gboolean enable_vsync;
+
 	/*< private >*/
 	GstRtoFBDevSinkPrivate *priv;
 };

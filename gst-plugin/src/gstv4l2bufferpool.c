@@ -533,8 +533,10 @@ gst_v4l2_buffer_pool_stop (GstBufferPool * bpool)
 	ret = GST_BUFFER_POOL_CLASS (parent_class)->stop (bpool);
 	
 	/* then free the remaining buffers */
-	for (n = 0; n < pool->num_queued; n++) {
-		gst_v4l2_buffer_pool_free_buffer (bpool, pool->buffers[n]);
+	for (n = 0; n < pool->num_buffers; n++) {
+		if (pool->buffers[n]) {
+			gst_v4l2_buffer_pool_free_buffer (bpool, pool->buffers[n]);
+		}
 	}
 	pool->num_queued = 0;
 	g_free (pool->buffers);
@@ -828,6 +830,11 @@ gst_v4l2_buffer_pool_dqbuf (GstV4l2BufferPool * pool, GstBuffer ** buffer)
 		GstRtoDmabufMeta *dmabufmeta = NULL;
 
 		meta = GST_V4L2_META_GET (outbuf);
+		if (NULL == meta) {
+			GST_ERROR_OBJECT (pool, "%s: - meta is NULL!",
+							 TYPE_STR(pool->init_param.type));
+			return GST_FLOW_ERROR;
+		}
 
 		dmabufmeta = gst_buffer_get_rto_dmabuf_meta (outbuf);
 		if (dmabufmeta) {
@@ -1282,7 +1289,7 @@ gst_v4l2_buffer_pool_log_buf_status(GstV4l2BufferPool* pool)
 		GST_INFO_OBJECT (pool, "  index:     %u", vbuffer.index);
 //		GST_INFO_OBJECT (pool, "  type:      %d", vbuffer.type);
 //		GST_INFO_OBJECT (pool, "  bytesused: %u", vbuffer.bytesused);
-//		GST_INFO_OBJECT (pool, "  flags:     %08x", vbuffer.flags);
+		GST_INFO_OBJECT (pool, "  flags:     %08x", vbuffer.flags);
 		if (V4L2_BUF_FLAG_QUEUED == (vbuffer.flags & V4L2_BUF_FLAG_QUEUED)) {
 			GST_INFO_OBJECT (pool, "  V4L2_BUF_FLAG_QUEUED");
 			isAllDone = FALSE;
@@ -1290,6 +1297,9 @@ gst_v4l2_buffer_pool_log_buf_status(GstV4l2BufferPool* pool)
 		if (V4L2_BUF_FLAG_DONE == (vbuffer.flags & V4L2_BUF_FLAG_DONE)) {
 			GST_INFO_OBJECT (pool, "  V4L2_BUF_FLAG_DONE");
 			isAllQueued = FALSE;
+		}
+		if (V4L2_BUF_FLAG_PREPARED == (vbuffer.flags & V4L2_BUF_FLAG_PREPARED)) {
+			GST_INFO_OBJECT (pool, "  V4L2_BUF_FLAG_PREPARED");
 		}
 //		GST_INFO_OBJECT (pool, "  field:     %d", vbuffer.field);
 //		GST_INFO_OBJECT (pool, "  memory:    %d", vbuffer.memory);

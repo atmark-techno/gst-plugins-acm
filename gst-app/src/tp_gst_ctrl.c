@@ -49,7 +49,7 @@
 # define AUDIO_SINK      "acmalsasink"
 # define H264_DECODER    "rtoh264dec"    /* HW H264 デコーダ */
 # define VIDEO_SINK      "rtofbdevsink"  /* video sink */
-# define TS_DEMUX        "tsdemux"	// TODO ?
+# define TS_DEMUX        "tsdemux"		 // TODO : acmtsdemux ?
 #endif // _USE_SW_DECODER
 
 /* element name */
@@ -878,6 +878,99 @@ tp_gst_ctrl_seek_backward_ex (TpGstCtrl * ctrl, gint64 msec)
                      pos / GST_MSECOND);
         gst_element_seek_simple (ctrl->pipeline, GST_FORMAT_TIME,
                                  GST_SEEK_FLAG_FLUSH | GST_SEEK_FLAG_KEY_UNIT, pos);
+    }
+}
+
+// トリックプレイ
+/**
+ * 1.5倍速早送り
+ * @param[in] ctrl TpGstCtrl オブジェクト
+ */
+void
+tp_gst_ctrl_fast_forwarding_15 (TpGstCtrl * ctrl)
+{
+    tp_gst_ctrl_fast_forwarding_ex (ctrl, 1.5);
+}
+
+/**
+ * 2倍速早送り
+ * @param[in] ctrl TpGstCtrl オブジェクト
+ */
+void
+tp_gst_ctrl_fast_forwarding_20 (TpGstCtrl * ctrl)
+{
+    tp_gst_ctrl_fast_forwarding_ex (ctrl, 2.0);
+}
+
+/**
+ * 早送り
+ * @param[in] ctrl TpGstCtrl オブジェクト
+ * @param[in] rate playback rate
+ */
+void
+tp_gst_ctrl_fast_forwarding_ex (TpGstCtrl * ctrl, gdouble rate)
+{
+    if (NULL != ctrl && NULL != ctrl->pipeline) {
+        gint64 pos = tp_gst_ctrl_query_position (ctrl);
+
+        TP_LOG_INFO ("fast forwarding, cur pos = %" G_GINT64_FORMAT " msec\n",
+                     pos / GST_MSECOND);
+		if (! gst_element_seek (ctrl->pipeline, rate, GST_FORMAT_TIME,
+								GST_SEEK_FLAG_FLUSH | GST_SEEK_FLAG_ACCURATE,
+								GST_SEEK_TYPE_SET, pos, GST_SEEK_TYPE_NONE, 0)) {
+			TP_LOG_ERROR ("failed fast forwarding\n");
+		}
+    }
+}
+
+/**
+ * 1倍速巻き戻し
+ * @param[in] ctrl TpGstCtrl オブジェクト
+ */
+void
+tp_gst_ctrl_fast_rewinding_10 (TpGstCtrl * ctrl)
+{
+    tp_gst_ctrl_fast_rewinding_ex (ctrl, -1.0);
+}
+
+/**
+ * 1.5倍速巻き戻し
+ * @param[in] ctrl TpGstCtrl オブジェクト
+ */
+void
+tp_gst_ctrl_fast_rewinding_15 (TpGstCtrl * ctrl)
+{
+    tp_gst_ctrl_fast_rewinding_ex (ctrl, -1.5);
+}
+
+/**
+ * 2倍速巻き戻し
+ * @param[in] ctrl TpGstCtrl オブジェクト
+ */
+void
+tp_gst_ctrl_fast_rewinding_20 (TpGstCtrl * ctrl)
+{
+    tp_gst_ctrl_fast_rewinding_ex (ctrl, -2.0);
+}
+
+/**
+ * 巻き戻し
+ * @param[in] ctrl TpGstCtrl オブジェクト
+ * @param[in] rate playback rate
+ */
+void
+tp_gst_ctrl_fast_rewinding_ex (TpGstCtrl * ctrl, gdouble rate)
+{
+    if (NULL != ctrl && NULL != ctrl->pipeline) {
+        gint64 pos = tp_gst_ctrl_query_position (ctrl);
+
+        TP_LOG_INFO ("fast rewinding, cur pos = %" G_GINT64_FORMAT " msec\n",
+                     pos / GST_MSECOND);
+		if (! gst_element_seek (ctrl->pipeline, rate, GST_FORMAT_TIME,
+								GST_SEEK_FLAG_FLUSH | GST_SEEK_FLAG_ACCURATE,
+								GST_SEEK_TYPE_SET, 0, GST_SEEK_TYPE_SET, pos)) {
+			TP_LOG_ERROR ("failed fast rewinding\n");
+		}
     }
 }
 

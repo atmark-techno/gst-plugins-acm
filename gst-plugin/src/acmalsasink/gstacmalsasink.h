@@ -43,11 +43,11 @@ typedef struct _GstAcmAlsaSinkClass GstAcmAlsaSinkClass;
  * Opaque data structure
  */
 struct _GstAcmAlsaSink {
-  GstAlsaSink    sink;
+  GstMyAlsaSink    sink;
 };
 
 struct _GstAcmAlsaSinkClass {
-  GstAlsaSinkClass parent_class;
+  GstMyAlsaSinkClass parent_class;
 };
 
 GType gst_acmalsasink_get_type(void);

@@ -46,6 +46,15 @@ void tp_gst_ctrl_seek_forward_ex(TpGstCtrl* ctrl, gint64 msec);
 void tp_gst_ctrl_seek_backward(TpGstCtrl* ctrl);
 void tp_gst_ctrl_seek_backward_ex(TpGstCtrl* ctrl, gint64 msec);
 void tp_gst_ctrl_rewind(TpGstCtrl* ctrl);
+// トリックプレイ
+void tp_gst_ctrl_fast_forwarding_15 (TpGstCtrl * ctrl);
+void tp_gst_ctrl_fast_forwarding_20 (TpGstCtrl * ctrl);
+void tp_gst_ctrl_fast_forwarding_ex (TpGstCtrl * ctrl, gdouble rate);
+void tp_gst_ctrl_fast_rewinding_10 (TpGstCtrl * ctrl);
+void tp_gst_ctrl_fast_rewinding_15 (TpGstCtrl * ctrl);
+void tp_gst_ctrl_fast_rewinding_20 (TpGstCtrl * ctrl);
+void tp_gst_ctrl_fast_rewinding_ex (TpGstCtrl * ctrl, gdouble rate);
+
 
 // 現在の再生位置の取得
 guint64 tp_gst_ctrl_query_position(TpGstCtrl* ctrl);

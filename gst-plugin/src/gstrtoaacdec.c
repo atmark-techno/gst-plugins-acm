@@ -88,7 +88,7 @@ struct acm_aacdec_private_format {
 #define DEFAULT_MAX_CHANNEL			6
 
 /* select() の timeout */
-#define SELECT_TIMEOUT_MSEC			400
+#define SELECT_TIMEOUT_MSEC			1000
 
 /* デバッグログ出力フラグ		*/
 #define DBG_LOG_PERF_CHAIN			0
@@ -123,9 +123,17 @@ static double g_time_total_select_in = 0;
 static double g_time_total_select_out = 0;
 #endif
 
+struct _GstRtoAacDecPrivate
+{
+	GstPadChainFunction base_chain;
+};
 
 GST_DEBUG_CATEGORY_STATIC (rtoaacdec_debug);
 #define GST_CAT_DEFAULT rtoaacdec_debug
+
+#define GST_RTOAACDEC_GET_PRIVATE(obj)  \
+	(G_TYPE_INSTANCE_GET_PRIVATE ((obj), GST_TYPE_RTOAACDEC, \
+		GstRtoAacDecPrivate))
 
 /* property */
 enum
@@ -202,7 +210,7 @@ static GstAudioChannelPosition channelpositions[][6] = {
 	}
 };
 
-/*  サンプリング周波数パラメータ : R-MobileA1マルチメディアミドル 機能仕様書 Ver.0.14	*/
+/*  サンプリング周波数パラメータ : R-MobileA1マルチメディアミドル 機能仕様書	*/
 static gint
 aac_rate_idx (gint rate)
 {
@@ -344,6 +352,8 @@ gst_rto_aac_dec_class_init (GstRtoAacDecClass * klass)
 	GstElementClass *element_class = GST_ELEMENT_CLASS (klass);
 	GstAudioDecoderClass *base_class = GST_AUDIO_DECODER_CLASS (klass);
 
+	g_type_class_add_private (klass, sizeof (GstRtoAacDecPrivate));
+
 	gobject_class->set_property = gst_rto_aac_dec_set_property;
 	gobject_class->get_property = gst_rto_aac_dec_get_property;
 	gobject_class->finalize = gst_rto_aac_dec_finalize;
@@ -407,13 +417,11 @@ gst_rto_aac_dec_class_init (GstRtoAacDecClass * klass)
 static void
 gst_rto_aac_dec_init (GstRtoAacDec * me)
 {
+	me->priv = GST_RTOAACDEC_GET_PRIVATE (me);
+
 	me->samplerate = 0;
 	me->channels = 0;
 	me->packetised = FALSE;
-
-	me->is_eos_received = FALSE;
-	me->is_decode_all_done = FALSE;
-	me->is_do_stop = FALSE;
 
 	me->out_samplerate = 0;
 	me->out_channels = 0;
@@ -433,7 +441,7 @@ gst_rto_aac_dec_init (GstRtoAacDec * me)
 	me->pcm_format = DEFAULT_PCM_FORMAT;
 
 	/* retrieve and intercept base class chain. */
-	me->base_chain = GST_PAD_CHAINFUNC (GST_AUDIO_DECODER_SINK_PAD (me));
+	me->priv->base_chain = GST_PAD_CHAINFUNC (GST_AUDIO_DECODER_SINK_PAD (me));
 	gst_pad_set_chain_function (GST_AUDIO_DECODER_SINK_PAD (me),
 								GST_DEBUG_FUNCPTR (gst_rto_aac_dec_chain));
 }
@@ -527,10 +535,6 @@ gst_rto_aac_dec_stop (GstAudioDecoder * dec)
 	me->samplerate = 0;
 	me->channels = 0;
 	me->packetised = FALSE;
-	
-	me->is_eos_received = FALSE;
-	me->is_decode_all_done = FALSE;
-	me->is_do_stop = FALSE;
 
 	me->out_samplerate = 0;
 	me->out_channels = 0;
@@ -563,29 +567,31 @@ gst_rto_aac_dec_set_format (GstAudioDecoder * dec, GstCaps * caps)
 	
 	/* Assume raw stream */
 	me->packetised = FALSE;
-	
-	/* ATDS or RAW ?	*/
-	stream_format = gst_structure_get_string (structure, "stream-format");
-	GST_INFO_OBJECT(me, "stream format = %s",
-					(NULL == stream_format ? "null" : stream_format));
-	if (NULL == stream_format){
-		me->input_format = GST_RTOAACDEC_IN_FMT_RAW; /* Assume raw */
-	}
-	else {
-		if (g_str_equal(stream_format, "raw")){
-			me->input_format = GST_RTOAACDEC_IN_FMT_RAW; /* RAW */
-		}
-		else if (g_str_equal(stream_format, "adts")){
-			me->input_format = GST_RTOAACDEC_IN_FMT_ADTS; /* ADTS */
+
+	if (GST_RTOAACDEC_IN_FMT_UNKNOWN == me->input_format) {
+		/* ATDS or RAW ?	*/
+		stream_format = gst_structure_get_string (structure, "stream-format");
+		GST_INFO_OBJECT(me, "stream format = %s",
+						(NULL == stream_format ? "null" : stream_format));
+		if (NULL == stream_format){
+			me->input_format = GST_RTOAACDEC_IN_FMT_RAW; /* Assume raw */
 		}
 		else {
-			/* ADIF (およびその他の形式) は未サポート		*/
-			GST_ELEMENT_ERROR (me, STREAM, DECODE, (NULL),
-				("stream format : %s is unsupported.", stream_format));
-			return FALSE;
+			if (g_str_equal(stream_format, "raw")){
+				me->input_format = GST_RTOAACDEC_IN_FMT_RAW; /* RAW */
+			}
+			else if (g_str_equal(stream_format, "adts")){
+				me->input_format = GST_RTOAACDEC_IN_FMT_ADTS; /* ADTS */
+			}
+			else {
+				/* ADIF (およびその他の形式) は未サポート		*/
+				GST_ELEMENT_ERROR (me, STREAM, DECODE, (NULL),
+					("stream format : %s is unsupported.", stream_format));
+				return FALSE;
+			}
 		}
 	}
-	
+
 	/* channels / samplerate */
 	if (gst_structure_get_int (structure, "channels", &channels)) {
 		me->channels = channels;
@@ -661,7 +667,7 @@ gst_rto_aac_dec_set_format (GstAudioDecoder * dec, GstCaps * caps)
 	/* 出力フォーマットの決定	
 	 * 入力が 1 チャンネルの時は、出力も 1 チャンネルになる
 	 * 3 チャンネル以上は非イタリーブ形式になる
-	 * [ミドル機能仕様書 v0.11 - ３.３.音声デコード仕様]
+	 * [ミドル機能仕様書 - ３.３.音声デコード仕様]
 	 */
 	me->out_samplerate = me->samplerate;
 	if (0 == me->out_channels) {
@@ -889,7 +895,6 @@ static GstFlowReturn
 gst_rto_aac_dec_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
 {
 	GstRtoAacDec *me = GST_RTOAACDEC (parent);
-	GstFlowReturn ret = GST_FLOW_OK;
 	
 	/* first frame
 	 * gst_rto_aac_dec_set_format() が呼ばれて、デコーダの初期化を行う
@@ -921,8 +926,8 @@ gst_rto_aac_dec_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
 			}
 		}
 		else {
-			me->input_format = GST_RTOAACDEC_IN_FMT_RAW;
-			GST_INFO_OBJECT (me, "RAW type detected");
+			me->input_format = GST_RTOAACDEC_IN_FMT_UNKNOWN;
+			GST_INFO_OBJECT (me, "Unknown type detected");
 		}
 		gst_buffer_unmap (buf, &map);
 #endif
@@ -930,9 +935,7 @@ gst_rto_aac_dec_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
 	}
 
 	/* call gst_audio_decoder_chain() */
-	ret = me->base_chain (pad, parent, buf);
-	
-	return ret;
+	return me->priv->base_chain (pad, parent, buf);
 }
 
 static GstFlowReturn
@@ -1071,7 +1074,7 @@ gst_rto_aac_dec_handle_frame (GstAudioDecoder * dec, GstBuffer * buffer)
 				}
 				else if (0 == r) {
 					/* timeoutしたらエラー	*/
-					GST_INFO_OBJECT(me, "select() out timeout");
+					GST_ERROR_OBJECT(me, "select() for output is timeout");
 					goto select_timeout;
 				}
 			}
@@ -1160,6 +1163,7 @@ gst_rto_aac_dec_handle_frame (GstAudioDecoder * dec, GstBuffer * buffer)
 				goto select_failed;
 			}
 			else if (0 == r) {
+				GST_ERROR_OBJECT(me, "select() for input is timeout");
 				goto select_timeout;
 			}
 		}
@@ -1733,13 +1737,11 @@ gst_rto_aac_dec_handle_out_frame(GstRtoAacDec * me,
 		GST_WARNING_OBJECT(me, "AACDEC rendering too late");
 #endif
 	}
-	
-	outbuf = v4l2buf_out;
 
-//	GST_DEBUG_OBJECT(me, "outbuf size=%d, ref:%d",
-//		gst_buffer_get_size(outbuf), GST_OBJECT_REFCOUNT_VALUE(outbuf));
+//	GST_DEBUG_OBJECT(me, "v4l2buf_out size=%d, ref:%d",
+//		gst_buffer_get_size(v4l2buf_out), GST_OBJECT_REFCOUNT_VALUE(v4l2buf_out));
 
-	GST_DEBUG_OBJECT(me, "AACDEC FINISH FRAME : %p", outbuf);
+	GST_DEBUG_OBJECT(me, "AACDEC FINISH FRAME : %p", v4l2buf_out);
 
 	/* gst_buffer_unref() により、デバイスに、QBUF されるようにする。
 	 * output_buffer->pool に、me->pool_out を直接セットせず、
@@ -1753,7 +1755,7 @@ gst_rto_aac_dec_handle_out_frame(GstRtoAacDec * me,
 #endif
 	acquireParam.flags = GST_BUFFER_POOL_ACQUIRE_FLAG_LAST;
 	ret = gst_buffer_pool_acquire_buffer(GST_BUFFER_POOL_CAST(me->pool_out),
-										 &outbuf, &acquireParam);
+										 &v4l2buf_out, &acquireParam);
 	if (GST_FLOW_OK != ret) {
 		GST_ERROR_OBJECT (me, "gst_buffer_pool_acquire_buffer() returns %s",
 						  gst_flow_get_name (ret));
@@ -1761,13 +1763,31 @@ gst_rto_aac_dec_handle_out_frame(GstRtoAacDec * me,
 	}
 
 	GST_DEBUG_OBJECT(me, "outbuf->pool : %p (ref:%d), pool_out : %p (ref:%d)",
-					 outbuf->pool, GST_OBJECT_REFCOUNT_VALUE(outbuf->pool),
+					 v4l2buf_out->pool, GST_OBJECT_REFCOUNT_VALUE(v4l2buf_out->pool),
 					 me->pool_out, GST_OBJECT_REFCOUNT_VALUE(me->pool_out));
 #if DBG_LOG_PERF_PUSH
 	GST_INFO_OBJECT (me, "AACDEC-PUSH SET POOL END");
 #endif
 
-	/* src pad へ push	*/
+	/* down stream へ push するバッファの生成	*/
+	if (GST_AUDIO_DECODER_INPUT_SEGMENT(me).rate > 0.0) {
+		outbuf = v4l2buf_out;
+	}
+	else {
+		/* 巻き戻し再生の際は、GstAudioDecoder 側でキューイングされるので、
+		 * バッファを allocate しないと、デバイスの CAPTURE 側キューが枯渇する
+		 */
+		outbuf = gst_buffer_copy(v4l2buf_out);
+		if (NULL == outbuf) {
+			goto allocate_outbuf_failed;
+		}
+
+		/* デバイスへ戻す	*/
+		gst_buffer_unref(v4l2buf_out);
+		v4l2buf_out = NULL;
+	}
+
+	/* down stream へ バッファを push	*/
 #if DBG_LOG_PERF_PUSH
 	GST_INFO_OBJECT (me, "AACDEC-PUSH gst_audio_decoder_finish_frame START");
 #endif
@@ -1816,7 +1836,7 @@ gst_rto_aac_dec_handle_out_frame(GstRtoAacDec * me,
 		goto qbuf_failed;
 	}
 	
-	/* src pad へ push	*/
+	/* down stream へ バッファを push	*/
 #if DBG_LOG_PERF_PUSH
 	GST_INFO_OBJECT (me, "AACDEC-PUSH gst_audio_decoder_finish_frame START");
 #endif
@@ -1868,7 +1888,7 @@ acquire_buffer_failed:
 		ret = GST_FLOW_ERROR;
 		goto out;
 	}
-#else
+#endif
 allocate_outbuf_failed:
 	{
 		GST_ELEMENT_ERROR (me, RESOURCE, FAILED, (NULL),
@@ -1876,7 +1896,6 @@ allocate_outbuf_failed:
 		ret = GST_FLOW_ERROR;
 		goto out;
 	}
-#endif
 }
 
 static gboolean

@@ -39,7 +39,7 @@ G_BEGIN_DECLS
   (G_TYPE_CHECK_CLASS_TYPE ((klass), GST_TYPE_RTOAACDEC))
 
 
-/* 入力フォーマット : R-MobileA1マルチメディアミドル 機能仕様書 Ver.0.14		*/
+/* 入力フォーマット : R-MobileA1マルチメディアミドル 機能仕様書		*/
 typedef enum {
 	GST_RTOAACDEC_IN_FMT_UNKNOWN	= -1,
 	GST_RTOAACDEC_IN_FMT_ADIF    	= 1,	/* ADIF 未サポート	*/
@@ -47,19 +47,19 @@ typedef enum {
 	GST_RTOAACDEC_IN_FMT_RAW     	= 3,	/* Raw形式			*/
 } GstRtoAacDecInFmt;
 
-/* ミックスダウンの可否	 : R-MobileA1マルチメディアミドル 機能仕様書 Ver.0.14	*/
+/* ミックスダウンの可否	 : R-MobileA1マルチメディアミドル 機能仕様書	*/
 #define GST_RTOAACDEC_NOT_ALLOW_MIXDOWN			0
 #define GST_RTOAACDEC_ALLOW_MIXDOWN				1
 
-/* ミックスダウンモード	 : R-MobileA1マルチメディアミドル 機能仕様書 Ver.0.14	*/
+/* ミックスダウンモード	 : R-MobileA1マルチメディアミドル 機能仕様書	*/
 #define GST_RTOAACDEC_MIXDOWN_MODE_STEREO		0
 #define GST_RTOAACDEC_MIXDOWN_MODE_MONO			1
 
-/* ミックスダウン時の準拠規格 : R-MobileA1マルチメディアミドル 機能仕様書 Ver.0.14	*/
+/* ミックスダウン時の準拠規格 : R-MobileA1マルチメディアミドル 機能仕様書	*/
 #define GST_RTOAACDEC_MIXDOWN_COMPLIANT_ISO		0
 #define GST_RTOAACDEC_MIXDOWN_COMPLIANT_ARIB	1
 
-/* PCM出力フォーマット : R-MobileA1マルチメディアミドル 機能仕様書 Ver.0.14		*/
+/* PCM出力フォーマット : R-MobileA1マルチメディアミドル 機能仕様書		*/
 #define GST_RTOAACDEC_PCM_FMT_INTERLEAVED		0
 #define GST_RTOAACDEC_PCM_FMT_NON_INTERLEAVED	1
 
@@ -79,12 +79,6 @@ typedef struct _GstRtoAacDec {
 
 	/* We must differentiate between raw and packetised streams */
 	gboolean packetised;	/* フレーム単位の入力か？	*/
-	
-	/* デコード終了通知用		*/
-	gboolean is_eos_received;
-	gboolean is_decode_all_done;
-	sem_t sem_decode_all_done;
-	gboolean is_do_stop;
 
 	/* output audio caps */
 	guint	out_samplerate;
@@ -134,11 +128,10 @@ typedef struct _GstRtoAacDec {
 
 	/*< private >*/
 	GstRtoAacDecPrivate *priv;
-	GstPadChainFunction base_chain;
 } GstRtoAacDec;
 
 typedef struct _GstRtoAacDecClass {
-  GstAudioDecoderClass parent_class;
+	GstAudioDecoderClass parent_class;
 } GstRtoAacDecClass;
 
 GType gst_rto_aac_dec_get_type(void);

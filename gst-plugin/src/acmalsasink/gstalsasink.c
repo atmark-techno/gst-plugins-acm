@@ -70,7 +70,7 @@ enum
 
 static void gst_alsasink_init_interfaces (GType type);
 #define gst_alsasink_parent_class parent_class
-G_DEFINE_TYPE_WITH_CODE (GstAlsaSink, gst_alsasink,
+G_DEFINE_TYPE_WITH_CODE (GstMyAlsaSink, gst_alsasink,
     GST_TYPE_AUDIO_SINK, gst_alsasink_init_interfaces (g_define_type_id));
 
 static void gst_alsasink_finalise (GObject * object);
@@ -91,7 +91,7 @@ static gint gst_alsasink_write (GstAudioSink * asink, gpointer data,
     guint length);
 static guint gst_alsasink_delay (GstAudioSink * asink);
 static void gst_alsasink_reset (GstAudioSink * asink);
-static gboolean gst_alsasink_acceptcaps (GstAlsaSink * alsa, GstCaps * caps);
+static gboolean gst_alsasink_acceptcaps (GstMyAlsaSink * alsa, GstCaps * caps);
 static GstBuffer *gst_alsasink_payload (GstAudioBaseSink * sink,
     GstBuffer * buf);
 
@@ -113,7 +113,7 @@ static GstStaticPadTemplate alsasink_sink_factory =
 static void
 gst_alsasink_finalise (GObject * object)
 {
-  GstAlsaSink *sink = GST_ALSA_SINK (object);
+  GstMyAlsaSink *sink = GST_ALSA_SINK (object);
 
   g_free (sink->device);
   g_mutex_clear (&sink->alsa_lock);
@@ -139,7 +139,7 @@ gst_alsasink_init_interfaces (GType type)
 }
 
 static void
-gst_alsasink_class_init (GstAlsaSinkClass * klass)
+gst_alsasink_class_init (GstMyAlsaSinkClass * klass)
 {
   GObjectClass *gobject_class;
   GstElementClass *gstelement_class;
@@ -199,7 +199,7 @@ static void
 gst_alsasink_set_property (GObject * object, guint prop_id,
     const GValue * value, GParamSpec * pspec)
 {
-  GstAlsaSink *sink;
+  GstMyAlsaSink *sink;
 
   sink = GST_ALSA_SINK (object);
 
@@ -222,7 +222,7 @@ static void
 gst_alsasink_get_property (GObject * object, guint prop_id,
     GValue * value, GParamSpec * pspec)
 {
-  GstAlsaSink *sink;
+  GstMyAlsaSink *sink;
 
   sink = GST_ALSA_SINK (object);
 
@@ -247,7 +247,7 @@ gst_alsasink_get_property (GObject * object, guint prop_id,
 }
 
 static void
-gst_alsasink_init (GstAlsaSink * alsasink)
+gst_alsasink_init (GstMyAlsaSink * alsasink)
 {
   GST_DEBUG_OBJECT (alsasink, "initializing alsasink");
 
@@ -278,7 +278,7 @@ gst_alsasink_getcaps (GstBaseSink * bsink, GstCaps * filter)
 {
   GstElementClass *element_class;
   GstPadTemplate *pad_template;
-  GstAlsaSink *sink = GST_ALSA_SINK (bsink);
+  GstMyAlsaSink *sink = GST_ALSA_SINK (bsink);
   GstCaps *caps, *templ_caps;
 
   if (sink->handle == NULL) {
@@ -329,7 +329,7 @@ gst_alsasink_getcaps (GstBaseSink * bsink, GstCaps * filter)
 }
 
 static gboolean
-gst_alsasink_acceptcaps (GstAlsaSink * alsa, GstCaps * caps)
+gst_alsasink_acceptcaps (GstMyAlsaSink * alsa, GstCaps * caps)
 {
   GstPad *pad = GST_BASE_SINK (alsa)->sinkpad;
   GstCaps *pad_caps;
@@ -385,7 +385,7 @@ done:
 static gboolean
 gst_alsasink_query (GstBaseSink * sink, GstQuery * query)
 {
-  GstAlsaSink *alsa = GST_ALSA_SINK (sink);
+  GstMyAlsaSink *alsa = GST_ALSA_SINK (sink);
   gboolean ret;
 
   switch (GST_QUERY_TYPE (query)) {
@@ -407,7 +407,7 @@ gst_alsasink_query (GstBaseSink * sink, GstQuery * query)
 }
 
 static int
-set_hwparams (GstAlsaSink * alsa)
+set_hwparams (GstMyAlsaSink * alsa)
 {
   guint rrate;
   gint err;
@@ -604,7 +604,7 @@ set_hw_params:
 }
 
 static int
-set_swparams (GstAlsaSink * alsa)
+set_swparams (GstMyAlsaSink * alsa)
 {
   int err;
   snd_pcm_sw_params_t *params;
@@ -679,7 +679,7 @@ set_sw_params:
 }
 
 static gboolean
-alsasink_parse_spec (GstAlsaSink * alsa, GstAudioRingBufferSpec * spec)
+alsasink_parse_spec (GstMyAlsaSink * alsa, GstAudioRingBufferSpec * spec)
 {
   /* Initialize our boolean */
   alsa->iec958 = FALSE;
@@ -820,7 +820,7 @@ error:
 static gboolean
 gst_alsasink_open (GstAudioSink * asink)
 {
-  GstAlsaSink *alsa;
+  GstMyAlsaSink *alsa;
   gint err;
 
   alsa = GST_ALSA_SINK (asink);
@@ -854,7 +854,7 @@ open_error:
 static gboolean
 gst_alsasink_prepare (GstAudioSink * asink, GstAudioRingBufferSpec * spec)
 {
-  GstAlsaSink *alsa;
+  GstMyAlsaSink *alsa;
   gint err;
 
   alsa = GST_ALSA_SINK (asink);
@@ -925,7 +925,7 @@ sw_params_failed:
 static gboolean
 gst_alsasink_unprepare (GstAudioSink * asink)
 {
-  GstAlsaSink *alsa;
+  GstMyAlsaSink *alsa;
 
   alsa = GST_ALSA_SINK (asink);
 
@@ -938,7 +938,7 @@ gst_alsasink_unprepare (GstAudioSink * asink)
 static gboolean
 gst_alsasink_close (GstAudioSink * asink)
 {
-  GstAlsaSink *alsa = GST_ALSA_SINK (asink);
+  GstMyAlsaSink *alsa = GST_ALSA_SINK (asink);
 
   if (alsa->handle) {
     snd_pcm_close (alsa->handle);
@@ -954,7 +954,7 @@ gst_alsasink_close (GstAudioSink * asink)
  *   Underrun and suspend recovery
  */
 static gint
-xrun_recovery (GstAlsaSink * alsa, snd_pcm_t * handle, gint err)
+xrun_recovery (GstMyAlsaSink * alsa, snd_pcm_t * handle, gint err)
 {
   GST_DEBUG_OBJECT (alsa, "xrun recovery %d: %s", err, g_strerror (err));
 
@@ -984,7 +984,7 @@ xrun_recovery (GstAlsaSink * alsa, snd_pcm_t * handle, gint err)
 static gint
 gst_alsasink_write (GstAudioSink * asink, gpointer data, guint length)
 {
-  GstAlsaSink *alsa;
+  GstMyAlsaSink *alsa;
   gint err;
   gint cptr;
   gint16 *ptr = data;
@@ -1054,7 +1054,7 @@ device_disappeared:
 static guint
 gst_alsasink_delay (GstAudioSink * asink)
 {
-  GstAlsaSink *alsa;
+  GstMyAlsaSink *alsa;
   snd_pcm_sframes_t delay;
   int res;
 
@@ -1080,7 +1080,7 @@ gst_alsasink_delay (GstAudioSink * asink)
 static void
 gst_alsasink_reset (GstAudioSink * asink)
 {
-  GstAlsaSink *alsa;
+  GstMyAlsaSink *alsa;
   gint err;
 
   alsa = GST_ALSA_SINK (asink);
@@ -1115,7 +1115,7 @@ prepare_error:
 static GstBuffer *
 gst_alsasink_payload (GstAudioBaseSink * sink, GstBuffer * buf)
 {
-  GstAlsaSink *alsa;
+  GstMyAlsaSink *alsa;
 
   alsa = GST_ALSA_SINK (sink);
 

@@ -79,8 +79,8 @@ typedef struct _GstRtoH264Dec {
 	GstVideoDecoder element;
 
 	/* input video caps */
-	guint width;	/* 80〜1920画素	*/
-	guint height;	/* 80〜1080画素	*/
+	guint width;		/* 80〜1920画素	*/
+	guint height;		/* 80〜1080画素	*/
 	/* codec data	*/
 	gint spspps_size;
 	guchar spspps[MAX_SIZE_SPSPPS];
@@ -89,18 +89,11 @@ typedef struct _GstRtoH264Dec {
 	GstVideoCodecState *input_state;
 	GstVideoCodecState *output_state;
 
-	/* デコード終了通知用		*/
-	gboolean is_eos_received;
-	gboolean is_decode_all_done;
-	sem_t sem_decode_all_done;
-	gboolean is_do_stop;
-
 	/* output video caps */
 	guint out_width;
 	guint out_height;
 	char *out_video_fmt_str;
 	GstVideoFormat out_video_fmt;
-	gboolean do_RGB24_to_RGB16;
 
 	/* RTO common */
 	/* the video device */
@@ -112,25 +105,26 @@ typedef struct _GstRtoH264Dec {
 	GstV4l2BufferPool* pool_out;
 	/* QBUF(V4L2_BUF_TYPE_VIDEO_OUTPUT) 用カウンタ	*/
 	gint num_inbuf_acquired;
-	gint num_inbuf_queued;
+	/* 初回デコード済みデータ取得済みフラグ	*/
+	gboolean is_got_decoded_1stframe;
 
 	/* RTO h264dec */
 	/* 参照フレーム数
 	 * 1 ~ 32
 	 */
-	guint fmem_num;
+	guint32 fmem_num;
 
 	/* 中間バッファのピクチャ数
 	 * 2 ~ 145
 	 */
-	guint buffering_pic_cnt;
+	guint32 buffering_pic_cnt;
 
-	/* フレームレート(=未使用)
+	/* フレームレート (fps)
 	 */
-//	guint frame_rate;
+	guint32 frame_rate;
 
-	/* 入力フォーマット(= GST_RTOH264DEC_IN_FMT_MP4 固定)
-	 * GST_RTOH264DEC_IN_FMT_ES: NALスタートモード(=未使用)
+	/* 入力フォーマット
+	 * GST_RTOH264DEC_IN_FMT_ES: NALスタートモード
 	 * GST_RTOH264DEC_IN_FMT_MP4：sps,pps付加、サイズ情報モード
 	 */
 	guint32 input_format;
@@ -150,7 +144,6 @@ typedef struct _GstRtoH264Dec {
 
 	/*< private >*/
 	GstRtoH264DecPrivate *priv;
-	GstPadChainFunction base_chain;
 } GstRtoH264Dec;
 
 typedef struct _GstRtoH264DecClass {

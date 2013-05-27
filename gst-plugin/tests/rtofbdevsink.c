@@ -40,7 +40,7 @@ setup_rtofbdevsink (void)
 	sink = gst_check_setup_element ("rtofbdevsink");
 	srcpad = gst_check_setup_src_pad (sink, &srctemplate);
 	gst_pad_set_active (srcpad, TRUE);
-	
+
 	return sink;
 }
 
@@ -48,7 +48,7 @@ static void
 cleanup_rtofbdevsink (GstElement * sink)
 {
 	GST_DEBUG ("cleanup_rtofbdevsink");
-	
+
 	gst_check_teardown_src_pad (sink);
 	gst_check_teardown_element (sink);
 }
@@ -59,35 +59,42 @@ GST_START_TEST (test_properties)
 	GstElement *sink;
 	gchar *device = NULL;
 	gboolean use_dmabuf;
-	
+	gboolean enable_vsync;
+
 	sink = setup_rtofbdevsink ();
-	
+
 	g_object_set (G_OBJECT (sink),
 				  "device", "/dev/fb7",
 				  "use-dmabuf", TRUE,
+				  "enable-vsync", TRUE,
 				  NULL);
-	
+
 	g_object_get (sink,
 				  "device", &device,
 				  "use-dmabuf", &use_dmabuf,
+				  "enable-vsync", &enable_vsync,
 				  NULL);
-	
+
 	fail_unless (g_str_equal (device, "/dev/fb7"));
 	fail_unless_equals_int (use_dmabuf, 1);
-	
+
 	g_free (device);
 	device = NULL;
-	
+
 	/* new properties */
 	g_object_set (G_OBJECT (sink), "device", "/dev/fb9", NULL);
 	g_object_get (sink, "device", &device, NULL);
 	fail_unless (g_str_equal (device, "/dev/fb9"));
 	g_free (device);
-	
+
 	g_object_set (G_OBJECT (sink), "use-dmabuf", FALSE, NULL);
 	g_object_get (sink, "use-dmabuf", &use_dmabuf, NULL);
 	fail_unless_equals_int (use_dmabuf, 0);
-	
+
+	g_object_set (G_OBJECT (sink), "enable-vsync", FALSE, NULL);
+	g_object_get (sink, "enable-vsync", &enable_vsync, NULL);
+	fail_unless_equals_int (enable_vsync, 0);
+
 	cleanup_rtofbdevsink (sink);
 }
 GST_END_TEST;

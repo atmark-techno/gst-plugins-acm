@@ -30,14 +30,14 @@
 G_BEGIN_DECLS
 
 #define GST_TYPE_ALSA_SINK            (gst_alsasink_get_type())
-#define GST_ALSA_SINK(obj)            (G_TYPE_CHECK_INSTANCE_CAST((obj),GST_TYPE_ALSA_SINK,GstAlsaSink))
-#define GST_ALSA_SINK_CLASS(klass)    (G_TYPE_CHECK_CLASS_CAST((klass),GST_TYPE_ALSA_SINK,GstAlsaSinkClass))
+#define GST_ALSA_SINK(obj)            (G_TYPE_CHECK_INSTANCE_CAST((obj),GST_TYPE_ALSA_SINK,GstMyAlsaSink))
+#define GST_ALSA_SINK_CLASS(klass)    (G_TYPE_CHECK_CLASS_CAST((klass),GST_TYPE_ALSA_SINK,GstMyAlsaSinkClass))
 #define GST_IS_ALSA_SINK(obj)         (G_TYPE_CHECK_INSTANCE_TYPE((obj),GST_TYPE_ALSA_SINK))
 #define GST_IS_ALSA_SINK_CLASS(klass) (G_TYPE_CHECK_CLASS_TYPE((klass),GST_TYPE_ALSA_SINK))
-#define GST_ALSA_SINK_CAST(obj)       ((GstAlsaSink *) (obj))
+#define GST_ALSA_SINK_CAST(obj)       ((GstMyAlsaSink *) (obj))
 
-typedef struct _GstAlsaSink GstAlsaSink;
-typedef struct _GstAlsaSinkClass GstAlsaSinkClass;
+typedef struct _GstMyAlsaSink GstMyAlsaSink;
+typedef struct _GstMyAlsaSinkClass GstMyAlsaSinkClass;
 
 #define GST_ALSA_SINK_GET_LOCK(obj)	(&GST_ALSA_SINK_CAST (obj)->alsa_lock)
 #define GST_ALSA_SINK_LOCK(obj)	    (g_mutex_lock (GST_ALSA_SINK_GET_LOCK (obj)))
@@ -48,11 +48,11 @@ typedef struct _GstAlsaSinkClass GstAlsaSinkClass;
 #define GST_DELAY_SINK_UNLOCK(obj)	(g_mutex_unlock (GST_DELAY_SINK_GET_LOCK (obj)))
 
 /**
- * GstAlsaSink:
+ * GstMyAlsaSink:
  *
  * Opaque data structure
  */
-struct _GstAlsaSink {
+struct _GstMyAlsaSink {
   GstAudioSink    sink;
 
   gchar                 *device;
@@ -80,7 +80,7 @@ struct _GstAlsaSink {
   GMutex delay_lock;
 };
 
-struct _GstAlsaSinkClass {
+struct _GstMyAlsaSinkClass {
   GstAudioSinkClass parent_class;
 };
 
