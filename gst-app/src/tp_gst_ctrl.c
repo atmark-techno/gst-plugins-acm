@@ -49,7 +49,7 @@
 # define AUDIO_SINK      "acmalsasink"
 # define H264_DECODER    "rtoh264dec"    /* HW H264 デコーダ */
 # define VIDEO_SINK      "rtofbdevsink"  /* video sink */
-# define TS_DEMUX        "acmtsdemux"
+# define TS_DEMUX        "tsdemux"	// TODO ?
 #endif // _USE_SW_DECODER
 
 /* element name */
@@ -116,6 +116,11 @@ struct _TpGstCtrl
     TestCondition test_condition;
     gint64 seek_interval_ms;      // シーク間隔(msec)
 };
+
+/* tsdemux の前段に、tsparse を挿入する
+ * -> 結果、seek ができない問題は解消しなかった
+ */
+#define USE_TSPARSE_ELEMENT		0
 
 //      #########################################################       //
 //      #               L O C A L   S T O R A G E               #       //
@@ -510,6 +515,10 @@ tp_gst_ctrl_setup_elements (TpGstCtrl * ctrl, const gchar * path)
     const gchar *demuxerName = NULL;
     TpConfig *conf = NULL;
     const gchar *mediaPath;
+#if USE_TSPARSE_ELEMENT
+	GstElement *tsparse = NULL;
+	gboolean ismediaTypeTS = FALSE;
+#endif
 
     // プロパティファイルが存在すれば読み込む
     if (g_file_test (PROPERTY_FILE_NAME, G_FILE_TEST_IS_REGULAR)) {
@@ -541,6 +550,9 @@ tp_gst_ctrl_setup_elements (TpGstCtrl * ctrl, const gchar * path)
         case MEDIA_TYPE_MPEGTS:
             TP_LOG_INFO ("media = %s, type = MPEGTS\n", mediaPath);
             demuxerName = TS_DEMUX;
+#if USE_TSPARSE_ELEMENT
+			ismediaTypeTS = TRUE;
+#endif
             break;
         default:
             TP_LOG_ERROR ("unsupported media type: %s\n", mediaPath);
@@ -550,12 +562,27 @@ tp_gst_ctrl_setup_elements (TpGstCtrl * ctrl, const gchar * path)
 
     demuxer = gst_element_factory_make (demuxerName, NULL);
     EXIT_IF_NULL (demuxer);
+#if USE_TSPARSE_ELEMENT
+	if (ismediaTypeTS) {
+		tsparse = gst_element_factory_make ("tsparse", NULL);
+		EXIT_IF_NULL (tsparse);
+	}
+#endif
 
     // メディアのパスは propeties.conf の内容を優先
     g_object_set (G_OBJECT (source), "location", mediaPath, NULL);
     set_plugin_properties (FILESRC, source, conf);
 
+#if ! USE_TSPARSE_ELEMENT
     gst_bin_add_many (GST_BIN (ctrl->pipeline), source, demuxer, NULL);
+#else
+	if (ismediaTypeTS) {
+		gst_bin_add_many (GST_BIN (ctrl->pipeline), source, tsparse, demuxer, NULL);
+	}
+	else {
+		gst_bin_add_many (GST_BIN (ctrl->pipeline), source, demuxer, NULL);
+	}
+#endif
 
     if (ctrl->test_condition.queue) {
         TP_LOG_INFO ("pre-decoder queue enabled\n");
@@ -575,7 +602,16 @@ tp_gst_ctrl_setup_elements (TpGstCtrl * ctrl, const gchar * path)
         goto ERR_EXIT;
     }
     // エレメントをリンク
+#if ! USE_TSPARSE_ELEMENT
     gst_element_link (source, demuxer);
+#else
+	if (ismediaTypeTS) {
+		gst_element_link_many (source, tsparse, demuxer, NULL);
+	}
+	else {
+		gst_element_link (source, demuxer);
+	}
+#endif
     g_signal_connect (demuxer, "pad-added", G_CALLBACK (demux_pad_added_cb),
                       (gpointer) & ctrl->tuple);
 

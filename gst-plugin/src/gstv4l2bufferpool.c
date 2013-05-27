@@ -118,19 +118,19 @@ gst_v4l2_buffer_pool_free_buffer (GstBufferPool * bpool, GstBuffer * buffer)
 	{
 		GstV4l2Meta *meta;
 		gint index;
-		
+
 		meta = GST_V4L2_META_GET (buffer);
 		if (NULL == meta) {
 			GST_ERROR_OBJECT (pool, "%s: - meta is NULL",
 							  TYPE_STR(pool->init_param.type));
 		}
 		g_assert (meta != NULL);
-		
+
 		index = meta->vbuffer.index;
 		GST_INFO_OBJECT (pool,
 			"%s: - unmap buffer %p idx %d (data %p, len %u)",
 			TYPE_STR(pool->init_param.type), buffer,index, meta->mem, meta->vbuffer.length);
-		
+
 		v4l2_munmap (meta->mem, meta->vbuffer.length);
 		pool->buffers[index] = NULL;
 		break;
@@ -139,14 +139,14 @@ gst_v4l2_buffer_pool_free_buffer (GstBufferPool * bpool, GstBuffer * buffer)
 	{
 		GstV4l2Meta *meta;
 		gint index;
-		
+
 		meta = GST_V4L2_META_GET (buffer);
 		if (NULL == meta) {
 			GST_ERROR_OBJECT (pool, "%s: - meta is NULL",
 							  TYPE_STR(pool->init_param.type));
 		}
 		g_assert (meta != NULL);
-		
+
 		index = meta->vbuffer.index;
 		GST_INFO_OBJECT (pool,
 			"%s: - free buffer %p idx %d (data %p, len %u)",
@@ -192,21 +192,21 @@ gst_v4l2_buffer_pool_alloc_buffer (GstBufferPool * bpool, GstBuffer ** buffer,
 		meta->vbuffer.type = pool->init_param.type;
 		meta->vbuffer.memory = V4L2_MEMORY_MMAP;
 		
-		GST_DEBUG_OBJECT (pool, "%s: - VIDIOC_QUERYBUF", TYPE_STR(pool->init_param.type));
+		GST_INFO_OBJECT (pool, "%s: - VIDIOC_QUERYBUF", TYPE_STR(pool->init_param.type));
 		if (v4l2_ioctl (pool->init_param.video_fd,
 						VIDIOC_QUERYBUF, &meta->vbuffer) < 0) {
 			goto querybuf_failed;
 		}
 		
-		GST_DEBUG_OBJECT (pool, "  index:     %u", meta->vbuffer.index);
-		GST_DEBUG_OBJECT (pool, "  type:      %d", meta->vbuffer.type);
-		GST_DEBUG_OBJECT (pool, "  bytesused: %u", meta->vbuffer.bytesused);
-		GST_DEBUG_OBJECT (pool, "  flags:     %08x", meta->vbuffer.flags);
-		GST_DEBUG_OBJECT (pool, "  field:     %d", meta->vbuffer.field);
-		GST_DEBUG_OBJECT (pool, "  memory:    %d", meta->vbuffer.memory);
+		GST_INFO_OBJECT (pool, "  index:     %u", meta->vbuffer.index);
+		GST_INFO_OBJECT (pool, "  type:      %d", meta->vbuffer.type);
+		GST_INFO_OBJECT (pool, "  bytesused: %u", meta->vbuffer.bytesused);
+		GST_INFO_OBJECT (pool, "  flags:     %08x", meta->vbuffer.flags);
+		GST_INFO_OBJECT (pool, "  field:     %d", meta->vbuffer.field);
+		GST_INFO_OBJECT (pool, "  memory:    %d", meta->vbuffer.memory);
 		if (meta->vbuffer.memory == V4L2_MEMORY_MMAP)
-			GST_DEBUG_OBJECT (pool, "  MMAP offset:  %u", meta->vbuffer.m.offset);
-		GST_DEBUG_OBJECT (pool, "  length:    %u", meta->vbuffer.length);
+			GST_INFO_OBJECT (pool, "  MMAP offset:  %u", meta->vbuffer.m.offset);
+		GST_INFO_OBJECT (pool, "  length:    %u", meta->vbuffer.length);
 		
 		meta->mem = v4l2_mmap (0, meta->vbuffer.length,
 						PROT_READ | PROT_WRITE, MAP_SHARED, pool->init_param.video_fd,
@@ -571,17 +571,18 @@ gst_v4l2_buffer_pool_qbuf (GstV4l2BufferPool * pool, GstBuffer * buf, gsize size
 	/* 入力データサイズを設定		*/
 	meta->vbuffer.bytesused = size;
 
-#if 0	/* for debug	*/
-	if (V4L2_BUF_TYPE_VIDEO_CAPTURE == pool->init_param.type) {
-		GST_INFO_OBJECT (pool, "VIDIOC_QBUF 0  : index=%d, size=%d",
-						 meta->vbuffer.index, gst_buffer_get_size(buf));
-		gst_buffer_memset (buf, 0, 0, gst_buffer_get_size(buf));
-	}
-#endif
-
 	GST_DEBUG_OBJECT (pool, "%s: - VIDIOC_QBUF - size:%d",
 					  TYPE_STR(pool->init_param.type), meta->vbuffer.bytesused);
 	if (v4l2_ioctl (pool->init_param.video_fd, VIDIOC_QBUF, &(meta->vbuffer)) < 0) {
+#if USE_GST_FLOW_DQBUF_EAGAIN
+		if (EAGAIN == errno) {
+#if 0
+			GST_WARNING_OBJECT (pool, "%s: - VIDIOC_QBUF  : EAGAIN",
+								TYPE_STR(pool->init_param.type));
+#endif
+			return GST_FLOW_DQBUF_EAGAIN;
+		}
+#endif
 		goto queue_failed;
 	}
 	GST_DEBUG_OBJECT (pool, "%s: - VIDIOC_QBUF - END");
@@ -589,13 +590,16 @@ gst_v4l2_buffer_pool_qbuf (GstV4l2BufferPool * pool, GstBuffer * buf, gsize size
 #if 0	/* for debug	*/
 	if (V4L2_BUF_TYPE_VIDEO_CAPTURE == pool->init_param.type) {
 		GstRtoDmabufMeta *dmabufmeta = NULL;
-		GST_INFO_OBJECT (pool, "VIDIOC_QBUF   : index=%d, size=%d",
-						 meta->vbuffer.index, gst_buffer_get_size(buf));
 
 		dmabufmeta = gst_buffer_get_rto_dmabuf_meta (buf);
 		if (dmabufmeta) {
-			GST_INFO_OBJECT (pool, "VIDIOC_QBUF   : fd=%d, index=%d",
-							 dmabufmeta->fd, dmabufmeta->index);
+			GST_INFO_OBJECT (pool, "VIDIOC_QBUF : %d, %d - meta(%d, %d)",
+				meta->vbuffer.index, meta->vbuffer.m.fd,
+				dmabufmeta->index, dmabufmeta->fd);
+		}
+		else {
+			GST_INFO_OBJECT (pool, "VIDIOC_QBUF   : index=%d, size=%d",
+							 meta->vbuffer.index, gst_buffer_get_size(buf));
 		}
 	}
 #endif
@@ -818,6 +822,26 @@ gst_v4l2_buffer_pool_dqbuf (GstV4l2BufferPool * pool, GstBuffer ** buffer)
 
 //	GST_BUFFER_TIMESTAMP (outbuf) = timestamp;
 	
+#if 0	/* for debug	*/
+	if (V4L2_BUF_TYPE_VIDEO_CAPTURE == pool->init_param.type) {
+		GstV4l2Meta *meta;
+		GstRtoDmabufMeta *dmabufmeta = NULL;
+
+		meta = GST_V4L2_META_GET (outbuf);
+
+		dmabufmeta = gst_buffer_get_rto_dmabuf_meta (outbuf);
+		if (dmabufmeta) {
+			GST_INFO_OBJECT (pool, "VIDIOC_DQBUF : %d, %d - meta(%d, %d)",
+							 meta->vbuffer.index, meta->vbuffer.m.fd,
+							 dmabufmeta->index, dmabufmeta->fd);
+		}
+		else {
+			GST_INFO_OBJECT (pool, "VIDIOC_DQBUF   : index=%d, size=%d",
+							 meta->vbuffer.index, gst_buffer_get_size(outbuf));
+		}
+	}
+#endif
+
 	*buffer = outbuf;
 	
 	pool->next_qbuf_index++;
@@ -1183,8 +1207,8 @@ gst_v4l2_buffer_pool_new (GstV4l2InitParam *param, GstCaps * caps)
 	pool->init_param.init_num_buffers = param->init_num_buffers;
 	pool->init_param.num_fb_dmabuf = param->num_fb_dmabuf;
 	for (i = 0; i < param->num_fb_dmabuf; i++) {
-		pool->init_param.fb_dmabuf_fd[i] = param->fb_dmabuf_fd[i];
 		pool->init_param.fb_dmabuf_index[i] = param->fb_dmabuf_index[i];
+		pool->init_param.fb_dmabuf_fd[i] = param->fb_dmabuf_fd[i];
 	}
 	pool->next_qbuf_index = 0;
 	

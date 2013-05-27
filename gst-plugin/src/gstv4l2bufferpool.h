@@ -28,6 +28,7 @@
 
 #include <gst/gst.h>
 #include <linux/videodev2.h>
+#include "gstrtodmabufmeta.h"
 
 typedef struct _GstV4l2BufferPool GstV4l2BufferPool;
 typedef struct _GstV4l2BufferPoolClass GstV4l2BufferPoolClass;
@@ -48,9 +49,6 @@ G_BEGIN_DECLS
 #define GST_V4L2_MAX_BUFFERS 16
 #define GST_V4L2_MIN_BUFFERS 1
 
-/* max num of framebuffer's dma buf */
-#define MAX_NUM_DMABUF		3
-
 /* VIDIOC_DQBUF で、EAGAIN をエラー扱いしない	*/
 #define USE_GST_FLOW_DQBUF_EAGAIN	1
 #if USE_GST_FLOW_DQBUF_EAGAIN
@@ -66,6 +64,13 @@ typedef enum {
 	GST_V4L2_IO_DMABUF  = 4,
 } GstV4l2IOMode;
 
+struct _GstV4l2Meta {
+	GstMeta meta;
+	
+	gpointer mem;
+	struct v4l2_buffer vbuffer;
+};
+
 /* 初期化パラメータ	*/
 struct _GstV4l2InitParam
 {
@@ -76,8 +81,8 @@ struct _GstV4l2InitParam
 	guint init_num_buffers;
 	
 	gint num_fb_dmabuf;
-	gint fb_dmabuf_fd[MAX_NUM_DMABUF];
-	gint fb_dmabuf_index[MAX_NUM_DMABUF];
+	gint fb_dmabuf_index[NUM_FB_DMABUF];
+	gint fb_dmabuf_fd[NUM_FB_DMABUF];
 };
 
 /* クラス定義		*/
@@ -90,7 +95,6 @@ struct _GstV4l2BufferPool
 	GstAllocator *allocator;
 	GstAllocationParams params;
 	guint size;
-//  gboolean add_videometa;
 
 	guint num_buffers;         /* number of buffers we use */
 	guint num_allocated;       /* number of buffers allocated by the driver */
@@ -105,13 +109,6 @@ struct _GstV4l2BufferPool
 struct _GstV4l2BufferPoolClass
 {
 	GstBufferPoolClass parent_class;
-};
-
-struct _GstV4l2Meta {
-	GstMeta meta;
-
-	gpointer mem;
-	struct v4l2_buffer vbuffer;
 };
 
 GType gst_v4l2_meta_api_get_type (void);

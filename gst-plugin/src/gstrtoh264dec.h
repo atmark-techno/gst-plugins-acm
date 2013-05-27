@@ -51,12 +51,12 @@ G_BEGIN_DECLS
 #define GST_RTOH264DEC_IN_FMT_MP4		V4L2_PIX_FMT_H264_NO_SC	
 
 /* 参照フレーム数		*/
-#define GST_RTOH264DEC_FMEM_NUM_MIN		2
+#define GST_RTOH264DEC_FMEM_NUM_MIN		1
 #define GST_RTOH264DEC_FMEM_NUM_MAX		32
 
 /* 中間バッファのピクチャ数	*/
-#define GST_RTOH264DEC_BUF_PIC_CNT_MIN	1
-#define GST_RTOH264DEC_BUF_PIC_CNT_MAX	144
+#define GST_RTOH264DEC_BUF_PIC_CNT_MIN	2
+#define GST_RTOH264DEC_BUF_PIC_CNT_MAX	145
 
 /* 入出力画素数	*/
 #define GST_RTOH264DEC_WIDTH_MIN		0	/* 80 */
@@ -116,12 +116,12 @@ typedef struct _GstRtoH264Dec {
 
 	/* RTO h264dec */
 	/* 参照フレーム数
-	 * 2 ~ 32
+	 * 1 ~ 32
 	 */
 	guint fmem_num;
 
-	/* 中間バッファのピクチャ数(=10)
-	 * 1 ~ 144
+	/* 中間バッファのピクチャ数
+	 * 2 ~ 145
 	 */
 	guint buffering_pic_cnt;
 
@@ -147,12 +147,6 @@ typedef struct _GstRtoH264Dec {
 	 * 1 : 有効
 	 */
 	gboolean enable_vio6;
-
-	/* fbdev sink が dma-buf を使用する場合のアドレス保存		*/
-	gboolean using_fb_dmabuf;
-	gint num_fb_dmabuf;
-	gint fb_dmabuf_fd[MAX_NUM_DMABUF];
-	gint fb_dmabuf_index[MAX_NUM_DMABUF];
 
 	/*< private >*/
 	GstRtoH264DecPrivate *priv;

@@ -46,6 +46,23 @@
 /* デバッグログ出力フラグ		*/
 #define DBG_LOG_RENDER		0
 
+/* 描画時間の計測		*/
+#define DBG_MEASURE_PERF				0
+#if DBG_MEASURE_PERF
+# define DBG_MEASURE_PERF_RENDER		0
+#endif
+
+#if DBG_MEASURE_PERF
+static double
+gettimeofday_sec()
+{
+	struct timeval t;
+	
+	gettimeofday(&t, NULL);
+	return (double)t.tv_sec + (double)t.tv_usec * 1e-6;
+}
+#endif
+
 struct _GstRtoFBDevSinkPrivate
 {
 	struct fb_dmabuf_export fb_dmabuf_exp[NUM_FB_DMABUF];
@@ -57,7 +74,7 @@ struct _GstRtoFBDevSinkPrivate
 	 * 保持しておかないと、m2m デバイスに enqueue され、ディスプレイに表示中に、
 	 * デコードデータを上書きされてしまい、画面が乱れてしまう
 	 */
-	GstBuffer* displying_buf;
+	GstBuffer* displaying_buf;
 };
 
 GST_DEBUG_CATEGORY_STATIC (rtofbdevsink_debug);
@@ -254,7 +271,11 @@ gst_rto_fbdevsink_init (GstRtoFBDevSink * me)
 	gst_base_sink_set_last_sample_enabled (GST_BASE_SINK (me), FALSE);
 
 	/* ref : GstVideoSink - 20ms is more than enough, 80-130ms is noticable */
+#if 0 /* for debug	*/
+	gst_base_sink_set_max_lateness (GST_BASE_SINK (me), -1);
+#else
 	gst_base_sink_set_max_lateness (GST_BASE_SINK (me), 40 * GST_MSECOND);
+#endif
 	gst_base_sink_set_qos_enabled (GST_BASE_SINK (me), FALSE);
 
 	me->use_dmabuf = DEFAULT_USE_DMABUF;
@@ -312,11 +333,12 @@ gst_rto_fbdevsink_start (GstBaseSink * bsink)
 		goto fbioget_failed;
 	}
 	GST_INFO_OBJECT(me,
-		"FBIOGET_VSCREENINFO - xres:%u, yres:%u, xres_v:%u, yres_v:%u, xoffset:%u, yoffset:%u, bits_per_pixel:%u",
+		"FBIOGET_VSCREENINFO - xres:%u, yres:%u, xres_v:%u, yres_v:%u, xoffset:%u, yoffset:%u, bits_per_pixel:%u, activate:%u, sync:%u",
 		me->varinfo.xres, me->varinfo.yres,
 		me->varinfo.xres_virtual, me->varinfo.yres_virtual,
 		me->varinfo.xoffset, me->varinfo.yoffset,
-		me->varinfo.bits_per_pixel);
+		me->varinfo.bits_per_pixel,
+		me->varinfo.activate, me->varinfo.sync);
 
 	/* レストア用にオリジナル情報を保存		*/
 	me->saved_varinfo = me->varinfo;
@@ -336,18 +358,7 @@ gst_rto_fbdevsink_start (GstBaseSink * bsink)
 		}
 		
 		me->priv->last_show_fb_dmabuf_index = -1;
-
-#if 0
-		/* 最初に、offset ゼロ以外の領域にパンしておく			*/
-		me->varinfo.yoffset = me->varinfo.yres * (NUM_FB_DMABUF - 1);
-		if (0 != ioctl (me->fd, FBIOPAN_DISPLAY, &(me->varinfo))) {
-//			goto fbiopan_dmabuf_failed;
-			GST_ELEMENT_ERROR (me, RESOURCE, SETTINGS, (NULL),
-				("error with ioctl(FBIOPAN_DMABUF) %d (%s)", errno, g_strerror (errno)));
-			return GST_FLOW_ERROR;
-		}
-#endif
-		me->priv->displying_buf = NULL;
+		me->priv->displaying_buf = NULL;
 	}
 	else {
 		/* map the framebuffer */
@@ -424,9 +435,9 @@ gst_rto_fbdevsink_stop (GstBaseSink * bsink)
 	}
 
 	if (me->use_dmabuf) {
-		if (me->priv->displying_buf && GST_IS_BUFFER(me->priv->displying_buf)) {
-			gst_buffer_unref(me->priv->displying_buf);
-			me->priv->displying_buf = NULL;
+		if (me->priv->displaying_buf && GST_IS_BUFFER(me->priv->displaying_buf)) {
+			gst_buffer_unref(me->priv->displaying_buf);
+			me->priv->displaying_buf = NULL;
 		}
 	}
 
@@ -449,6 +460,7 @@ gst_rto_fbdevsink_stop (GstBaseSink * bsink)
 	}
 
 out:
+	GST_INFO_OBJECT (me, "RTOFBDEVSINK STOPPED");
 	return ret;
 
 munmap_failed:
@@ -788,6 +800,10 @@ gst_rto_fbdevsink_render (GstBaseSink * bsink, GstBuffer * buf)
 	int i;
 	GstMapInfo map;
 	int r;
+#if DBG_MEASURE_PERF_RENDER
+	static double interval_time_start = 0, interval_time_end = 0;
+	double time_start = 0, time_end = 0;
+#endif
 
 	me = GST_RTOFBDEVSINK (bsink);
 	
@@ -817,36 +833,64 @@ gst_rto_fbdevsink_render (GstBaseSink * bsink, GstBuffer * buf)
 	}
 	else {
 		GstRtoDmabufMeta *meta = NULL;
-		
+
 		/* バッファからDMABUF index取得	*/
 		meta = gst_buffer_get_rto_dmabuf_meta (buf);
 		if (meta) {
-#if DBG_LOG_RENDER	/* for debug */
-			GST_INFO_OBJECT (me, "renfer - dmabuf index : %d, fd:%d",
-							 meta->index, meta->fd);
+			int vsyncArg = 0;
+			
+#if DBG_MEASURE_PERF_RENDER
+			interval_time_end = gettimeofday_sec();
+			if (interval_time_start > 0) {
+//				if ((interval_time_end - interval_time_start) > 0.033) {
+					GST_INFO_OBJECT(me, "render at(ms) : %10.10f",
+						(interval_time_end - interval_time_start)*1e+3);
+//				}
+			}
+			interval_time_start = gettimeofday_sec();
+			time_start = gettimeofday_sec();
 #endif
 
 			/* パンする	*/
 			me->varinfo.yoffset = me->varinfo.yres * meta->index;
-//			GST_INFO_OBJECT (me, "FBIOPAN yoffset : %d", me->varinfo.yoffset);
+			//me->varinfo.activate = FB_ACTIVATE_VBL;
+
+#if DBG_LOG_RENDER
+			GST_INFO_OBJECT (me, "%p : index:%d, fd:%d, yoffset:%d",
+							 buf, meta->index, meta->fd, me->varinfo.yoffset);
+#endif
 
 			if (me->priv->last_show_fb_dmabuf_index == meta->index) {
 				GST_WARNING_OBJECT (me, "index is same as last render : %d",
 									meta->index);
-				/* do nothing */
 			}
-			else {
-				r = ioctl (me->fd, FBIOPAN_DISPLAY, &(me->varinfo));
-				if (me->priv->displying_buf) {
-					gst_buffer_unref(me->priv->displying_buf);
-					me->priv->displying_buf = NULL;
-				}
-				if (0 != r) {
-					goto fbiopan_dmabuf_failed;
-				}
-				
-				me->priv->displying_buf = gst_buffer_ref(buf);
+
+			r = ioctl (me->fd, FBIOPAN_DISPLAY, &(me->varinfo));
+			if (0 != r) {
+				goto fbiopan_display_failed;
 			}
+
+			/* Wait for the vertical sync of the display device */
+			r = ioctl (me->fd, FBIO_WAITFORVSYNC, &vsyncArg);
+			if (0 != r) {
+				goto fbio_waitforvsync_failed;
+			}
+
+#if DBG_MEASURE_PERF_RENDER
+			time_end = gettimeofday_sec();
+//			if ((time_end - time_start) > 0.033) {
+				GST_INFO_OBJECT(me, "render : %10.10f", time_end - time_start);
+//			}
+#endif
+
+			/* ディスプレイ表示中のバッファは ref して保持し、次のバッファを表示した後、
+			 * unref してデバイスに queue する
+			 */
+			if (NULL != me->priv->displaying_buf) {
+				gst_buffer_unref(me->priv->displaying_buf);
+				me->priv->displaying_buf = NULL;
+			}
+			me->priv->displaying_buf = gst_buffer_ref(buf);
 
 			me->priv->last_show_fb_dmabuf_index = meta->index;
 		}
@@ -865,10 +909,16 @@ get_meta_failed:
 			("failed get dmabuf meta from buffer"));
 		return GST_FLOW_ERROR;
 	}
-fbiopan_dmabuf_failed:
+fbiopan_display_failed:
 	{
 		GST_ELEMENT_ERROR (me, RESOURCE, SETTINGS, (NULL),
-			("error with ioctl(FBIOPAN_DMABUF) %d (%s)", errno, g_strerror (errno)));
+			("error with ioctl(FBIOPAN_DISPLAY) %d (%s)", errno, g_strerror (errno)));
+		return GST_FLOW_ERROR;
+	}
+fbio_waitforvsync_failed:
+	{
+		GST_ELEMENT_ERROR (me, RESOURCE, SETTINGS, (NULL),
+			("error with ioctl(FBIO_WAITFORVSYNC) %d (%s)", errno, g_strerror (errno)));
 		return GST_FLOW_ERROR;
 	}
 }

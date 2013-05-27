@@ -1741,20 +1741,12 @@ gst_rto_aac_dec_handle_out_frame(GstRtoAacDec * me,
 
 	GST_DEBUG_OBJECT(me, "AACDEC FINISH FRAME : %p", outbuf);
 
-	/* gs_buffer_unref() により、QBUF されるようにする	*/
-#if 0	/* for debug	*/
-	if (outbuf->pool) {
-		GST_DEBUG_OBJECT(me, "outbuf->pool : %p (ref:%d), pool_out : %p (ref:%d)",
-						 outbuf->pool, GST_OBJECT_REFCOUNT_VALUE(outbuf->pool),
-						 me->pool_out, GST_OBJECT_REFCOUNT_VALUE(me->pool_out));
-	}
-	else {
-		GST_DEBUG_OBJECT(me, "outbuf->pool is NULL");
-	}
-#endif
-
-	/* GstBufferPool::priv::outstanding をインクリメントするためのダミー呼び出し。
-	 * pool の deactivate の際、outstanding == 0 でないと、解放および unmap されないため
+	/* gst_buffer_unref() により、デバイスに、QBUF されるようにする。
+	 * output_buffer->pool に、me->pool_out を直接セットせず、
+	 * GstBufferPool::priv::outstanding をインクリメントするために、
+	 * gst_buffer_pool_acquire_buffer() を call する。
+	 * そうしないと、pool の deactivate の際、outstanding == 0 でないと、
+	 * buffer の解放が行われないため
 	 */
 #if DBG_LOG_PERF_PUSH
 	GST_INFO_OBJECT (me, "AACDEC-PUSH SET POOL START");
