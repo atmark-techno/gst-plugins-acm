@@ -48,12 +48,13 @@
 #define LATENESS_SEC			0.0167
 
 /* デバッグログ出力フラグ		*/
-#define DBG_LOG_RENDER		0
+#define DBG_LOG_RENDER			0
 
 /* 描画時間の計測		*/
-#define DBG_MEASURE_PERF				0
+#define DBG_MEASURE_PERF			0
 #if DBG_MEASURE_PERF
-# define DBG_MEASURE_PERF_RENDER		0
+# define DBG_MEASURE_PERF_CHAIN		0
+# define DBG_MEASURE_PERF_RENDER	0
 #endif
 
 static double
@@ -83,6 +84,8 @@ struct _GstRtoFBDevSinkPrivate
 
 	/* 前回表示時刻（秒）	*/
 	double prev_display_time_sec;
+
+	GstPadChainFunction base_chain;
 };
 
 GST_DEBUG_CATEGORY_STATIC (rtofbdevsink_debug);
@@ -138,6 +141,8 @@ static gboolean gst_rto_fbdevsink_setcaps (GstBaseSink * bsink, GstCaps * caps);
 static gboolean gst_rto_fbdevsink_start (GstBaseSink * bsink);
 static gboolean gst_rto_fbdevsink_stop (GstBaseSink * bsink);
 static gboolean gst_rto_fbdevsink_query (GstBaseSink * sink, GstQuery * query);
+static GstFlowReturn gst_rto_fbdevsink_chain (GstPad * pad,
+	GstObject * parent, GstBuffer * buf);
 static GstFlowReturn gst_rto_fbdevsink_preroll (GstBaseSink * bsink,
 	GstBuffer * buff);
 static GstFlowReturn gst_rto_fbdevsink_render (GstBaseSink * bsink,
@@ -358,6 +363,11 @@ gst_rto_fbdevsink_init (GstRtoFBDevSink * me)
 
 	me->use_dmabuf = DEFAULT_USE_DMABUF;
 	me->enable_vsync = DEFAULT_ENABLE_VSYNC;
+
+	/* retrieve and intercept base class chain. */
+	me->priv->base_chain = GST_PAD_CHAINFUNC (GST_BASE_SINK_PAD (me));
+	gst_pad_set_chain_function (GST_BASE_SINK_PAD (me),
+								GST_DEBUG_FUNCPTR (gst_rto_fbdevsink_chain));
 }
 
 static void
@@ -438,6 +448,7 @@ gst_rto_fbdevsink_start (GstBaseSink * bsink)
 		
 		me->priv->last_show_fb_dmabuf_index = -1;
 		me->priv->displaying_buf = NULL;
+		me->priv->prev_display_time_sec = 0;
 	}
 	else {
 		/* map the framebuffer */
@@ -451,6 +462,9 @@ gst_rto_fbdevsink_start (GstBaseSink * bsink)
 		}
 		GST_DEBUG_OBJECT(me, "framebuffer:%p", me->framebuffer);
 	}
+
+	/* 初期画面はブランクスクリーン	*/
+	do_blank_screen(me);
 
 out:
 	return ret;
@@ -889,13 +903,13 @@ gst_rto_fbdevsink_preroll (GstBaseSink * bsink, GstBuffer * buf)
 
 	me = GST_RTOFBDEVSINK (bsink);
 
-//	GST_INFO_OBJECT (me, "RTOFBDEVSINK PREROLL : %p", buf);
+#if DBG_LOG_RENDER
+	GST_INFO_OBJECT (me, "RTOFBDEVSINK PREROLL : %p", buf);
+#endif
 
 #if DBG_MEASURE_PERF_RENDER
 	time_start = gettimeofday_sec();
 #endif
-
-	me->priv->prev_display_time_sec = gettimeofday_sec();
 
 	if (me->enable_vsync) {
 		/* Wait for the vertical sync of the display device */
@@ -919,6 +933,37 @@ fbio_waitforvsync_failed:
 			("error with ioctl(FBIO_WAITFORVSYNC) %d (%s)", errno, g_strerror (errno)));
 		return GST_FLOW_ERROR;
 	}
+}
+
+static GstFlowReturn
+gst_rto_fbdevsink_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
+{
+	GstRtoFBDevSink *me = GST_RTOFBDEVSINK (parent);
+#if DBG_MEASURE_PERF_RENDER
+	static double interval_time_start = 0, interval_time_end = 0;
+#endif
+
+#if DBG_MEASURE_PERF_RENDER
+	interval_time_end = gettimeofday_sec();
+	if (interval_time_start > 0) {
+//		if ((interval_time_end - interval_time_start) > 0.033) {
+			GST_INFO_OBJECT(me, "chain at(ms) : %10.10f",
+				(interval_time_end - interval_time_start)*1e+3);
+//		}
+	}
+	interval_time_start = gettimeofday_sec();
+#endif
+
+#if 0 /* for debug */
+	GST_INFO_OBJECT (me, "PTS:%" GST_TIME_FORMAT
+					  ", DTS:%" GST_TIME_FORMAT ", duration:%" GST_TIME_FORMAT,
+					  GST_TIME_ARGS (GST_BUFFER_PTS(buf)),
+					  GST_TIME_ARGS (GST_BUFFER_DTS(buf)),
+					  GST_TIME_ARGS (GST_BUFFER_DURATION(buf)));
+#endif
+
+	/* call gst_audio_decoder_chain() */
+	return me->priv->base_chain (pad, parent, buf);
 }
 
 static GstFlowReturn
@@ -995,21 +1040,27 @@ gst_rto_fbdevsink_render (GstBaseSink * bsink, GstBuffer * buf)
 			}
 
 			if (me->enable_vsync) {
+				double displayTime;
+				double timeDiff;
 				/* 垂直同期を行う場合は、前回表示時刻からの差分で判断する。
 				 * そうしないと、永久にフレームがドロップされるケースが出てくる。
 				 * フレームレート + 垂直同期の最大待ち時間を超える場合は、スキップする
 				 * ただし、3 フレーム分以上経過している場合は絵が止まったままになるので、
 				 * 表示は行う。
 				 */
-				double displayTime = gettimeofday_sec();
-				double timeDiff = displayTime - me->priv->prev_display_time_sec;
+				if (0 == me->priv->prev_display_time_sec) {
+					me->priv->prev_display_time_sec = gettimeofday_sec();
+				}
+
+				displayTime = gettimeofday_sec();
+				timeDiff = displayTime - me->priv->prev_display_time_sec;
 				
 				if (timeDiff < (me->priv->framerate_sec + LATENESS_SEC)) {
 					r = ioctl (me->fd, FBIOPAN_DISPLAY, &(me->varinfo));
 					if (0 != r) {
 						goto fbiopan_display_failed;
 					}
-					
+
 					if (1.0 == GST_BASE_SINK(me)->segment.rate) {
 						/* Wait for the vertical sync of the display device
 						 * 倍速再生の際は、コマ落ちするので、同期しない
@@ -1025,7 +1076,7 @@ gst_rto_fbdevsink_render (GstBaseSink * bsink, GstBuffer * buf)
 					if (0 != r) {
 						goto fbiopan_display_failed;
 					}
-#if 0 /* for debug */
+#if DBG_LOG_RENDER	/* for debug */
 					GST_WARNING_OBJECT (me, "too late frame - at time : %f",
 										timeDiff);
 #endif
@@ -1033,7 +1084,7 @@ gst_rto_fbdevsink_render (GstBaseSink * bsink, GstBuffer * buf)
 				else {
 					isFrameSkipped = TRUE;
 				
-#if 0 /* for debug */
+#if DBG_LOG_RENDER	/* for debug */
 					GST_WARNING_OBJECT (me, "skipping frame - at time : %f",
 						timeDiff);
 #endif

@@ -46,6 +46,7 @@
 #include <sys/time.h>
 #include <sched.h>
 #include <gst/audio/audio.h>
+#include <gst/base/gstbitreader.h>
 
 #include "gstrtoaacdec.h"
 #include "v4l2_util.h"
@@ -126,6 +127,13 @@ static double g_time_total_select_out = 0;
 struct _GstRtoAacDecPrivate
 {
 	GstPadChainFunction base_chain;
+	
+	/* HE-AAC かどうか    */
+	gboolean is_he_aac;
+	/* HE-AAC の場合の出力サンプリングレート
+	 * HE-AAC の場合、HW デコーダにてアップサンプリングされる
+	 */
+	guint he_aac_samplerate;
 };
 
 GST_DEBUG_CATEGORY_STATIC (rtoaacdec_debug);
@@ -509,6 +517,22 @@ gst_rto_aac_dec_start (GstAudioDecoder * dec)
 	GstRtoAacDec *me = GST_RTOAACDEC (dec);
 	
 	GST_INFO_OBJECT (me, "AACDEC START");
+
+	/* プロパティ以外の変数を再初期化		*/
+	me->samplerate = 0;
+	me->channels = 0;
+	me->packetised = FALSE;
+	
+	me->out_samplerate = 0;
+	me->out_channels = 0;
+	
+	me->is_handled_1stframe = FALSE;
+	me->pool_in = NULL;
+	me->pool_out = NULL;
+	me->num_inbuf_acquired = 0;
+
+	me->priv->is_he_aac = FALSE;
+	me->priv->he_aac_samplerate = 0;
 	
 	/* call upon legacy upstream byte support (e.g. seeking) */
 	gst_audio_decoder_set_estimate_rate (dec, TRUE);
@@ -547,6 +571,361 @@ gst_rto_aac_dec_stop (GstAudioDecoder * dec)
 	return TRUE;
 }
 
+static gboolean
+gst_rto_aac_dec_analize_codecdata(GstRtoAacDec *me, GstBuffer * codec_data)
+{
+	gboolean ret = TRUE;
+	GstMapInfo map;
+	guint8 *cdata = NULL;
+	gsize csize = 0;
+
+	GstBitReader *reader = NULL;
+	guint8 dummy;
+	guint8 extensionFlag;
+
+	guint8 audioObjectType = 0;
+	guint8 samplingFrequencyIndex = 0;
+	guint32 samplingFrequency = 0;
+	guint8 channelConfiguration = 0;
+
+	guint samplerate = 0;
+	guint channels = 0;
+
+#if 0	/* for debug	*/
+	{
+		gint i;
+		GstMapInfo map_debug;
+		FILE* fp = fopen("_codec_data.data", "w");
+		if (fp) {
+			gst_buffer_map (codec_data, &map_debug, GST_MAP_READ);
+			for (i = 0; i < map_debug.size; i++) {
+#if 0
+				fprintf(fp, "0x%02X, ", map_debug.data[i]);
+				if((i+1) % 8 == 0)
+					fprintf(fp, "\n");
+#else
+				fputc(map_debug.data[i], fp);
+#endif
+			}
+			gst_buffer_unmap (codec_data, &map_debug);
+			fclose(fp);
+		}
+	}
+#endif
+
+	gst_buffer_map (codec_data, &map, GST_MAP_READ);
+	cdata = map.data;
+	csize = map.size;
+	reader = gst_bit_reader_new (cdata, csize);
+
+	if (csize < 2) {
+		goto wrong_length;
+	}
+
+	if (! gst_bit_reader_get_bits_uint8 (reader, &audioObjectType, 5)) {
+		goto wrong_length;
+	}
+	if (! gst_bit_reader_get_bits_uint8 (reader, &samplingFrequencyIndex, 4)) {
+		goto wrong_length;
+	}
+	if (0x0F == samplingFrequencyIndex) {
+		if (! gst_bit_reader_get_bits_uint32 (reader, &samplingFrequency, 24)) {
+			goto wrong_length;
+		}
+		samplerate = samplingFrequency;
+	}
+	else {
+		samplerate = AACSamplingFrequency[samplingFrequencyIndex];
+	}
+	if (! gst_bit_reader_get_bits_uint8 (reader, &channelConfiguration, 4)) {
+		goto wrong_length;
+	}
+	channels = channelConfiguration;
+
+	GST_INFO_OBJECT (me,
+					 "codec_data(%d): object_type=%d, sample_rate=%d(%dHz), channels=%d",
+					 csize,
+					 audioObjectType,
+					 samplingFrequencyIndex, samplerate,
+					 channels);
+	
+	/* 
+	 * GASpecificConfig() 
+	 */
+	/* FrameLength */
+	if (! gst_bit_reader_get_bits_uint8 (reader, &dummy, 1)) {
+		goto wrong_length;
+	}
+	/* DependsOnCoreCoder */
+	if (! gst_bit_reader_get_bits_uint8 (reader, &dummy, 1)) {
+		goto wrong_length;
+	}
+	if (dummy) {
+		if (! gst_bit_reader_skip (reader, 14)) {
+			goto wrong_length;
+		}
+	}
+	/* ExtensionFlag */
+	if (! gst_bit_reader_get_bits_uint8 (reader, &extensionFlag, 1)) {
+		goto wrong_length;
+	}
+
+	if (0 == channelConfiguration) {
+		/* program_config_element() */
+		guint i = 0;
+		guint8 num_front_channel_elements;
+		guint8 num_side_channel_elements;
+		guint8 num_back_channel_elements;
+		guint8 num_lfe_channel_elements;
+		guint8 num_assoc_data_elements;
+		guint8 num_valid_cc_elements;
+		guint8 element_is_cpe;
+		guint8 element_tag_select;
+
+		channels = 0;
+		
+		/* element_instance_tag */
+		if (! gst_bit_reader_get_bits_uint8 (reader, &dummy, 4)) {
+			goto wrong_length;
+		}
+		/* profile */
+		if (! gst_bit_reader_get_bits_uint8 (reader, &dummy, 2)) {
+			goto wrong_length;
+		}
+		/* sampling_frequency_index */
+		if (! gst_bit_reader_get_bits_uint8 (reader, &dummy, 4)) {
+			goto wrong_length;
+		}
+		/* num_front_channel_elements */
+		if (! gst_bit_reader_get_bits_uint8 (reader, &num_front_channel_elements, 4)) {
+			goto wrong_length;
+		}
+		GST_INFO_OBJECT (me, "num_front_channel_elements: %u",
+						 num_front_channel_elements);
+		/* num_side_channel_elements */
+		if (! gst_bit_reader_get_bits_uint8 (reader, &num_side_channel_elements, 4)) {
+			goto wrong_length;
+		}
+		GST_INFO_OBJECT (me, "num_side_channel_elements: %u",
+						 num_side_channel_elements);
+		/* num_back_channel_elements */
+		if (! gst_bit_reader_get_bits_uint8 (reader, &num_back_channel_elements, 4)) {
+			goto wrong_length;
+		}
+		GST_INFO_OBJECT (me, "num_back_channel_elements: %u",
+						 num_back_channel_elements);
+		/* num_lfe_channel_elements */
+		if (! gst_bit_reader_get_bits_uint8 (reader, &num_lfe_channel_elements, 2)) {
+			goto wrong_length;
+		}
+		GST_INFO_OBJECT (me, "num_lfe_channel_elements: %u",
+						 num_lfe_channel_elements);
+		/* num_assoc_data_elements */
+		if (! gst_bit_reader_get_bits_uint8 (reader, &num_assoc_data_elements, 3)) {
+			goto wrong_length;
+		}
+		/* num_valid_cc_elements */
+		if (! gst_bit_reader_get_bits_uint8 (reader, &num_valid_cc_elements, 4)) {
+			goto wrong_length;
+		}
+		/* mono_mixdown_present */
+		if (! gst_bit_reader_get_bits_uint8 (reader, &dummy, 1)) {
+			goto wrong_length;
+		}
+		if (dummy) {
+			if (! gst_bit_reader_skip (reader, 4)) {
+				goto wrong_length;
+			}
+		}
+		/* stereo_mixdown_present */
+		if (! gst_bit_reader_get_bits_uint8 (reader, &dummy, 1)) {
+			goto wrong_length;
+		}
+		if (dummy) {
+			if (! gst_bit_reader_skip (reader, 4)) {
+				goto wrong_length;
+			}
+		}
+		/* matrix_mixdown_idx_present */
+		if (! gst_bit_reader_get_bits_uint8 (reader, &dummy, 1)) {
+			goto wrong_length;
+		}
+		if (dummy) {
+			if (! gst_bit_reader_skip (reader, 3)) {
+				goto wrong_length;
+			}
+		}
+
+		for (i = 0; i < num_front_channel_elements; i++) {
+			if (! gst_bit_reader_get_bits_uint8 (reader, &element_is_cpe, 1)) {
+				goto wrong_length;
+			}
+			if (element_is_cpe) {
+				channels += 2;
+			}
+			else {
+				channels += 1;
+			}
+			if (! gst_bit_reader_get_bits_uint8 (reader, &element_tag_select, 4)) {
+				goto wrong_length;
+			}
+		}
+		for (i = 0; i < num_side_channel_elements; i++) {
+			if (! gst_bit_reader_get_bits_uint8 (reader, &element_is_cpe, 1)) {
+				goto wrong_length;
+			}
+			if (element_is_cpe) {
+				channels += 2;
+			}
+			else {
+				channels += 1;
+			}
+			if (! gst_bit_reader_get_bits_uint8 (reader, &element_tag_select, 4)) {
+				goto wrong_length;
+			}
+		}
+		for (i = 0; i < num_back_channel_elements; i++) {
+			if (! gst_bit_reader_get_bits_uint8 (reader, &element_is_cpe, 1)) {
+				goto wrong_length;
+			}
+			if (element_is_cpe) {
+				channels += 2;
+			}
+			else {
+				channels += 1;
+			}
+			if (! gst_bit_reader_get_bits_uint8 (reader, &element_tag_select, 4)) {
+				goto wrong_length;
+			}
+		}
+		for (i = 0; i < num_lfe_channel_elements; i++) {
+			channels += 1;
+			if (! gst_bit_reader_get_bits_uint8 (reader, &element_tag_select, 4)) {
+				goto wrong_length;
+			}
+		}
+		for (i = 0; i < num_assoc_data_elements; i++) {
+			if (! gst_bit_reader_skip (reader, 4)) {
+				goto wrong_length;
+			}
+		}
+		for (i = 0; i < num_valid_cc_elements; i++) {
+			if (! gst_bit_reader_skip (reader, 5)) {
+				goto wrong_length;
+			}
+		}
+		/* byte_alignment() */
+		if (! gst_bit_reader_skip_to_byte (reader)) {
+			goto wrong_length;
+		}
+		
+		/* comment_field_bytes */
+		if (! gst_bit_reader_get_bits_uint8 (reader, &dummy, 8)) {
+			goto wrong_length;
+		}
+		for (i = 0; i < dummy; i++) {
+			if (! gst_bit_reader_skip (reader, 8)) {
+				goto wrong_length;
+			}
+		}
+	}
+	GST_INFO_OBJECT (me, "codec_data init: channels=%u, rate=%u",
+					 channels, (guint32) samplerate);
+
+	if (extensionFlag) {
+		/* extensionFlag3 */
+		if (! gst_bit_reader_skip (reader, 1)) {
+			goto wrong_length;
+		}
+	}
+
+	GST_INFO_OBJECT (me, "codec_data remain: %u",
+					 gst_bit_reader_get_remaining(reader));
+
+	if (0x05 != audioObjectType && gst_bit_reader_get_remaining(reader) >= 16) {
+		if (! gst_bit_reader_skip (reader, 11)) {
+			goto wrong_length;
+		}
+		if (! gst_bit_reader_get_bits_uint8 (reader, &audioObjectType, 5)) {
+			goto wrong_length;
+		}
+		GST_INFO_OBJECT (me, "audioObjectType: %u", audioObjectType);
+		
+		if (0x05 == audioObjectType) {
+			guint8 sbrPresentFlag = 0;
+			guint32 psExtension = 0;
+			guint8 psPresentFlag = 0;
+
+			me->priv->is_he_aac = TRUE;
+
+			if (! gst_bit_reader_get_bits_uint8 (reader, &sbrPresentFlag, 1)) {
+				goto wrong_length;
+			}
+
+			if (sbrPresentFlag) {
+				if (! gst_bit_reader_get_bits_uint8 (reader, &samplingFrequencyIndex, 4)) {
+					goto wrong_length;
+				}
+				GST_INFO_OBJECT (me, "codec_data HE-AAC: rateIndex=%u",
+								 (guint32) samplingFrequencyIndex);
+				if (0x0F == samplingFrequencyIndex) {
+					if (! gst_bit_reader_get_bits_uint32 (reader, &samplingFrequency, 24)) {
+						goto wrong_length;
+					}
+					me->priv->he_aac_samplerate = samplingFrequency;
+				}
+				else {
+					me->priv->he_aac_samplerate
+						= AACSamplingFrequency[samplingFrequencyIndex];
+				}
+			}
+			GST_INFO_OBJECT (me, "codec_data HE-AAC: rate=%u",
+							 (guint32) me->priv->he_aac_samplerate);
+			
+			if (gst_bit_reader_get_remaining(reader) >= 12) {
+				if (! gst_bit_reader_get_bits_uint32 (reader, &psExtension, 11)) {
+					goto wrong_length;
+				}
+				if (0x548 == psExtension) {
+					if (! gst_bit_reader_get_bits_uint8 (reader, &psPresentFlag, 1)) {
+						goto wrong_length;
+					}
+					
+					if (psPresentFlag) {
+						if (1 == channels) {
+							channels = 2;
+						}
+					}
+				}
+			}
+			GST_INFO_OBJECT (me, "codec_data HE-AAC PS: 0x%x, %u",
+							 psExtension, psPresentFlag);
+		}
+
+		GST_INFO_OBJECT (me, "codec_data remain: %u",
+						 gst_bit_reader_get_remaining(reader));
+	}
+
+	me->channels = channels;
+	me->samplerate = samplerate;
+	GST_INFO_OBJECT (me, "codec_data final: channels=%u, rate=%u, he-aac rate=%u",
+		me->channels, (guint32) me->samplerate, me->priv->he_aac_samplerate);
+
+out:
+	gst_bit_reader_free (reader);
+	gst_buffer_unmap (codec_data, &map);
+
+	return ret;
+
+	/* ERRORS */
+wrong_length:
+	{
+		GST_ERROR_OBJECT (me, "codec_data wrong length");
+		ret = FALSE;
+		goto out;
+	}
+}
+
 /*	format of input audio data	*/
 static gboolean
 gst_rto_aac_dec_set_format (GstAudioDecoder * dec, GstCaps * caps)
@@ -556,9 +935,6 @@ gst_rto_aac_dec_set_format (GstAudioDecoder * dec, GstCaps * caps)
 	GstStructure *structure = gst_caps_get_structure (caps, 0);
 	GstBuffer *buf = NULL;
 	const GValue *value = NULL;
-	GstMapInfo map;
-	guint8 *cdata = NULL;
-	gsize csize = 0;
 	const gchar *stream_format = NULL;
     gint samplerate = 0;
     gint channels = 0;
@@ -610,50 +986,9 @@ gst_rto_aac_dec_set_format (GstAudioDecoder * dec, GstCaps * caps)
 		buf = gst_value_get_buffer (value);
 		g_return_val_if_fail (buf != NULL, FALSE);
 		
-		gst_buffer_map (buf, &map, GST_MAP_READ);
-		cdata = map.data;
-		csize = map.size;
-		
-		if (csize < 2) {
-			goto wrong_length;
+		if (! gst_rto_aac_dec_analize_codecdata(me, buf)) {
+			goto wrong_codec_data;
 		}
-		
-		GST_INFO_OBJECT (me,
-						 "codec_data: object_type=%d, sample_rate=%d, channels=%d",
-						 ((cdata[0] & 0xf8) >> 3),
-						 (((cdata[0] & 0x07) << 1) | ((cdata[1] & 0x80) >> 7)),
-						 ((cdata[1] & 0x78) >> 3));
-		
-		me->samplerate = AACSamplingFrequency[
-						(((cdata[0] & 0x07) << 1) | ((cdata[1] & 0x80) >> 7))];
-		me->channels = ((cdata[1] & 0x78) >> 3);
-		
-		GST_INFO_OBJECT (me, "codec_data init: channels=%u, rate=%u",
-						  me->channels, (guint32) me->samplerate);
-		
-		gst_buffer_unmap (buf, &map);
-
-#if 0	/* for debug	*/
-		{
-			gint i;
-			GstMapInfo map_debug;
-			FILE* fp = fopen("_codec_data.data", "w");
-			if (fp) {
-				gst_buffer_map (buf, &map_debug, GST_MAP_READ);
-				for (i = 0; i < map_debug.size; i++) {
-#if 0
-					fprintf(fp, "0x%02X, ", map_debug.data[i]);
-					if((i+1) % 8 == 0)
-						fprintf(fp, "\n");
-#else
-					fputc(map_debug.data[i], fp);
-#endif
-				}
-				gst_buffer_unmap (buf, &map_debug);
-				fclose(fp);
-			}
-		}
-#endif
 	}
 	else if ((value = gst_structure_get_value (structure, "framed"))
 			 && g_value_get_boolean (value) == TRUE) {
@@ -686,13 +1021,14 @@ gst_rto_aac_dec_set_format (GstAudioDecoder * dec, GstCaps * caps)
 			me->out_channels = 1;
 		}
 	}
+
 	if (me->out_channels >= 3) {
 		/* 3 チャンネル以上は非イタリーブ形式になる */
 		GST_INFO_OBJECT (me, "output PCM is NON_INTERLEAVED (ch of input:%d)",
 						 me->channels);
 		me->pcm_format = GST_RTOAACDEC_PCM_FMT_NON_INTERLEAVED;
 	}
-	
+
 	if (! gst_rto_aac_dec_update_caps (me)) {
 		goto negotiation_failed;
 	}
@@ -706,12 +1042,10 @@ out:
 	return ret;
 	
 	/* ERRORS */
-wrong_length:
+wrong_codec_data:
 	{
 		GST_ELEMENT_ERROR (me, STREAM, DECODE, (NULL),
-			("codec_data less than 2 bytes long"));
-		gst_object_unref (me);
-		gst_buffer_unmap (buf, &map);
+			("wrong codec_data"));
 		ret = FALSE;
 		goto out;
 	}
@@ -736,7 +1070,8 @@ gst_rto_aac_dec_update_caps (GstRtoAacDec * me)
 {
 	gboolean ret = TRUE;
 	GstAudioInfo ainfo;
-	
+	guint samplerate;
+
 	GST_DEBUG_OBJECT (me, "Update src caps");
 	
 	if (G_LIKELY (gst_pad_has_current_caps (GST_AUDIO_DECODER_SRC_PAD (me)))) {
@@ -749,9 +1084,18 @@ gst_rto_aac_dec_update_caps (GstRtoAacDec * me)
 					 me->out_channels, me->out_samplerate,
 					 (GST_RTOAACDEC_PCM_FMT_INTERLEAVED == me->pcm_format
 					  ? "interleaved" : "non interleaved"));
+    GST_INFO_OBJECT (me, " is HE-AAC=%d, rate=%d",
+					 me->priv->is_he_aac, me->priv->he_aac_samplerate);
 	gst_audio_info_init (&ainfo);
+
+	if (me->priv->is_he_aac) {
+		samplerate = me->priv->he_aac_samplerate;
+	}
+	else {
+		samplerate = me->samplerate;
+	}
 	gst_audio_info_set_format (&ainfo, GST_AUDIO_FORMAT_S16,
-							   me->samplerate, me->out_channels,
+							   samplerate, me->out_channels,
 							   channelpositions[me->out_channels - 1]);
 	if (GST_RTOAACDEC_PCM_FMT_NON_INTERLEAVED == me->pcm_format) {
 		/* 非インタリーブ	*/
@@ -1431,7 +1775,17 @@ gst_rto_aac_dec_init_decoder (GstRtoAacDec * me)
 	pfmt = (struct acm_aacdec_private_format*)fmt.fmt.raw_data;
 	pfmt->bs_format = me->input_format;
 	pfmt->pcm_format = me->pcm_format;
-	pfmt->max_channel = me->channels;
+	/* 最大チャンネル数 */
+	if (me->channels < 2) {
+		/* 1 ch の場合は 2 以上を設定すると上手くデコードされない 
+		 * また、本来は 2ch なのに codec_data に、1 ch と格納されているファイルが
+		 * あったため、最大チャンネル数 2 を設定する
+		 */
+		pfmt->max_channel = 2;	
+	}
+	else {
+		pfmt->max_channel = me->channels;
+	}
 	if (me->allow_mixdown) {
 		pfmt->down_mix = GST_RTOAACDEC_ALLOW_MIXDOWN;
 	}
@@ -1521,7 +1875,8 @@ out:
 set_init_param_failed:
 	{
 		GST_ELEMENT_ERROR (me, STREAM, DECODE, (NULL),
-			("Failed to set decoder init param.(%s)", g_strerror (errno)));
+			("Failed to set decoder init param. %d(%s)",
+			 errno, g_strerror (errno)));
 		ret = FALSE;
 		goto out;
 	}
@@ -1712,6 +2067,10 @@ gst_rto_aac_dec_handle_out_frame(GstRtoAacDec * me,
 
 		return ret;
 	}
+#else
+	if (0 == gst_buffer_get_size(v4l2buf_out)) {
+		goto null_buffer;
+	}
 #endif
 
 #if DO_PUSH_POOLS_BUF
@@ -1893,6 +2252,13 @@ allocate_outbuf_failed:
 	{
 		GST_ELEMENT_ERROR (me, RESOURCE, FAILED, (NULL),
 						   ("failed allocate outbuf"));
+		ret = GST_FLOW_ERROR;
+		goto out;
+	}
+null_buffer:
+	{
+		GST_ELEMENT_ERROR (me, STREAM, DECODE, (NULL),
+						   ("buffer has no data"));
 		ret = GST_FLOW_ERROR;
 		goto out;
 	}
