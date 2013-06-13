@@ -48,7 +48,8 @@
 #define LATENESS_SEC			0.0167
 
 /* デバッグログ出力フラグ		*/
-#define DBG_LOG_RENDER			0
+#define DBG_LOG_RENDER				0
+#define DBG_LOG_RENDER_SKIP			0
 
 /* 描画時間の計測		*/
 #define DBG_MEASURE_PERF			0
@@ -1076,7 +1077,7 @@ gst_rto_fbdevsink_render (GstBaseSink * bsink, GstBuffer * buf)
 					if (0 != r) {
 						goto fbiopan_display_failed;
 					}
-#if DBG_LOG_RENDER	/* for debug */
+#if DBG_LOG_RENDER_SKIP	/* for debug */
 					GST_WARNING_OBJECT (me, "too late frame - at time : %f",
 										timeDiff);
 #endif
@@ -1084,7 +1085,7 @@ gst_rto_fbdevsink_render (GstBaseSink * bsink, GstBuffer * buf)
 				else {
 					isFrameSkipped = TRUE;
 				
-#if DBG_LOG_RENDER	/* for debug */
+#if DBG_LOG_RENDER_SKIP	/* for debug */
 					GST_WARNING_OBJECT (me, "skipping frame - at time : %f",
 						timeDiff);
 #endif

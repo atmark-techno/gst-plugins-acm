@@ -696,6 +696,13 @@ querybuf_failed:
 GstFlowReturn
 gst_v4l2_buffer_pool_dqbuf (GstV4l2BufferPool * pool, GstBuffer ** buffer)
 {
+	return gst_v4l2_buffer_pool_dqbuf_ex(pool, buffer, NULL);
+}
+
+GstFlowReturn
+gst_v4l2_buffer_pool_dqbuf_ex (GstV4l2BufferPool * pool, GstBuffer ** buffer,
+							   guint32* bytesused)
+{
 //	GstFlowReturn res;
 	GstBuffer *outbuf;
 	struct v4l2_buffer vbuffer;
@@ -752,7 +759,7 @@ gst_v4l2_buffer_pool_dqbuf (GstV4l2BufferPool * pool, GstBuffer ** buffer)
 	/* mark the buffer outstanding */
 	pool->buffers[vbuffer.index] = NULL;
 	pool->num_queued--;
-	
+
 //	timestamp = GST_TIMEVAL_TO_TIME (vbuffer.timestamp);
 #if 0
 	GST_DEBUG_OBJECT (pool,
@@ -851,6 +858,9 @@ gst_v4l2_buffer_pool_dqbuf (GstV4l2BufferPool * pool, GstBuffer ** buffer)
 #endif
 
 	*buffer = outbuf;
+	if (bytesused) {
+		*bytesused = vbuffer.bytesused;
+	}
 	
 	pool->next_qbuf_index++;
 	if (pool->next_qbuf_index >= pool->num_allocated) {

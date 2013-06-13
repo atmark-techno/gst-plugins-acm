@@ -130,10 +130,15 @@ GstFlowReturn		gst_v4l2_buffer_pool_qbuf(
 
 gboolean 			gst_v4l2_buffer_pool_is_ready_to_dqbuf(
 						GstV4l2BufferPool * pool);
+
 GstFlowReturn		gst_v4l2_buffer_pool_dqbuf(
 						GstV4l2BufferPool * pool, GstBuffer ** buffer);
 
+GstFlowReturn		gst_v4l2_buffer_pool_dqbuf_ex(
+						GstV4l2BufferPool * pool, GstBuffer ** buffer,
+						guint32* bytesused);
 
+/* for debug */
 void 				gst_v4l2_buffer_pool_log_buf_status(GstV4l2BufferPool* pool);
 
 G_END_DECLS

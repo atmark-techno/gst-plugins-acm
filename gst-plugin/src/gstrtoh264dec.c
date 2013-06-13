@@ -992,8 +992,9 @@ gst_rto_h264_dec_handle_frame (GstVideoDecoder * dec,
 	struct timeval tv;
 	GstBuffer *v4l2buf_out = NULL;
 	struct v4l2_buffer* v4l2buf_in = NULL;
-	gint i;
+	gint i, n;
 	gboolean isHandledOutFrame = FALSE;
+	guint32 bytesused = 0;
 #if DBG_MEASURE_PERF_HANDLE_FRAME
 	static double interval_time_start = 0, interval_time_end = 0;
 #endif
@@ -1134,11 +1135,11 @@ gst_rto_h264_dec_handle_frame (GstVideoDecoder * dec,
 	}
 
 	/* デコード済みデータが取得できるなら全て処理	*/
-	for (i = 0; i < me->pool_out->num_buffers; i++) {
+	for (i = 0, n = me->pool_out->num_buffers; i < n; i++) {
 #if DBG_LOG_PERF_PUSH
 		GST_INFO_OBJECT (me, "H264DEC-PUSH DQBUF START");
 #endif
-		ret = gst_v4l2_buffer_pool_dqbuf (me->pool_out, &v4l2buf_out);
+		ret = gst_v4l2_buffer_pool_dqbuf_ex (me->pool_out, &v4l2buf_out, &bytesused);
 #if DBG_LOG_PERF_PUSH
 		GST_INFO_OBJECT (me, "H264DEC-PUSH DQBUF END");
 #endif
@@ -1162,6 +1163,20 @@ gst_rto_h264_dec_handle_frame (GstVideoDecoder * dec,
 			}
 			interval_time_start_dq_out = gettimeofday_sec();
 #endif
+			/* H.264のMMCO(Memory Management Control Operation)の機能で、
+			 * DPB(Decoded Picture Buffer)から削除される場合がある。
+			 * この際、出力不可フラグが設定され、bytesused がゼロになる。
+			 * この出力は、down stream に流さず、無視する。
+			 */
+			if (0 == bytesused) {
+				GST_WARNING_OBJECT(me, "drop frame(1) by bytesused(0) at %d", i + 1);
+				gst_v4l2_buffer_pool_qbuf(me->pool_out,
+					v4l2buf_out, gst_buffer_get_size(v4l2buf_out));
+				n++;	/* drop した分 loop 数を増やす	*/
+				
+				continue;
+			}
+
 #if USE_THREAD
 			g_atomic_int_dec_and_test (&(me->priv->in_out_frame_count));
 #else
@@ -1188,7 +1203,7 @@ gst_rto_h264_dec_handle_frame (GstVideoDecoder * dec,
 		}
 		else if (GST_FLOW_DQBUF_EAGAIN == ret) {
 #if DBG_LOG_PERF_PUSH
-			GST_INFO_OBJECT (me, "H264DEC-PUSH DQBUF EAGAIN");
+			GST_INFO_OBJECT (me, "H264DEC-PUSH DQBUF EAGAIN at %d", i + 1);
 #endif
 			/* まだデコード済みフレームが取れないので、次回に処理を回す		*/
 			ret = GST_FLOW_OK;
@@ -1236,7 +1251,8 @@ gst_rto_h264_dec_handle_frame (GstVideoDecoder * dec,
 #if DBG_LOG_PERF_PUSH
 					GST_INFO_OBJECT (me, "H264DEC-PUSH DQBUF RESTART");
 #endif
-					ret = gst_v4l2_buffer_pool_dqbuf(me->pool_out, &v4l2buf_out);
+					ret = gst_v4l2_buffer_pool_dqbuf_ex(me->pool_out,
+							&v4l2buf_out, &bytesused);
 					if (GST_FLOW_OK != ret) {
 						GST_ERROR_OBJECT (me, "gst_v4l2_buffer_pool_dqbuf() returns %s",
 										  gst_flow_get_name (ret));
@@ -1261,6 +1277,20 @@ gst_rto_h264_dec_handle_frame (GstVideoDecoder * dec,
 				}
 				interval_time_start_dq_out = gettimeofday_sec();
 #endif
+
+				/* H.264のMMCO(Memory Management Control Operation)の機能で、
+				 * DPB(Decoded Picture Buffer)から削除される場合がある。
+				 * この際、出力不可フラグが設定され、bytesused がゼロになる。
+				 * この出力は、down stream に流さず、無視する。
+				 */
+				if (0 == bytesused) {
+					GST_WARNING_OBJECT(me, "drop frame(2) by bytesused(0)");
+					gst_v4l2_buffer_pool_qbuf(me->pool_out,
+						v4l2buf_out, gst_buffer_get_size(v4l2buf_out));
+					
+					break;
+				}
+
 #if USE_THREAD
 				g_atomic_int_dec_and_test (&(me->priv->in_out_frame_count));
 #else
