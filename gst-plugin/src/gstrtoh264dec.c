@@ -42,6 +42,9 @@
 #include <errno.h>
 #include <gst/video/gstvideometa.h>
 #include <gst/video/gstvideopool.h>
+#include <gst/base/gstbitreader.h>
+#define GST_USE_UNSTABLE_API
+#include <gst/codecparsers/gsth264parser.h>
 
 #include "gstrtoh264dec.h"
 #include "v4l2_util.h"
@@ -145,6 +148,8 @@ struct _GstRtoH264DecPrivate
 	 * デコードデータを上書きされてしまい、画面が乱れてしまう
 	 */
 	GstBuffer* displaying_buf;
+
+	GstH264NalParser *nalparser;
 };
 
 GST_DEBUG_CATEGORY_STATIC (rtoh264dec_debug);
@@ -629,6 +634,8 @@ gst_rto_h264_dec_start (GstVideoDecoder * dec)
 
 	me->priv->displaying_buf = NULL;
 
+	me->priv->nalparser = gst_h264_nal_parser_new ();
+
 	return TRUE;
 }
 
@@ -656,6 +663,8 @@ gst_rto_h264_dec_stop (GstVideoDecoder * dec)
 	/* クリーンアップ処理	*/
 	gst_rto_h264_dec_cleanup_decoder (me);
 
+	gst_h264_nal_parser_free (me->priv->nalparser);
+
 	return TRUE;
 }
 
@@ -668,6 +677,9 @@ gst_rto_h264_dec_analize_codecdata(GstRtoH264Dec *me, GstBuffer * codec_data)
 	int counter = 5;
 	int i, j;
 	GstMapInfo map;
+	GstH264NalUnit nalu;
+	GstH264ParserResult parseres;
+	guint off;
 
 	gst_buffer_map(codec_data, &map, GST_MAP_READ);
 
@@ -688,11 +700,35 @@ gst_rto_h264_dec_analize_codecdata(GstRtoH264Dec *me, GstBuffer * codec_data)
 	/* get sps_num */
 	sps_num = *(unsigned char *)(map.data + counter) & 0x1f;
 	counter++;
-	
+
+	off = 6;
 	sps_size = 0;
 	spses_size = 0;
 	/* get sps process */
 	for(i = 0; i < sps_num; i++){
+#if 0	// TODO
+		parseres = gst_h264_parser_identify_nalu_avc (me->priv->nalparser,
+					map.data, off, map.size, 2, &nalu);
+#if 0	// TODO
+		if (parseres != GST_H264_PARSER_OK) {
+			gst_buffer_unmap (codec_data, &map);
+			goto avcc_too_small;
+		}
+#endif
+//		gst_h264_parse_process_nal (h264parse, &nalu);
+		{
+			GstH264ParserResult pres;
+			GstH264SPS sps = { 0, };
+			pres = gst_h264_parser_parse_sps (me->priv->nalparser, &nalu, &sps, TRUE);
+			if (pres != GST_H264_PARSER_OK)
+				GST_WARNING_OBJECT (me, "failed to parse SPS:");
+	
+			
+			GST_ERROR_OBJECT (me, "frame_mbs_only_flag: %d", sps.frame_mbs_only_flag);
+		}
+		off = nalu.offset + nalu.size;
+#endif
+
 		/* get sps position and size */
 		sps_size = (*(unsigned char *)(map.data + counter) << 8)
 					| *(unsigned char *)(map.data + counter + 1);
@@ -713,11 +749,35 @@ gst_rto_h264_dec_analize_codecdata(GstRtoH264Dec *me, GstBuffer * codec_data)
 	/* get pps_num */
 	pps_num = *(unsigned char *)(map.data + counter);
 	counter++;
-	
+
+	off++;
+
 	pps_size = 0;
 	ppses_size = 0;
 	/* get pps process */
 	for (i = 0; i < pps_num; i++) {
+#if 0	// TODO
+		parseres = gst_h264_parser_identify_nalu_avc (me->priv->nalparser,
+						map.data, off, map.size, 2, &nalu);
+#if 0	// TODO
+		if (parseres != GST_H264_PARSER_OK) {
+			gst_buffer_unmap (codec_data, &map);
+			goto avcc_too_small;
+		}
+#endif
+
+//		gst_h264_parse_process_nal (h264parse, &nalu);
+		{
+			GstH264ParserResult pres;
+			GstH264PPS pps = { 0, };
+			pres = gst_h264_parser_parse_pps (me->priv->nalparser, &nalu, &pps);
+			/* arranged for a fallback pps.id, so use that one and only warn */
+			if (pres != GST_H264_PARSER_OK)
+				GST_WARNING_OBJECT (me, "failed to parse PPS:");
+		}
+		off = nalu.offset + nalu.size;
+#endif
+
 		/* get last pps position and size */
 		pps_size = (*(unsigned char *)(map.data + counter) << 8)
 					| *(unsigned char *)(map.data + counter + 1);
@@ -807,6 +867,15 @@ gst_rto_h264_dec_set_format (GstVideoDecoder * dec, GstVideoCodecState * state)
 		me->out_height = me->height;
 	}
 	me->frame_rate = vinfo->fps_n / vinfo->fps_d;
+
+#if 0	/* for debug	*/
+	if (GST_VIDEO_INFO_IS_INTERLACED (vinfo)) {
+		GST_INFO_OBJECT (me, "H264DEC SET FORMAT - INTERLACED");
+	}
+	else {
+		GST_INFO_OBJECT (me, "H264DEC SET FORMAT - NON INTERLACED");
+	}
+#endif
 
 	/* analize codecdata */
 	if (state->codec_data) {
@@ -1065,6 +1134,47 @@ gst_rto_h264_dec_handle_frame (GstVideoDecoder * dec,
 			gst_buffer_unmap (buffer, &map_debug);
 			fclose(fp);
 		}
+	}
+#endif
+
+#if 0	// TODO 1
+	{
+		GstMapInfo map_parse;
+		GstH264ParserResult parse_res;
+		GstH264NalUnit nalu;
+		const guint nl = 4; // TODO h264parse->nal_length_size;
+
+		gst_buffer_map (buffer, &map_parse, GST_MAP_READ);
+
+		parse_res = gst_h264_parser_identify_nalu_avc (me->priv->nalparser,
+			map_parse.data, 0, map_parse.size, nl, &nalu);
+		
+		while (parse_res == GST_H264_PARSER_OK) {
+			GST_INFO_OBJECT (me, "AVC nal offset %d", nalu.offset + nalu.size);
+			
+			/* either way, have a look at it */
+			// TODO gst_h264_parse_process_nal (h264parse, &nalu);
+			GST_INFO_OBJECT (me, "processing nal of type %u, size %u",
+							  nalu.type, nalu.size);
+			if (GST_H264_NAL_SLICE == nalu.type) {
+				GstH264SliceHdr slice;
+				GstH264ParserResult pres;
+
+				pres = gst_h264_parser_parse_slice_hdr (
+						me->priv->nalparser, &nalu, &slice, FALSE, FALSE);
+				GST_INFO_OBJECT (me,
+								  "parse result %d, first MB: %u, slice type: %u",
+								  pres, slice.first_mb_in_slice, slice.type);
+				GST_INFO_OBJECT (me,
+								 "field_pic_flag: %d, bottom_field_flag: %d",
+								 slice.field_pic_flag, slice.bottom_field_flag);
+			}
+
+			parse_res = gst_h264_parser_identify_nalu_avc (me->priv->nalparser,
+				map_parse.data, nalu.offset + nalu.size, map_parse.size, nl, &nalu);
+		}
+		
+		gst_buffer_unmap (buffer, &map_parse);
 	}
 #endif
 
@@ -1567,6 +1677,23 @@ gst_rto_h264_dec_sink_event (GstVideoDecoder * dec, GstEvent *event)
 			gst_video_codec_frame_unref(frame);
 
 			do {
+				do {
+					FD_ZERO(&read_fds);
+					FD_SET(me->video_fd, &read_fds);
+					tv.tv_sec = 0;
+					tv.tv_usec = SELECT_TIMEOUT_MSEC * 1000;
+					r = select(me->video_fd + 1, &read_fds, NULL, NULL, &tv);
+					GST_DEBUG_OBJECT(me, "After select for read. r=%d", r);
+				} while (r == -1 && (errno == EINTR || errno == EAGAIN));
+				if (r < 0) {
+					goto select_failed;
+				}
+				else if (0 == r) {
+					/* timeoutしたらエラー	*/
+					GST_INFO_OBJECT(me, "select() for output is timeout");
+					goto select_timeout;
+				}
+
 				/* dequeue buffer	*/
 				ret = gst_v4l2_buffer_pool_dqbuf (me->pool_out, &v4l2buf_out);
 				if (GST_FLOW_OK != ret) {
@@ -2095,6 +2222,11 @@ gst_rto_h264_dec_handle_out_frame(GstRtoH264Dec * me,
 	double time_start = 0, time_end = 0;
 #endif
 
+#if 0	/* for debug	 */
+	static int ccc = 0;
+	GST_INFO_OBJECT(me, "handle_out_frame (%d)", ++ccc);
+#endif
+	
 	/* 出力引数初期化	*/
 	if (NULL != is_eos) {
 		*is_eos = FALSE;

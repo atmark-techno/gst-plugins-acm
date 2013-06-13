@@ -62,7 +62,7 @@ libgstrtoh264dec_la_SOURCES = \
 # compiler and linker flags used to compile this plugin, set in configure.ac
 libgstrtoh264dec_la_CFLAGS = $(GST_CFLAGS)
 libgstrtoh264dec_la_LIBADD = $(GST_LIBS)
-libgstrtoh264dec_la_LDFLAGS = $(GST_PLUGIN_LDFLAGS) -lgstvideo-1.0 -lgstrtov4l2
+libgstrtoh264dec_la_LDFLAGS = $(GST_PLUGIN_LDFLAGS) -lgstvideo-1.0 -lgstcodecparsers-1.0 -lgstrtov4l2
 libgstrtoh264dec_la_LIBTOOLFLAGS = --tag=disable-static
 
 # headers we need but don't want installed
