@@ -42,7 +42,6 @@
 #include <errno.h>
 #include <gst/video/gstvideometa.h>
 #include <gst/video/gstvideopool.h>
-#include <gst/base/gstbitreader.h>
 #define GST_USE_UNSTABLE_API
 #include <gst/codecparsers/gsth264parser.h>
 
@@ -57,10 +56,8 @@
 /* フレームのドロップは、sink 側で行う	*/
 #define DO_FRAME_DROP				0
 
-/* ES (with NAL start code), MP4 (without start code) をサポート
- * (R-MobileA1マルチメディアミドル 機能仕様書)
- */
-#define SUPPORT_MP4_ONLY			0
+/* フィールド構造のインタレースに対応する	*/
+#define SUPPORT_CODED_FIELD			1
 
 /* defined at acm-driver/include/acm-h264dec.h	*/
 	/* fmem_num */
@@ -98,6 +95,7 @@
 #define DBG_LOG_PERF_SELECT_IN		0
 #define DBG_LOG_PERF_PUSH			0
 #define DBG_LOG_PERF_SELECT_OUT		0
+#define DBG_LOG_INTERLACED			0
 
 
 /* select() による待ち時間の計測		*/
@@ -149,8 +147,31 @@ struct _GstRtoH264DecPrivate
 	 */
 	GstBuffer* displaying_buf;
 
+#if SUPPORT_CODED_FIELD
+	/* NALユニットパーサ	*/
 	GstH264NalParser *nalparser;
+	/* progressive or interlaced ?	*/
+	gboolean is_interlaced;
+	guint nal_length_size;
+	/* フィールド構造 or フレーム構造 ?	*/
+	gboolean is_field_structure;
+#endif
 };
+
+#if SUPPORT_CODED_FIELD
+/* GstVideoCodecFrameFlags の拡張		*/
+typedef enum
+{
+	/** トップフィールドを格納	*/
+	GST_VIDEO_CODEC_FRAME_FLAG_TOP_FIELD			= (1<<24),
+	/** ボトムフィールドを格納	*/
+	GST_VIDEO_CODEC_FRAME_FLAG_BOTTOM_FIELD			= (1<<25),
+	/** 両フィールドを格納			*/
+	GST_VIDEO_CODEC_FRAME_FLAG_TOP_BOTTOM_FIELD		= (1<<26),
+	/** フレームを格納			*/
+	GST_VIDEO_CODEC_FRAME_FLAG_FRAME				= (1<<27),
+} GstVideoCodecFrameFlagsEx;
+#endif
 
 GST_DEBUG_CATEGORY_STATIC (rtoh264dec_debug);
 #define GST_CAT_DEFAULT (rtoh264dec_debug)
@@ -528,6 +549,13 @@ gst_rto_h264_dec_init (GstRtoH264Dec * me)
 	me->output_format = GST_RTOH264DEC_OUT_FMT_UNKNOWN;
 	me->enable_vio6 = DEFAULT_ENABLE_VIO6;
 
+#if SUPPORT_CODED_FIELD
+	me->priv->nalparser = NULL;
+	me->priv->is_interlaced = FALSE;
+	me->priv->nal_length_size = 4;
+	me->priv->is_field_structure = FALSE;
+#endif
+
 	/* If the input is packetized, then the parse method will not be called. */
 	gst_video_decoder_set_packetized (GST_VIDEO_DECODER (me), TRUE);
 }
@@ -634,7 +662,17 @@ gst_rto_h264_dec_start (GstVideoDecoder * dec)
 
 	me->priv->displaying_buf = NULL;
 
+#if SUPPORT_CODED_FIELD
 	me->priv->nalparser = gst_h264_nal_parser_new ();
+	if (NULL == me->priv->nalparser) {
+		GST_ERROR_OBJECT (me, "Out of memory");
+		
+		return FALSE;
+	}
+	me->priv->is_interlaced = FALSE;
+	me->priv->nal_length_size = 4;
+	me->priv->is_field_structure = FALSE;
+#endif
 
 	return TRUE;
 }
@@ -663,7 +701,12 @@ gst_rto_h264_dec_stop (GstVideoDecoder * dec)
 	/* クリーンアップ処理	*/
 	gst_rto_h264_dec_cleanup_decoder (me);
 
-	gst_h264_nal_parser_free (me->priv->nalparser);
+#if SUPPORT_CODED_FIELD
+	if (me->priv->nalparser) {
+		gst_h264_nal_parser_free (me->priv->nalparser);
+		me->priv->nalparser = NULL;
+	}
+#endif
 
 	return TRUE;
 }
@@ -677,9 +720,13 @@ gst_rto_h264_dec_analize_codecdata(GstRtoH264Dec *me, GstBuffer * codec_data)
 	int counter = 5;
 	int i, j;
 	GstMapInfo map;
+#if SUPPORT_CODED_FIELD
 	GstH264NalUnit nalu;
 	GstH264ParserResult parseres;
-	guint off;
+	guint offset = 0;
+	GstH264SPS sps = { 0, };
+	GstH264PPS pps = { 0, };
+#endif
 
 	gst_buffer_map(codec_data, &map, GST_MAP_READ);
 
@@ -696,44 +743,58 @@ gst_rto_h264_dec_analize_codecdata(GstRtoH264Dec *me, GstBuffer * codec_data)
 		}
 	}
 #endif
-	
+
+	/* parse the avcC data */
+    if (map.size < 8) {
+		gst_buffer_unmap (codec_data, &map);
+		goto avcc_too_small;
+    }
+
+#if SUPPORT_CODED_FIELD
+	me->priv->nal_length_size = (map.data[4] & 0x03) + 1;
+    GST_INFO_OBJECT (me, "nal length size %u", me->priv->nal_length_size);
+#endif
+
 	/* get sps_num */
 	sps_num = *(unsigned char *)(map.data + counter) & 0x1f;
 	counter++;
 
-	off = 6;
+#if SUPPORT_CODED_FIELD
+	offset = 6;
+#endif
 	sps_size = 0;
 	spses_size = 0;
 	/* get sps process */
 	for(i = 0; i < sps_num; i++){
-#if 0	// TODO
+#if SUPPORT_CODED_FIELD
 		parseres = gst_h264_parser_identify_nalu_avc (me->priv->nalparser,
-					map.data, off, map.size, 2, &nalu);
-#if 0	// TODO
-		if (parseres != GST_H264_PARSER_OK) {
+					map.data, offset, map.size, 2, &nalu);
+		if (GST_H264_PARSER_OK != parseres) {
 			gst_buffer_unmap (codec_data, &map);
 			goto avcc_too_small;
 		}
-#endif
-//		gst_h264_parse_process_nal (h264parse, &nalu);
-		{
-			GstH264ParserResult pres;
-			GstH264SPS sps = { 0, };
-			pres = gst_h264_parser_parse_sps (me->priv->nalparser, &nalu, &sps, TRUE);
-			if (pres != GST_H264_PARSER_OK)
-				GST_WARNING_OBJECT (me, "failed to parse SPS:");
-	
-			
-			GST_ERROR_OBJECT (me, "frame_mbs_only_flag: %d", sps.frame_mbs_only_flag);
+
+		parseres = gst_h264_parser_parse_sps (me->priv->nalparser, &nalu, &sps, TRUE);
+		if (GST_H264_PARSER_OK != parseres) {
+			GST_WARNING_OBJECT (me, "failed to parse SPS:");
 		}
-		off = nalu.offset + nalu.size;
+
+		if (0 == sps.frame_mbs_only_flag) {
+			GST_INFO_OBJECT (me, "SPS - INTERLACED SEQUENCE");
+			me->priv->is_interlaced = TRUE;
+		}
+		else {
+			GST_INFO_OBJECT (me, "SPS - NON INTERLACED SEQUENCE");
+		}
+
+		offset = nalu.offset + nalu.size;
 #endif
 
 		/* get sps position and size */
 		sps_size = (*(unsigned char *)(map.data + counter) << 8)
 					| *(unsigned char *)(map.data + counter + 1);
 		counter += 2;
-		
+
 		/* copy sps size to me->spspps */
 		for (j = 0; j < 4; j++) {
 			me->spspps[spses_size + j] = (unsigned char)(sps_size << (8 * (3 - j)));
@@ -750,39 +811,34 @@ gst_rto_h264_dec_analize_codecdata(GstRtoH264Dec *me, GstBuffer * codec_data)
 	pps_num = *(unsigned char *)(map.data + counter);
 	counter++;
 
-	off++;
+#if SUPPORT_CODED_FIELD
+	offset++;
+#endif
 
 	pps_size = 0;
 	ppses_size = 0;
 	/* get pps process */
 	for (i = 0; i < pps_num; i++) {
-#if 0	// TODO
+#if SUPPORT_CODED_FIELD
 		parseres = gst_h264_parser_identify_nalu_avc (me->priv->nalparser,
-						map.data, off, map.size, 2, &nalu);
-#if 0	// TODO
-		if (parseres != GST_H264_PARSER_OK) {
+						map.data, offset, map.size, 2, &nalu);
+		if (GST_H264_PARSER_OK != parseres) {
 			gst_buffer_unmap (codec_data, &map);
 			goto avcc_too_small;
 		}
-#endif
 
-//		gst_h264_parse_process_nal (h264parse, &nalu);
-		{
-			GstH264ParserResult pres;
-			GstH264PPS pps = { 0, };
-			pres = gst_h264_parser_parse_pps (me->priv->nalparser, &nalu, &pps);
-			/* arranged for a fallback pps.id, so use that one and only warn */
-			if (pres != GST_H264_PARSER_OK)
-				GST_WARNING_OBJECT (me, "failed to parse PPS:");
+		parseres = gst_h264_parser_parse_pps (me->priv->nalparser, &nalu, &pps);
+		if (GST_H264_PARSER_OK != parseres) {
+			GST_WARNING_OBJECT (me, "failed to parse PPS:");
 		}
-		off = nalu.offset + nalu.size;
+		offset = nalu.offset + nalu.size;
 #endif
 
 		/* get last pps position and size */
 		pps_size = (*(unsigned char *)(map.data + counter) << 8)
 					| *(unsigned char *)(map.data + counter + 1);
 		counter += 2;
-		
+
 		/* copy pps size to me->spspps */
 		for (j = 0; j < 4; j++) {
 			me->spspps[spses_size + ppses_size + j]
@@ -809,6 +865,14 @@ gst_rto_h264_dec_analize_codecdata(GstRtoH264Dec *me, GstBuffer * codec_data)
 	gst_buffer_unmap(codec_data, &map);
 
 	return TRUE;
+
+	/* ERRORS */
+avcc_too_small:
+	{
+		GST_ELEMENT_ERROR (me, STREAM, DECODE, (NULL),
+			("avcC size %" G_GSIZE_FORMAT " < 8", map.size));
+		return FALSE;
+	}
 }
 
 static gboolean
@@ -842,17 +906,9 @@ gst_rto_h264_dec_set_format (GstVideoDecoder * dec, GstVideoCodecState * state)
 		if (g_str_equal(alignment, "au")) {
 			me->input_format = GST_RTOH264DEC_IN_FMT_MP4;
 		}
-#if SUPPORT_MP4_ONLY
-		else {
-			GST_ELEMENT_ERROR (me, STREAM, DECODE, (NULL),
-							   ("ES (with NAL start code) is unsupported"));
-			return FALSE;
-		}
-#else
 		else if (g_str_equal(alignment, "nal")) {
 			me->input_format = GST_RTOH264DEC_IN_FMT_ES;
 		}
-#endif
 	}
 	else {
 		me->input_format = GST_RTOH264DEC_IN_FMT_MP4;
@@ -992,6 +1048,7 @@ gst_rto_h264_dec_set_format (GstVideoDecoder * dec, GstVideoCodecState * state)
 out:
 	return ret;
 
+	/* ERRORS */
 negotiate_failed:
 	{
 		GST_ELEMENT_ERROR (me, CORE, NEGOTIATION, (NULL),
@@ -1046,6 +1103,137 @@ gst_rto_h264_dec_parse (GstVideoDecoder *dec, GstVideoCodecFrame *frame,
 	GST_INFO_OBJECT (me, "H264DEC PARSE at_eos:%d", at_eos);
 	
 	return GST_FLOW_OK;
+}
+
+static gboolean
+gst_rto_h264_dec_parse_nal(GstRtoH264Dec *me, GstVideoCodecFrame * frame)
+{
+	GstBuffer *buffer = frame->input_buffer;
+	GstMapInfo map_parse;
+	GstH264ParserResult parse_res;
+	GstH264NalUnit nalu;
+	const guint nl = me->priv->nal_length_size;
+	gboolean isFoundSlice = FALSE;
+	GstH264SliceHdr slice;
+	gboolean isFrame = FALSE;
+	gboolean hasTopField = FALSE;
+	gboolean hasBottomField = FALSE;
+
+	gst_buffer_map (buffer, &map_parse, GST_MAP_READ);
+
+	parse_res = gst_h264_parser_identify_nalu_avc (me->priv->nalparser,
+					map_parse.data, 0, map_parse.size, nl, &nalu);
+
+	while (parse_res == GST_H264_PARSER_OK) {
+#if DBG_LOG_INTERLACED
+		GST_INFO_OBJECT (me, "processing nal of type %u, offset %d, size %u",
+						 nalu.type, nalu.offset, nalu.size);
+#endif
+		switch (nalu.type) {
+		case GST_H264_NAL_SLICE:
+		case GST_H264_NAL_SLICE_DPA:
+		case GST_H264_NAL_SLICE_DPB:
+		case GST_H264_NAL_SLICE_DPC:
+		case GST_H264_NAL_SLICE_IDR:
+			parse_res = gst_h264_parser_parse_slice_hdr (
+							me->priv->nalparser, &nalu, &slice, FALSE, FALSE);
+			if (GST_H264_PARSER_OK == parse_res) {
+#if DBG_LOG_INTERLACED
+				GST_INFO_OBJECT (me, "slice type: %u, frame_num: %d",
+								 slice.type, slice.frame_num);
+				GST_INFO_OBJECT (me, "field_pic_flag: %d, bottom_field_flag: %d",
+								  slice.field_pic_flag, slice.bottom_field_flag);
+#endif
+				if (0 == slice.field_pic_flag) {
+					isFrame = TRUE;
+				}
+				else {
+					if (slice.bottom_field_flag) {
+						hasBottomField = TRUE;
+					}
+					else {
+						hasTopField = TRUE;
+					}
+				}
+			}
+			isFoundSlice = TRUE;
+			break;
+		default:
+			break;
+		}
+		
+		parse_res = gst_h264_parser_identify_nalu_avc (me->priv->nalparser,
+						map_parse.data, nalu.offset + nalu.size, map_parse.size,
+						nl, &nalu);
+	}
+	
+	if (! isFoundSlice) {
+		GST_WARNING_OBJECT (me, "NOT FOUND SLICE");
+	}
+	
+	/* スライス種別を記録	*/
+	if (isFrame) {
+#if DBG_LOG_INTERLACED
+		GST_INFO_OBJECT (me, "FRAME_FLAG_FRAME");
+#endif
+		GST_VIDEO_CODEC_FRAME_FLAG_SET(frame, GST_VIDEO_CODEC_FRAME_FLAG_FRAME);
+	}
+	if (hasTopField && hasBottomField) {
+#if DBG_LOG_INTERLACED
+		GST_INFO_OBJECT (me, "FRAME_FLAG_TOP_BOTTOM_FIELD");
+#endif
+		GST_VIDEO_CODEC_FRAME_FLAG_SET(frame,
+			GST_VIDEO_CODEC_FRAME_FLAG_TOP_BOTTOM_FIELD);
+	}
+	else {
+		if (hasTopField) {
+#if DBG_LOG_INTERLACED
+			GST_INFO_OBJECT (me, "FRAME_FLAG_TOP_FIELD");
+#endif
+			GST_VIDEO_CODEC_FRAME_FLAG_SET(frame,
+				GST_VIDEO_CODEC_FRAME_FLAG_TOP_FIELD);
+		}
+		if (hasBottomField) {
+#if DBG_LOG_INTERLACED
+			GST_INFO_OBJECT (me, "FRAME_FLAG_BOTTOM_FIELD");
+#endif
+			GST_VIDEO_CODEC_FRAME_FLAG_SET(frame,
+				GST_VIDEO_CODEC_FRAME_FLAG_BOTTOM_FIELD);
+		}
+	}
+
+	/* フィールド構造であれば frame rate を半分にして down stream に伝える	*/
+	if ( (hasTopField && ! hasBottomField) || (! hasTopField && hasBottomField) ) {
+		if (! me->priv->is_field_structure) {
+			GstVideoCodecState *oldOutputState = me->output_state;
+			GST_WARNING_OBJECT (me, "do change frame rate");
+
+			oldOutputState->info.fps_d *= 2;
+			me->output_state = gst_video_decoder_set_output_state (
+				GST_VIDEO_DECODER (me), me->out_video_fmt,
+				me->out_width, me->out_height, oldOutputState);
+
+			gst_video_codec_state_unref (oldOutputState);
+
+			if (! gst_video_decoder_negotiate (GST_VIDEO_DECODER (me))) {
+				goto negotiate_failed;
+			}
+
+			me->priv->is_field_structure = TRUE;
+		}
+	}
+
+	gst_buffer_unmap (buffer, &map_parse);
+	
+	return TRUE;
+
+	/* ERRORS */
+negotiate_failed:
+	{
+		GST_ELEMENT_ERROR (me, CORE, NEGOTIATION, (NULL),
+			("failed src caps negotiate"));
+		return FALSE;
+	}
 }
 
 static GstFlowReturn
@@ -1137,44 +1325,9 @@ gst_rto_h264_dec_handle_frame (GstVideoDecoder * dec,
 	}
 #endif
 
-#if 0	// TODO 1
-	{
-		GstMapInfo map_parse;
-		GstH264ParserResult parse_res;
-		GstH264NalUnit nalu;
-		const guint nl = 4; // TODO h264parse->nal_length_size;
-
-		gst_buffer_map (buffer, &map_parse, GST_MAP_READ);
-
-		parse_res = gst_h264_parser_identify_nalu_avc (me->priv->nalparser,
-			map_parse.data, 0, map_parse.size, nl, &nalu);
-		
-		while (parse_res == GST_H264_PARSER_OK) {
-			GST_INFO_OBJECT (me, "AVC nal offset %d", nalu.offset + nalu.size);
-			
-			/* either way, have a look at it */
-			// TODO gst_h264_parse_process_nal (h264parse, &nalu);
-			GST_INFO_OBJECT (me, "processing nal of type %u, size %u",
-							  nalu.type, nalu.size);
-			if (GST_H264_NAL_SLICE == nalu.type) {
-				GstH264SliceHdr slice;
-				GstH264ParserResult pres;
-
-				pres = gst_h264_parser_parse_slice_hdr (
-						me->priv->nalparser, &nalu, &slice, FALSE, FALSE);
-				GST_INFO_OBJECT (me,
-								  "parse result %d, first MB: %u, slice type: %u",
-								  pres, slice.first_mb_in_slice, slice.type);
-				GST_INFO_OBJECT (me,
-								 "field_pic_flag: %d, bottom_field_flag: %d",
-								 slice.field_pic_flag, slice.bottom_field_flag);
-			}
-
-			parse_res = gst_h264_parser_identify_nalu_avc (me->priv->nalparser,
-				map_parse.data, nalu.offset + nalu.size, map_parse.size, nl, &nalu);
-		}
-		
-		gst_buffer_unmap (buffer, &map_parse);
+#if SUPPORT_CODED_FIELD
+	if (me->priv->is_interlaced) {
+		gst_rto_h264_dec_parse_nal(me, frame);
 	}
 #endif
 
@@ -1617,10 +1770,11 @@ gst_rto_h264_dec_sink_event (GstVideoDecoder * dec, GstEvent *event)
 		GstBuffer* eosBuffer = NULL;
 		GstBuffer *v4l2buf_out = NULL;
 		struct v4l2_buffer* v4l2buf_in = NULL;
+		guint32 bytesused = 0;
 
 		GST_INFO_OBJECT (me, "H264DEC received GST_EVENT_EOS");
 
-		/* EOS の際は、0x00, 0x00, 0x00, 0x01, 0x0B を通知する */
+		/* EOS の際は、0x00, 0x00, 0x00, 0x01, 0x0B を enqueue する */
 		GST_INFO_OBJECT(me, "Enqueue EOS buffer.");
 		
 		eosBuffer = gst_buffer_new_allocate(NULL, 5, NULL);
@@ -1695,7 +1849,8 @@ gst_rto_h264_dec_sink_event (GstVideoDecoder * dec, GstEvent *event)
 				}
 
 				/* dequeue buffer	*/
-				ret = gst_v4l2_buffer_pool_dqbuf (me->pool_out, &v4l2buf_out);
+				ret = gst_v4l2_buffer_pool_dqbuf_ex (me->pool_out,
+						&v4l2buf_out, &bytesused);
 				if (GST_FLOW_OK != ret) {
 					if (GST_FLOW_DQBUF_EAGAIN == ret) {
 //						GST_WARNING_OBJECT (me, "DQBUF_EAGAIN after EOS");
@@ -1705,6 +1860,20 @@ gst_rto_h264_dec_sink_event (GstVideoDecoder * dec, GstEvent *event)
 					GST_ERROR_OBJECT (me, "gst_v4l2_buffer_pool_dqbuf() returns %s",
 									  gst_flow_get_name (ret));
 					goto dqbuf_failed;
+				}
+
+				/* H.264のMMCO(Memory Management Control Operation)の機能で、
+				 * DPB(Decoded Picture Buffer)から削除される場合がある。
+				 * この際、出力不可フラグが設定され、bytesused がゼロになる。
+				 * この出力は、down stream に流さず、無視する。
+				 */
+				if (0 == bytesused) {
+					GST_WARNING_OBJECT(me, "drop frame(3) by bytesused(0) at %d",
+						frame->system_frame_number);
+					gst_v4l2_buffer_pool_qbuf(me->pool_out,
+						v4l2buf_out, gst_buffer_get_size(v4l2buf_out));
+					
+					continue;
 				}
 
 #if USE_THREAD
@@ -2222,11 +2391,6 @@ gst_rto_h264_dec_handle_out_frame(GstRtoH264Dec * me,
 	double time_start = 0, time_end = 0;
 #endif
 
-#if 0	/* for debug	 */
-	static int ccc = 0;
-	GST_INFO_OBJECT(me, "handle_out_frame (%d)", ++ccc);
-#endif
-	
 	/* 出力引数初期化	*/
 	if (NULL != is_eos) {
 		*is_eos = FALSE;
@@ -2280,6 +2444,36 @@ gst_rto_h264_dec_handle_out_frame(GstRtoH264Dec * me,
 		goto no_frame;
 	}
 	gst_video_codec_frame_unref(frame);
+
+#if SUPPORT_CODED_FIELD
+#if DBG_LOG_INTERLACED
+	GST_INFO_OBJECT(me, "handle_out_frame (%u)", frame->system_frame_number);
+#endif
+	if (me->priv->is_interlaced) {
+		if (GST_VIDEO_CODEC_FRAME_FLAG_IS_SET(frame,
+				GST_VIDEO_CODEC_FRAME_FLAG_TOP_FIELD)
+			|| GST_VIDEO_CODEC_FRAME_FLAG_IS_SET(frame,
+				GST_VIDEO_CODEC_FRAME_FLAG_BOTTOM_FIELD)) {
+				/* 2入力 1出力なので、drop する		*/
+				GST_INFO_OBJECT(me, "drop frame by field structre (%u)",
+								frame->system_frame_number);
+				gst_video_decoder_drop_frame (GST_VIDEO_DECODER (me), frame);
+
+				/* 次のフレームを取得	*/
+				frame = gst_video_decoder_get_oldest_frame(GST_VIDEO_DECODER (me));
+				if (! frame) {
+					goto no_frame;
+				}
+				gst_video_codec_frame_unref(frame);
+
+#if USE_THREAD
+				g_atomic_int_dec_and_test (&(me->priv->in_out_frame_count));
+#else
+				me->priv->in_out_frame_count--;
+#endif
+			}
+	}
+#endif
 
 #if DO_PUSH_POOLS_BUF
 

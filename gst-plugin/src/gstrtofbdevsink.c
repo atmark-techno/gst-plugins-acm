@@ -963,7 +963,7 @@ gst_rto_fbdevsink_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
 					  GST_TIME_ARGS (GST_BUFFER_DURATION(buf)));
 #endif
 
-	/* call gst_audio_decoder_chain() */
+	/* call gst_base_sink_chain() */
 	return me->priv->base_chain (pad, parent, buf);
 }
 
