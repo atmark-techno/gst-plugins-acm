@@ -63,6 +63,12 @@ G_BEGIN_DECLS
 #define GST_RTOH264DEC_WIDTH_MAX		1920
 #define GST_RTOH264DEC_HEIGHT_MIN		0	/* 80 */
 #define GST_RTOH264DEC_HEIGHT_MAX		1080
+#define GST_RTOH264DEC_STRIDE_MIN		0	/* 2 */
+#define GST_RTOH264DEC_STRIDE_MAX		65535
+#define GST_RTOH264DEC_X_OFFSET_MIN		0
+#define GST_RTOH264DEC_X_OFFSET_MAX		65535
+#define GST_RTOH264DEC_Y_OFFSET_MIN		0
+#define GST_RTOH264DEC_Y_OFFSET_MAX		65535
 
 /* 出力フォーマット	*/
 #define GST_RTOH264DEC_OUT_FMT_UNKNOWN	0xFFFFFFFF
@@ -141,6 +147,17 @@ typedef struct _GstRtoH264Dec {
 	 * 1 : 有効
 	 */
 	gboolean enable_vio6;
+
+	/* フレームのストライド幅 (画素)
+	 * 2 ~ 65535
+	 */
+	guint32 frame_stride;
+
+	/* フレームの開始位置 (画素)
+	 * 0 ~ 65535
+	 */
+	guint32 frame_x_offset;
+	guint32 frame_y_offset;
 
 	/*< private >*/
 	GstRtoH264DecPrivate *priv;

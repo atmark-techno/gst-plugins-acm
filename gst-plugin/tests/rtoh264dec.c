@@ -144,6 +144,9 @@ GST_START_TEST (test_properties)
 	gint 	fmem_num;
 	gint 	buf_pic_cnt;
 	gboolean enable_vio6;
+	gint 	stride;
+	gint 	x_offset;
+	gint 	y_offset;
 
 	rtoh264dec = setup_rtoh264dec (AVC_AU);
 	
@@ -155,6 +158,9 @@ GST_START_TEST (test_properties)
 				  "buf-pic-cnt", 	5, 
 				  "format", 		"RGB",
 				  "enable-vio6", 	TRUE,
+				  "stride",			2048,
+				  "x-offset",		20,
+				  "y-offset",		30,
 				  NULL);
 	g_object_get (rtoh264dec,
 				  "device", 		&device,
@@ -164,6 +170,9 @@ GST_START_TEST (test_properties)
 				  "buf-pic-cnt", 	&buf_pic_cnt,
 				  "format", 		&format,
 				  "enable-vio6", 	&enable_vio6,
+				  "stride",			&stride,
+				  "x-offset",		&x_offset,
+				  "y-offset",		&y_offset,
 				  NULL);
 	fail_unless (g_str_equal (device, "/dev/video1"));
 	fail_unless_equals_int (width, 1024);
@@ -172,6 +181,9 @@ GST_START_TEST (test_properties)
 	fail_unless_equals_int (buf_pic_cnt, 5);
 	fail_unless (g_str_equal (format, "RGB"));
 	fail_unless (enable_vio6 == TRUE);
+	fail_unless_equals_int (stride, 2048);
+	fail_unless_equals_int (x_offset, 20);
+	fail_unless_equals_int (y_offset, 30);
 	g_free (device);
 	device = NULL;
 	g_free (format);
@@ -186,6 +198,9 @@ GST_START_TEST (test_properties)
 				  "buf-pic-cnt", 	8,
 				  "format", 		"RGBx",
 				  "enable-vio6", 	FALSE,
+				  "stride",			240,
+				  "x-offset",		100,
+				  "y-offset",		200,
 				  NULL);
 	g_object_get (rtoh264dec,
 				  "device", 		&device,
@@ -195,6 +210,9 @@ GST_START_TEST (test_properties)
 				  "buf-pic-cnt", 	&buf_pic_cnt,
 				  "format", 		&format,
 				  "enable-vio6", 	&enable_vio6,
+				  "stride",			&stride,
+				  "x-offset",		&x_offset,
+				  "y-offset",		&y_offset,
 				  NULL);
 	fail_unless (g_str_equal (device, "/dev/video2"));
 	fail_unless_equals_int (width, 1920);
@@ -203,6 +221,9 @@ GST_START_TEST (test_properties)
 	fail_unless_equals_int (buf_pic_cnt, 8);
 	fail_unless (g_str_equal (format, "RGBx"));
 	fail_unless (enable_vio6 == FALSE);
+	fail_unless_equals_int (stride, 240);
+	fail_unless_equals_int (x_offset, 100);
+	fail_unless_equals_int (y_offset, 200);
 	g_free (device);
 	device = NULL;
 	g_free (format);

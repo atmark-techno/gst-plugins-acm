@@ -334,6 +334,9 @@ gst_rto_fbdevsink_init (GstRtoFBDevSink * me)
 
 	me->width = 0;
 	me->height = 0;
+	me->frame_stride = 0;
+	me->frame_x_offset = 0;
+	me->frame_y_offset = 0;
 	me->cx = 0;
 	me->cy = 0;
 	me->linelen = 0;
@@ -450,6 +453,9 @@ gst_rto_fbdevsink_start (GstBaseSink * bsink)
 		me->priv->last_show_fb_dmabuf_index = -1;
 		me->priv->displaying_buf = NULL;
 		me->priv->prev_display_time_sec = 0;
+
+		/* 初期画面はブランクスクリーン	*/
+		do_blank_screen(me);
 	}
 	else {
 		/* map the framebuffer */
@@ -461,11 +467,13 @@ gst_rto_fbdevsink_start (GstBaseSink * bsink)
 				goto mmap_failed;
 			}
 		}
-		GST_DEBUG_OBJECT(me, "framebuffer:%p", me->framebuffer);
+		GST_INFO_OBJECT(me, "framebuffer:%p", me->framebuffer);
+#if 0
+		/* clear screen	*/
+		memset (me->framebuffer, 0x00,
+			me->varinfo.xres * me->varinfo.yres * me->varinfo.bits_per_pixel / 8);
+#endif
 	}
-
-	/* 初期画面はブランクスクリーン	*/
-	do_blank_screen(me);
 
 out:
 	return ret;
@@ -516,9 +524,12 @@ gst_rto_fbdevsink_stop (GstBaseSink * bsink)
 		do_blank_screen(me);
 	}
 	else {
+#if 0
 		if (me->framebuffer) {
-			memset (me->framebuffer, 0x00, me->fixinfo.smem_len);
+			memset (me->framebuffer, 0x00,
+				me->varinfo.xres * me->varinfo.yres * me->varinfo.bits_per_pixel / 8);
 		}
+#endif
 	}
 
 	/* VSCREENINFO を変更した場合は元に戻す	*/
@@ -861,6 +872,10 @@ gst_rto_fbdevsink_setcaps (GstBaseSink * bsink, GstCaps * vscapslist)
 	gst_structure_get_int (structure, "width", &(me->width));
 	gst_structure_get_int (structure, "height", &(me->height));
 
+	gst_structure_get_int (structure, "stride", &(me->frame_stride));
+	gst_structure_get_int (structure, "x-offset", &(me->frame_x_offset));
+	gst_structure_get_int (structure, "y-offset", &(me->frame_y_offset));
+
 	/* calculate centering and scanlengths for the video */
 #if 0
 	me->bytespp = me->fixinfo.line_length / me->varinfo.xres;
@@ -888,6 +903,9 @@ gst_rto_fbdevsink_setcaps (GstBaseSink * bsink, GstCaps * vscapslist)
 		"width:%d, height:%d, bytespp:%d, cx:%d, cy:%d, linelen:%d, lines:%d",
 		me->width, me->height, me->bytespp,
 		me->cx, me->cy, me->linelen, me->lines);
+	GST_INFO_OBJECT (me,
+		"stride:%d, x-offset:%d, y-offset:%d",
+		me->frame_stride, me->frame_x_offset, me->frame_y_offset);
 
 	return TRUE;
 }
@@ -971,7 +989,6 @@ static GstFlowReturn
 gst_rto_fbdevsink_render (GstBaseSink * bsink, GstBuffer * buf)
 {
 	GstRtoFBDevSink *me;
-	int i;
 	GstMapInfo map;
 	int r;
 #if DBG_MEASURE_PERF_RENDER
@@ -990,10 +1007,12 @@ gst_rto_fbdevsink_render (GstBaseSink * bsink, GstBuffer * buf)
 		gst_buffer_map (buf, &map, GST_MAP_READ);
 		GST_DEBUG_OBJECT (me, "RENDER - map.size:%u", map.size);
 
+#if 0	/* 2013-06-18 : stride, offset 対応 */
 		if (0 == me->cx && 0 == me->cy) {
 			memcpy (me->framebuffer, map.data, map.size);
 		}
 		else {
+			int i;
 			for (i = 0; i < me->lines; i++) {
 				memcpy (me->framebuffer
 						+ (i + me->cy) * me->fixinfo.line_length
@@ -1002,7 +1021,27 @@ gst_rto_fbdevsink_render (GstBaseSink * bsink, GstBuffer * buf)
 						me->linelen);
 			}
 		}
-		
+#else 
+		{
+			guint bytesperline = me->frame_stride * me->bytespp;
+			guint offset = (me->frame_y_offset * bytesperline)
+							+ (me->frame_x_offset * me->bytespp);
+//			GST_INFO_OBJECT (me, "offset:%u bytesperline:%u", offset, bytesperline);
+#if 0
+			memcpy (me->framebuffer + offset,
+					map.data + offset,
+					map.size - offset);
+#else
+			guint pos;
+			for (pos = offset; pos < map.size; pos += bytesperline) {
+				memcpy (me->framebuffer + pos,
+						map.data + pos,
+						me->width * me->bytespp);
+			}
+#endif
+		}
+#endif
+
 		gst_buffer_unmap (buf, &map);
 	}
 	else {

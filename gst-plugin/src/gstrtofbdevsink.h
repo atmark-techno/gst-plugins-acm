@@ -64,6 +64,7 @@ struct _GstRtoFBDevSink {
 	char *device;
 	
 	int width, height;
+	int frame_stride, frame_x_offset, frame_y_offset;
 	int cx, cy, linelen, lines, bytespp;
 	
 	int fps_n, fps_d;

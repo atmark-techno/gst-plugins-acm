@@ -83,6 +83,9 @@
 #define DEFAULT_OUT_FORMAT				GST_RTOH264DEC_OUT_FMT_RGB24
 #define DEFAULT_OUT_VIDEO_FORMAT_STR	"RGB"
 #define DEFAULT_ENABLE_VIO6				TRUE
+#define DEFAULT_FRAME_STRIDE			0
+#define DEFAULT_FRAME_X_OFFSET			0
+#define DEFAULT_FRAME_Y_OFFSET			0
 
 /* select() の timeout */
 #define SELECT_TIMEOUT_MSEC			1000
@@ -106,6 +109,7 @@
 # define DBG_MEASURE_PERF_HANDLE_FRAME	0
 # define DBG_MEASURE_PERF_FINISH_FRAME	0
 # define DBG_MEASURE_PERF_DQ_OUT		0
+# define DBG_MEASURE_PERF_Q_IN			0
 #endif
 
 #if DBG_MEASURE_PERF
@@ -188,6 +192,9 @@ enum
 	PROP_DEVICE,
 	PROP_OUT_WIDTH,
 	PROP_OUT_HEIGHT,
+	PROP_FRAME_STRIDE,
+	PROP_FRAME_X_OFFSET,
+	PROP_FRAME_Y_OFFSET,
 	PROP_FMEM_NUM,
 	PROP_BUF_PIC_CNT,
 	PROP_OUT_FORMAT,
@@ -402,6 +409,15 @@ gst_rto_h264_dec_set_property (GObject * object, guint prop_id,
 	case PROP_ENABLE_VIO6:
 		me->enable_vio6 = g_value_get_boolean (value);
 		break;
+	case PROP_FRAME_STRIDE:
+		me->frame_stride = g_value_get_uint (value);
+		break;
+	case PROP_FRAME_X_OFFSET:
+		me->frame_x_offset = g_value_get_uint (value);
+		break;
+	case PROP_FRAME_Y_OFFSET:
+		me->frame_y_offset = g_value_get_uint (value);
+		break;
 	default:
 		G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
 		break;
@@ -435,6 +451,15 @@ gst_rto_h264_dec_get_property (GObject * object, guint prop_id,
 		break;
 	case PROP_ENABLE_VIO6:
 		g_value_set_boolean (value, me->enable_vio6);
+		break;
+	case PROP_FRAME_STRIDE:
+		g_value_set_uint (value, me->frame_stride);
+		break;
+	case PROP_FRAME_X_OFFSET:
+		g_value_set_uint (value, me->frame_x_offset);
+		break;
+	case PROP_FRAME_Y_OFFSET:
+		g_value_set_uint (value, me->frame_y_offset);
 		break;
 	default:
 		G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
@@ -471,6 +496,24 @@ gst_rto_h264_dec_class_init (GstRtoH264DecClass * klass)
 			"Height of output video. (0 is unspecified)",
 		GST_RTOH264DEC_HEIGHT_MIN, GST_RTOH264DEC_HEIGHT_MAX,
 		DEFAULT_OUT_HEIGHT, G_PARAM_READWRITE));
+
+	g_object_class_install_property (gobject_class, PROP_FRAME_STRIDE,
+		g_param_spec_uint ("stride", "Stride",
+			"Stride of output video. (0 is unspecified)",
+		GST_RTOH264DEC_STRIDE_MIN, GST_RTOH264DEC_STRIDE_MAX,
+		DEFAULT_FRAME_STRIDE, G_PARAM_READWRITE));
+
+	g_object_class_install_property (gobject_class, PROP_FRAME_X_OFFSET,
+		g_param_spec_uint ("x-offset", "X Offset",
+			"X Offset of output video. (0 is unspecified)",
+		GST_RTOH264DEC_X_OFFSET_MIN, GST_RTOH264DEC_X_OFFSET_MAX,
+		DEFAULT_FRAME_X_OFFSET, G_PARAM_READWRITE));
+
+	g_object_class_install_property (gobject_class, PROP_FRAME_Y_OFFSET,
+		g_param_spec_uint ("y-offset", "Y Offset",
+			"Y Offset of output video. (0 is unspecified)",
+		GST_RTOH264DEC_Y_OFFSET_MIN, GST_RTOH264DEC_Y_OFFSET_MAX,
+		DEFAULT_FRAME_Y_OFFSET, G_PARAM_READWRITE));
 
 	g_object_class_install_property (gobject_class, PROP_FMEM_NUM,
 		g_param_spec_uint ("fmem-num", "Fmem Num",
@@ -548,6 +591,9 @@ gst_rto_h264_dec_init (GstRtoH264Dec * me)
 	me->input_format = GST_RTOH264DEC_IN_FMT_UNKNOWN;
 	me->output_format = GST_RTOH264DEC_OUT_FMT_UNKNOWN;
 	me->enable_vio6 = DEFAULT_ENABLE_VIO6;
+	me->frame_stride = DEFAULT_FRAME_STRIDE;
+	me->frame_x_offset = DEFAULT_FRAME_X_OFFSET;
+	me->frame_y_offset = DEFAULT_FRAME_Y_OFFSET;
 
 #if SUPPORT_CODED_FIELD
 	me->priv->nalparser = NULL;
@@ -923,6 +969,19 @@ gst_rto_h264_dec_set_format (GstVideoDecoder * dec, GstVideoCodecState * state)
 		me->out_height = me->height;
 	}
 	me->frame_rate = vinfo->fps_n / vinfo->fps_d;
+	if (DEFAULT_FRAME_STRIDE == me->frame_stride) {
+		me->frame_stride = me->out_width;
+	}
+	else if (me->frame_stride < me->out_height) {
+		GST_WARNING_OBJECT (me, "stride: %u is less than video width: %u",
+							me->frame_stride, me->out_width);
+		me->frame_stride = me->out_width;
+	}
+	if (me->frame_x_offset + me->out_width > me->frame_stride) {
+		GST_WARNING_OBJECT (me, "x_offset: %u is illegal", me->frame_x_offset);
+		me->frame_x_offset = me->frame_stride - me->out_width;
+	}
+//	GST_INFO_OBJECT (me, "stride: %u", me->frame_stride);
 
 #if 0	/* for debug	*/
 	if (GST_VIDEO_INFO_IS_INTERLACED (vinfo)) {
@@ -966,6 +1025,16 @@ gst_rto_h264_dec_set_format (GstVideoDecoder * dec, GstVideoCodecState * state)
 	g_assert (me->output_state == NULL);
 	me->output_state = gst_video_decoder_set_output_state (GST_VIDEO_DECODER (me),
 		me->out_video_fmt, me->out_width, me->out_height, me->input_state);
+	if (G_UNLIKELY (me->output_state->caps == NULL))
+		me->output_state->caps = gst_video_info_to_caps (&(me->output_state->info));
+#if 1
+	structure = gst_caps_get_structure (me->output_state->caps, 0);
+	gst_structure_set (structure,
+					   "stride", G_TYPE_INT, me->frame_stride,
+					   "x-offset", G_TYPE_INT, me->frame_x_offset,
+					   "y-offset", G_TYPE_INT, me->frame_y_offset,
+					   NULL);
+#endif
 	GST_INFO_OBJECT (me,
 		"H264DEC OUT FORMAT - info: fmt:%" GST_FOURCC_FORMAT ", %d x %d, %d/%d",
 		GST_FOURCC_ARGS (me->input_format),
@@ -1277,6 +1346,7 @@ gst_rto_h264_dec_handle_frame (GstVideoDecoder * dec,
 	interval_time_start = gettimeofday_sec();
 #endif
 
+#if 0
     GST_DEBUG_OBJECT (me, "H264DEC HANDLE FRMAE - size:%d, ref:%d ...",
 					  gst_buffer_get_size(buffer),
 					  GST_OBJECT_REFCOUNT_VALUE(frame->input_buffer));
@@ -1284,12 +1354,15 @@ gst_rto_h264_dec_handle_frame (GstVideoDecoder * dec,
 					  GST_TIME_FORMAT ", duration:%" GST_TIME_FORMAT,
 					  frame->system_frame_number,
 					  GST_TIME_ARGS (frame->pts), GST_TIME_ARGS (frame->duration));
+#endif
+#if 0	/* for debug	*/
 	GST_DEBUG_OBJECT (me, "frame no:%d, PTS:%" GST_TIME_FORMAT
 					 ", DTS:%" GST_TIME_FORMAT ", duration:%" GST_TIME_FORMAT,
 					 frame->system_frame_number,
 					 GST_TIME_ARGS (GST_BUFFER_PTS(buffer)),
 					 GST_TIME_ARGS (GST_BUFFER_DTS(buffer)),
 					 GST_TIME_ARGS (GST_BUFFER_DURATION(buffer)));
+#endif
 
 	/* Seek が行われた際は、gst_video_decoder_reset() により、dec->priv->frames が、
 	 * 空になる。
@@ -1420,7 +1493,7 @@ gst_rto_h264_dec_handle_frame (GstVideoDecoder * dec,
 			interval_time_end_dq_out = gettimeofday_sec();
 			if (interval_time_start_dq_out > 0) {
 //				if ((interval_time_end - interval_time_start) > 0.022) {
-				GST_INFO_OBJECT(me, "dequeued_out at(ms) : %10.10f",
+				GST_INFO_OBJECT(me, "dequeued_out(1) at(ms) : %10.10f",
 					(interval_time_end_dq_out - interval_time_start_dq_out)*1e+3);
 //				}
 			}
@@ -2024,6 +2097,8 @@ gst_rto_h264_dec_init_decoder (GstRtoH264Dec * me)
 	struct v4l2_format fmt;
 	struct v4l2_control ctrl;
 	gint i = 0;
+	guint bytesperline = 0;
+	guint offset = 0;
 
 	GST_INFO_OBJECT (me, "H264DEC INITIALIZE RTO DECODER...");
 
@@ -2051,6 +2126,25 @@ gst_rto_h264_dec_init_decoder (GstRtoH264Dec * me)
 	GST_INFO_OBJECT (me, "in_frame_size:%u, out_frame_size:%u",
 					 in_frame_size, out_frame_size);
 
+	/* ストライド、オフセット	*/
+	switch (me->output_format) {
+	case GST_RTOH264DEC_OUT_FMT_YUV420:
+		bytesperline = me->frame_stride * 2;
+		offset = (me->frame_y_offset * bytesperline) + (me->frame_x_offset * 2);
+		break;
+	case GST_RTOH264DEC_OUT_FMT_RGB32:
+		bytesperline = me->frame_stride * 4;
+		offset = (me->frame_y_offset * bytesperline) + (me->frame_x_offset * 4);
+		break;
+	case GST_RTOH264DEC_OUT_FMT_RGB24:
+		bytesperline = me->frame_stride * 3;
+		offset = (me->frame_y_offset * bytesperline) + (me->frame_x_offset * 3);
+		break;
+	default:
+		g_assert_not_reached ();
+		break;
+	}
+
 	/* デコード初期化パラメータセット		*/
 	GST_INFO_OBJECT (me, "H264DEC INIT PARAM:");
 	GST_INFO_OBJECT (me, " fmem_num:%u", me->fmem_num);
@@ -2061,6 +2155,11 @@ gst_rto_h264_dec_init_decoder (GstRtoH264Dec * me)
 	GST_INFO_OBJECT (me, " y_pic_size:%u", me->height);
 	GST_INFO_OBJECT (me, " x_out_size:%u", me->out_width);
 	GST_INFO_OBJECT (me, " y_out_size:%u", me->out_height);
+	GST_INFO_OBJECT (me, " stride:%u", me->frame_stride);
+	GST_INFO_OBJECT (me, " bytesperline:%u", bytesperline);
+	GST_INFO_OBJECT (me, " x_offset:%u", me->frame_x_offset);
+	GST_INFO_OBJECT (me, " y_offset:%u", me->frame_y_offset);
+	GST_INFO_OBJECT (me, " offset:%u", offset);
 	GST_INFO_OBJECT (me, " input_format:%" GST_FOURCC_FORMAT,
 					 GST_FOURCC_ARGS (me->input_format));
 	GST_INFO_OBJECT (me, " output_format:%" GST_FOURCC_FORMAT,
@@ -2100,7 +2199,9 @@ gst_rto_h264_dec_init_decoder (GstRtoH264Dec * me)
 	fmt.fmt.pix.height	= me->height;
 	fmt.fmt.pix.pixelformat = me->input_format;
 	fmt.fmt.pix.field	= V4L2_FIELD_NONE;
-	
+	fmt.fmt.pix.bytesperline = bytesperline;
+	fmt.fmt.pix.priv	= offset;
+
 	r = v4l2_ioctl(me->video_fd, VIDIOC_S_FMT, &fmt);
 	if (r < 0) {
 		goto set_init_param_failed;
@@ -2112,12 +2213,14 @@ gst_rto_h264_dec_init_decoder (GstRtoH264Dec * me)
 	fmt.fmt.pix.height	= me->out_height;
 	fmt.fmt.pix.pixelformat = me->output_format;
 	fmt.fmt.pix.field	= V4L2_FIELD_NONE;
-	
+	fmt.fmt.pix.bytesperline = bytesperline;
+	fmt.fmt.pix.priv	= offset;
+
 	r = v4l2_ioctl(me->video_fd, VIDIOC_S_FMT, &fmt);
 	if (r < 0) {
 		goto set_init_param_failed;
 	}
-	
+
 	/* バッファプールのセットアップ	*/
 	{
 		struct v4l2_requestbuffers breq;
@@ -2189,6 +2292,10 @@ gst_rto_h264_dec_init_decoder (GstRtoH264Dec * me)
 		me->pool_out = gst_v4l2_buffer_pool_new(&v4l2InitParam, srcCaps);
 		gst_caps_unref(srcCaps);
 		if (! me->pool_out) {
+			goto buffer_pool_new_failed;
+		}
+		if (1 == me->pool_out->num_buffers) {
+			/* バッファが 1つしか確保できない場合は動作しない */
 			goto buffer_pool_new_failed;
 		}
 	}
@@ -2316,7 +2423,22 @@ gst_rto_h264_dec_handle_in_frame(GstRtoH264Dec * me,
 	GstFlowReturn ret = GST_FLOW_OK;
 	GstMapInfo map;
 	int r;
+#if DBG_MEASURE_PERF_Q_IN
+	static double interval_time_start_q_in = 0, interval_time_end_q_in = 0;
+#endif
 
+#if 0 /* for debug */
+	{
+		static guint bufIndex = 0;
+		if (bufIndex++ != v4l2buf_in->index) {
+			GST_INFO_OBJECT (me, "handle in index: %u != %u",
+							 v4l2buf_in->index, bufIndex);
+		}
+		if (bufIndex >= DEFAULT_NUM_BUFFERS_IN) {
+			bufIndex = 0;
+		}
+	}
+#endif
 	GST_DEBUG_OBJECT(me, "inbuf size=%d", gst_buffer_get_size(inbuf));
 
 	/* 入力データを設定	*/
@@ -2347,6 +2469,14 @@ gst_rto_h264_dec_handle_in_frame(GstRtoH264Dec * me,
 #endif
 
 	/* enqueue buffer	*/
+#if DBG_MEASURE_PERF_Q_IN
+	interval_time_end_q_in = gettimeofday_sec();
+	if (interval_time_start_q_in > 0) {
+		GST_INFO_OBJECT(me, "queue_in at(ms) : %10.10f",
+			(interval_time_end_q_in - interval_time_start_q_in)*1e+3);
+	}
+	interval_time_start_q_in = gettimeofday_sec();
+#endif
 #if DBG_LOG_PERF_CHAIN
 	GST_INFO_OBJECT (me, "H264DEC-CHAIN QBUF START");
 #endif
