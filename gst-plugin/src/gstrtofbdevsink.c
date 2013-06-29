@@ -223,19 +223,17 @@ do_blank_screen(GstRtoFBDevSink *me)
 		goto fbiopan_display_failed;
 	}
 
-	/* ブランクスクリーンにする	*/
-	r = ioctl (me->fd, FBIOBLANK, FB_BLANK_UNBLANK);
-	if (0 != r) {
-		goto fbioblank_failed;
+	if (NULL == me->framebuffer) {
+		/* map the framebuffer */
+		me->framebuffer = mmap (0, me->fixinfo.smem_len,
+					PROT_WRITE, MAP_SHARED, me->fd, 0);
+		if (MAP_FAILED == me->framebuffer) {
+			goto mmap_failed;
+		}
 	}
-	r = ioctl (me->fd, FBIOBLANK, FB_BLANK_NORMAL);
-	if (0 != r) {
-		goto fbioblank_failed;
-	}
-	r = ioctl (me->fd, FBIOBLANK, FB_BLANK_UNBLANK);
-	if (0 != r) {
-		goto fbioblank_failed;
-	}
+
+	/* entirely clear screen */
+	memset (me->framebuffer, 0x00, me->fixinfo.smem_len);
 
 	r = ioctl (me->fd, FBIO_WAITFORVSYNC, &vsyncArg);
 	if (0 != r) {
@@ -252,10 +250,10 @@ fbiopan_display_failed:
 		ret = FALSE;
 		goto out;
 	}
-fbioblank_failed:
+mmap_failed:
 	{
 		GST_ELEMENT_ERROR (me, RESOURCE, SETTINGS, (NULL),
-			("error with ioctl(FBIOBLANK) %d (%s)", errno, g_strerror (errno)));
+			("error with mmap() %d (%s)", errno, g_strerror (errno)));
 		ret = FALSE;
 		goto out;
 	}
@@ -453,9 +451,6 @@ gst_rto_fbdevsink_start (GstBaseSink * bsink)
 		me->priv->last_show_fb_dmabuf_index = -1;
 		me->priv->displaying_buf = NULL;
 		me->priv->prev_display_time_sec = 0;
-
-		/* 初期画面はブランクスクリーン	*/
-		do_blank_screen(me);
 	}
 	else {
 		/* map the framebuffer */
@@ -468,12 +463,9 @@ gst_rto_fbdevsink_start (GstBaseSink * bsink)
 			}
 		}
 		GST_INFO_OBJECT(me, "framebuffer:%p", me->framebuffer);
-#if 0
-		/* clear screen	*/
-		memset (me->framebuffer, 0x00,
-			me->varinfo.xres * me->varinfo.yres * me->varinfo.bits_per_pixel / 8);
-#endif
 	}
+	/* 初期画面はブランクスクリーン	*/
+	do_blank_screen(me);
 
 out:
 	return ret;
@@ -520,17 +512,7 @@ gst_rto_fbdevsink_stop (GstBaseSink * bsink)
 	GST_INFO_OBJECT (me, "RTOFBDEVSINK STOP. (%s)", me->device);
 
 	/* clear screen	*/
-	if (me->use_dmabuf) {
-		do_blank_screen(me);
-	}
-	else {
-#if 0
-		if (me->framebuffer) {
-			memset (me->framebuffer, 0x00,
-				me->varinfo.xres * me->varinfo.yres * me->varinfo.bits_per_pixel / 8);
-		}
-#endif
-	}
+	do_blank_screen(me);
 
 	/* VSCREENINFO を変更した場合は元に戻す	*/
 	if (me->is_changed_fb_varinfo) {		
@@ -549,14 +531,12 @@ gst_rto_fbdevsink_stop (GstBaseSink * bsink)
 		}
 	}
 
-	/* unmap framebuffer (when non use dma buf) */
-	if (! me->use_dmabuf) {
-		if (me->framebuffer) {
-			r = munmap (me->framebuffer, me->fixinfo.smem_len);
-			me->framebuffer = NULL;
-			if (0 != r) {
-				goto munmap_failed;
-			}
+	/* unmap framebuffer (if used) */
+	if (me->framebuffer) {
+		r = munmap (me->framebuffer, me->fixinfo.smem_len);
+		me->framebuffer = NULL;
+		if (0 != r) {
+			goto munmap_failed;
 		}
 	}
 
