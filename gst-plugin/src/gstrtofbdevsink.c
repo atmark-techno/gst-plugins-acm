@@ -669,6 +669,9 @@ gst_rto_fbdevsink_query (GstBaseSink * sink, GstQuery * query)
 			if (g_str_equal(format, "RGB")) {
 				result = TRUE;
 			}
+			else if (g_str_equal(format, "RGBx")) {
+				result = change_fb_varinfo_bpp(me, 32);
+			}
 			break;
 		case 16:
 			if (g_str_equal(format, "RGB16")) {
@@ -696,23 +699,31 @@ gst_rto_fbdevsink_query (GstBaseSink * sink, GstQuery * query)
 		structure = gst_query_writable_structure (query);
 		GST_INFO_OBJECT (me, "GST_QUERY_CUSTOM %" GST_PTR_FORMAT, structure);
 
-		if (! me->use_dmabuf) {
-			/* 無効値を返す */
-			gst_structure_set (structure, "fd", G_TYPE_INT, -1, NULL);
+		if (gst_structure_has_name (structure, "GstRtoFBDevScreenInfoQuery")) {
+			gst_structure_set (structure, "screen_width", G_TYPE_INT,
+							   me->varinfo.xres, NULL);
+			gst_structure_set (structure, "screen_height", G_TYPE_INT,
+							   me->varinfo.yres, NULL);
 		}
-		else {
-			/* DMABUF FDを返す */
-			if (! gst_structure_get_int(structure, "index", &index)) {
-				goto get_index_failed;
-			}
-			if (index < NUM_FB_DMABUF) {
-				gst_structure_set (structure, "fd", G_TYPE_INT,
-								   me->priv->fb_dmabuf_exp[index].fd, NULL);
-				GST_INFO_OBJECT (me, "return fd[%d]=%d",
-								 index, me->priv->fb_dmabuf_exp[index].fd);
+		else if (gst_structure_has_name (structure, "GstRtoFBDevDmaBufQuery")) {
+			if (! me->use_dmabuf) {
+				/* 無効値を返す */
+				gst_structure_set (structure, "fd", G_TYPE_INT, -1, NULL);
 			}
 			else {
-				gst_structure_set (structure, "fd", G_TYPE_INT, -1, NULL);
+				/* DMABUF FDを返す */
+				if (! gst_structure_get_int(structure, "index", &index)) {
+					goto get_index_failed;
+				}
+				if (index < NUM_FB_DMABUF) {
+					gst_structure_set (structure, "fd", G_TYPE_INT,
+									   me->priv->fb_dmabuf_exp[index].fd, NULL);
+					GST_INFO_OBJECT (me, "return fd[%d]=%d",
+									 index, me->priv->fb_dmabuf_exp[index].fd);
+				}
+				else {
+					gst_structure_set (structure, "fd", G_TYPE_INT, -1, NULL);
+				}
 			}
 		}
 

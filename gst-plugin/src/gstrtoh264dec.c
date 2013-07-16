@@ -929,6 +929,8 @@ gst_rto_h264_dec_set_format (GstVideoDecoder * dec, GstVideoCodecState * state)
 	GstVideoInfo *vinfo;
 	GstStructure *structure = NULL;
 	const gchar *alignment = NULL;
+	gint screen_width = 0;
+	gint screen_height = 0;
 
 	vinfo = &(state->info);
 
@@ -969,19 +971,6 @@ gst_rto_h264_dec_set_format (GstVideoDecoder * dec, GstVideoCodecState * state)
 		me->out_height = me->height;
 	}
 	me->frame_rate = vinfo->fps_n / vinfo->fps_d;
-	if (DEFAULT_FRAME_STRIDE == me->frame_stride) {
-		me->frame_stride = me->out_width;
-	}
-	else if (me->frame_stride < me->out_height) {
-		GST_WARNING_OBJECT (me, "stride: %u is less than video width: %u",
-							me->frame_stride, me->out_width);
-		me->frame_stride = me->out_width;
-	}
-	if (me->frame_x_offset + me->out_width > me->frame_stride) {
-		GST_WARNING_OBJECT (me, "x_offset: %u is illegal", me->frame_x_offset);
-		me->frame_x_offset = me->frame_stride - me->out_width;
-	}
-//	GST_INFO_OBJECT (me, "stride: %u", me->frame_stride);
 
 #if 0	/* for debug	*/
 	if (GST_VIDEO_INFO_IS_INTERLACED (vinfo)) {
@@ -1017,6 +1006,74 @@ gst_rto_h264_dec_set_format (GstVideoDecoder * dec, GstVideoCodecState * state)
 			}
 		}
 #endif
+	}
+
+	do {
+		/* sink からスクリーン情報取得		*/
+		GstQuery *customQuery = NULL;
+		GstStructure *callStructure;
+		const GstStructure *resStructure;
+		
+		callStructure = gst_structure_new ("GstRtoFBDevScreenInfoQuery",
+										   "screen_width", G_TYPE_INT, 0,
+										   "screen_height", G_TYPE_INT, 0,
+										   NULL);
+		customQuery = gst_query_new_custom(GST_QUERY_CUSTOM, callStructure);
+		
+		
+		if (! gst_pad_peer_query (GST_VIDEO_DECODER_SRC_PAD(me), customQuery)) {
+			GST_WARNING_OBJECT (me, "refused screen info query from peer src pad");
+			break;
+		}
+		
+		resStructure = gst_query_get_structure (customQuery);
+		if (resStructure == NULL
+			|| ! gst_structure_has_name (resStructure, "GstRtoFBDevScreenInfoQuery")) {
+			GST_ERROR_OBJECT (me, "query is invalid");
+			return FALSE;
+		}
+		
+		if (! gst_structure_get_int (resStructure, "screen_width", &screen_width)) {
+			GST_ERROR_OBJECT (me, "failed gst_structure_get_int()");
+			return FALSE;
+		}
+		if (! gst_structure_get_int (resStructure, "screen_height", &screen_height)) {
+			GST_ERROR_OBJECT (me, "failed gst_structure_get_int()");
+			return FALSE;
+		}
+
+		gst_query_unref (customQuery);
+		/* gst_structure_free(callStructure); */ /* 必要ない	*/
+	} while(FALSE);
+	GST_INFO_OBJECT (me, "screen info %d x %d", screen_width, screen_height);
+
+	/* ストライド、オフセットの境界チェック	*/
+	if (DEFAULT_FRAME_STRIDE == me->frame_stride) {
+		me->frame_stride = me->out_width;
+	}
+	else if (me->frame_stride < me->out_height) {
+		GST_WARNING_OBJECT (me, "stride: %u is less than video width: %u",
+							me->frame_stride, me->out_width);
+		me->frame_stride = me->out_width;
+	}
+	if (me->frame_x_offset + me->out_width > me->frame_stride) {
+		GST_WARNING_OBJECT (me, "x_offset: %u is illegal", me->frame_x_offset);
+		me->frame_x_offset = me->frame_stride - me->out_width;
+	}
+	/* sink から、スクリーン情報が得られた場合のみ、y_pffset のチェックを行う */
+	if (screen_height > 0) {
+		if (0 == me->frame_x_offset) {
+			if (me->frame_y_offset + me->out_height > screen_height) {
+				GST_WARNING_OBJECT (me, "y_offset: %u is illegal", me->frame_y_offset);
+				me->frame_y_offset = screen_height - me->out_height;
+			}
+		}
+		else {
+			if (me->frame_y_offset + me->out_height >= screen_height) {
+				GST_WARNING_OBJECT (me, "y_offset: %u is illegal", me->frame_y_offset);
+				me->frame_y_offset = screen_height - me->out_height - 1;
+			}
+		}
 	}
 
 	/* Creates a new output state with the specified fmt, width and height
@@ -1068,7 +1125,7 @@ gst_rto_h264_dec_set_format (GstVideoDecoder * dec, GstVideoCodecState * state)
 		guint i;
 
 		for (i = 0; i < NUM_FB_DMABUF; i++) {
-			callStructure = gst_structure_new ("GstRtoDmabufQuery",
+			callStructure = gst_structure_new ("GstRtoFBDevDmaBufQuery",
 							   "index", G_TYPE_INT, i,
 							   "fd", G_TYPE_INT, -1,
 								NULL);
@@ -1082,7 +1139,7 @@ gst_rto_h264_dec_set_format (GstVideoDecoder * dec, GstVideoCodecState * state)
 			
 			resStructure = gst_query_get_structure (customQuery);
 			if (resStructure == NULL
-				|| ! gst_structure_has_name (resStructure, "GstRtoDmabufQuery")) {
+				|| ! gst_structure_has_name (resStructure, "GstRtoFBDevDmaBufQuery")) {
 				GST_ERROR_OBJECT (me, "query is invalid");
 				return FALSE;
 			}
