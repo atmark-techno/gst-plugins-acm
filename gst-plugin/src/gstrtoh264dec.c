@@ -1062,17 +1062,9 @@ gst_rto_h264_dec_set_format (GstVideoDecoder * dec, GstVideoCodecState * state)
 	}
 	/* sink から、スクリーン情報が得られた場合のみ、y_pffset のチェックを行う */
 	if (screen_height > 0) {
-		if (0 == me->frame_x_offset) {
-			if (me->frame_y_offset + me->out_height > screen_height) {
-				GST_WARNING_OBJECT (me, "y_offset: %u is illegal", me->frame_y_offset);
-				me->frame_y_offset = screen_height - me->out_height;
-			}
-		}
-		else {
-			if (me->frame_y_offset + me->out_height >= screen_height) {
-				GST_WARNING_OBJECT (me, "y_offset: %u is illegal", me->frame_y_offset);
-				me->frame_y_offset = screen_height - me->out_height - 1;
-			}
+		if (me->frame_y_offset + me->out_height > screen_height) {
+			GST_WARNING_OBJECT (me, "y_offset: %u is illegal", me->frame_y_offset);
+			me->frame_y_offset = screen_height - me->out_height;
 		}
 	}
 
