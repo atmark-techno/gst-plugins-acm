@@ -589,9 +589,9 @@ gst_v4l2_buffer_pool_qbuf (GstV4l2BufferPool * pool, GstBuffer * buf, gsize size
 	}
 	GST_DEBUG_OBJECT (pool, "%s: - VIDIOC_QBUF - END");
 
-#if 0	/* for debug	*/
+#if 0	/* for debug (video ouput)	*/
 	if (V4L2_BUF_TYPE_VIDEO_CAPTURE == pool->init_param.type
-		&& 3 == pool->num_buffers /* H264Dec */ ) {
+		&& NUM_FB_DMABUF == pool->num_buffers /* H264Dec */ ) {
 		GstRtoDmabufMeta *dmabufmeta = NULL;
 
 		dmabufmeta = gst_buffer_get_rto_dmabuf_meta (buf);

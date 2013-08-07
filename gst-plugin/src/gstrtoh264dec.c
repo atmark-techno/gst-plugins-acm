@@ -1051,7 +1051,7 @@ gst_rto_h264_dec_set_format (GstVideoDecoder * dec, GstVideoCodecState * state)
 	if (DEFAULT_FRAME_STRIDE == me->frame_stride) {
 		me->frame_stride = me->out_width;
 	}
-	else if (me->frame_stride < me->out_height) {
+	else if (me->frame_stride < me->out_width) {
 		GST_WARNING_OBJECT (me, "stride: %u is less than video width: %u",
 							me->frame_stride, me->out_width);
 		me->frame_stride = me->out_width;
@@ -1060,19 +1060,11 @@ gst_rto_h264_dec_set_format (GstVideoDecoder * dec, GstVideoCodecState * state)
 		GST_WARNING_OBJECT (me, "x_offset: %u is illegal", me->frame_x_offset);
 		me->frame_x_offset = me->frame_stride - me->out_width;
 	}
-	/* sink から、スクリーン情報が得られた場合のみ、y_pffset のチェックを行う */
+	/* sink から、スクリーン情報が得られた場合のみ、y_offset のチェックを行う */
 	if (screen_height > 0) {
-		if (0 == me->frame_x_offset) {
-			if (me->frame_y_offset + me->out_height > screen_height) {
-				GST_WARNING_OBJECT (me, "y_offset: %u is illegal", me->frame_y_offset);
-				me->frame_y_offset = screen_height - me->out_height;
-			}
-		}
-		else {
-			if (me->frame_y_offset + me->out_height >= screen_height) {
-				GST_WARNING_OBJECT (me, "y_offset: %u is illegal", me->frame_y_offset);
-				me->frame_y_offset = screen_height - me->out_height - 1;
-			}
+		if (me->frame_y_offset + me->out_height > screen_height) {
+			GST_WARNING_OBJECT (me, "y_offset: %u is illegal", me->frame_y_offset);
+			me->frame_y_offset = screen_height - me->out_height;
 		}
 	}
 

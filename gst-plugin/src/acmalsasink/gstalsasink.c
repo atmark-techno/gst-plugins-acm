@@ -490,6 +490,9 @@ retry:
       goto retry;
     }
     GST_DEBUG_OBJECT (alsa, "buffer time %u", buffer_time);
+#if 1	// 2013-07-23 : from gstreamer 1.0.8
+    alsa->buffer_time = buffer_time;
+#endif
   }
   if (period_time != -1 && !alsa->iec958) {
     /* set the period time */
@@ -503,6 +506,9 @@ retry:
       goto retry;
     }
     GST_DEBUG_OBJECT (alsa, "period time %u", period_time);
+#if 1	// 2013-07-23 : from gstreamer 1.0.8
+    alsa->period_time = period_time;
+#endif
   }
 
   /* Set buffer size and period size manually for SPDIF */
