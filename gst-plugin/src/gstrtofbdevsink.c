@@ -44,8 +44,8 @@
 #define DEFAULT_USE_DMABUF		TRUE
 #define DEFAULT_ENABLE_VSYNC	TRUE
 
-/* 表示遅延許容時間	*/
-#define LATENESS_SEC			0.0167
+/* 表示遅延許容時間	ディスプレイのリフレッシュレート 60Hz = 1/60 sec x 1.1 */
+#define LATENESS_SEC			0.0184	// 1/60 x 1.1
 
 /* デバッグログ出力フラグ		*/
 #define DBG_LOG_RENDER				0
@@ -73,7 +73,15 @@ struct _GstRtoFBDevSinkPrivate
 	
 	/* 最後にレンダリングした、DMABUF インデックス		*/
 	int last_show_fb_dmabuf_index;
-	
+
+	/* FBIOPAN_DISPLAY と FBIO_WAITFORVSYNC を呼び出した直後でも、HW 側で PAN が完了
+	 * しておらず、QBUF したフレームバッファ領域に HW デコーダがデコード済みデータの書き出し
+	 * を開始してしまい、結果ディスプレイ上でちらつきが起こるケースが生じる場合がある。
+	 * これを防ぐため、PAN が終わったら、前回 PAN が終わったフレームバッファ領域を QBUF する
+	 * ようにする。つまり、本 sink 側では、常に２つのフレームバッファ領域を保持しておく事になる。
+	 */
+	GstBuffer* prev_displaying_buf;
+
 	/* ディスプレイ表示中のバッファは、次の表示を終えるまで、ref して
 	 * 保持しておかないと、m2m デバイスに enqueue され、ディスプレイに表示中に、
 	 * デコードデータを上書きされてしまい、画面が乱れてしまう
@@ -223,6 +231,24 @@ do_blank_screen(GstRtoFBDevSink *me)
 		goto fbiopan_display_failed;
 	}
 
+	/* ブランクスクリーンにする	*/
+#if 0	// 2013-07-23 : patch
+	r = ioctl (me->fd, FBIOBLANK, FB_BLANK_UNBLANK);
+	if (0 != r) {
+		goto fbioblank_failed;
+	}
+	r = ioctl (me->fd, FBIOBLANK, FB_BLANK_NORMAL);
+	if (0 != r) {
+		goto fbioblank_failed;
+	}
+	r = ioctl (me->fd, FBIOBLANK, FB_BLANK_UNBLANK);
+	if (0 != r) {
+		goto fbioblank_failed;
+	}
+#else
+	/* ストライドを設定した場合に、2番目3番目のスクリーンがブランクされない問題に関して
+	 * ユーザー側でフレームバッファ全領域に0を書き込む必要がある
+	 */
 	if (NULL == me->framebuffer) {
 		/* map the framebuffer */
 		me->framebuffer = mmap (0, me->fixinfo.smem_len,
@@ -231,6 +257,10 @@ do_blank_screen(GstRtoFBDevSink *me)
 			goto mmap_failed;
 		}
 	}
+
+	/* entirely clear screen */
+	memset (me->framebuffer, 0x00, me->fixinfo.smem_len);
+#endif
 
 	/* entirely clear screen */
 	memset (me->framebuffer, 0x00, me->fixinfo.smem_len);
@@ -250,6 +280,15 @@ fbiopan_display_failed:
 		ret = FALSE;
 		goto out;
 	}
+#if 0	// 2013-07-23 : patch
+fbioblank_failed:
+	{
+		GST_ELEMENT_ERROR (me, RESOURCE, SETTINGS, (NULL),
+			("error with mmap() %d (%s)", errno, g_strerror (errno)));
+		ret = FALSE;
+		goto out;
+	}
+#else
 mmap_failed:
 	{
 		GST_ELEMENT_ERROR (me, RESOURCE, SETTINGS, (NULL),
@@ -257,6 +296,7 @@ mmap_failed:
 		ret = FALSE;
 		goto out;
 	}
+#endif
 fbio_waitforvsync_failed:
 	{
 		GST_ELEMENT_ERROR (me, RESOURCE, SETTINGS, (NULL),
@@ -449,6 +489,7 @@ gst_rto_fbdevsink_start (GstBaseSink * bsink)
 		}
 		
 		me->priv->last_show_fb_dmabuf_index = -1;
+		me->priv->prev_displaying_buf = NULL;
 		me->priv->displaying_buf = NULL;
 		me->priv->prev_display_time_sec = 0;
 	}
@@ -525,6 +566,10 @@ gst_rto_fbdevsink_stop (GstBaseSink * bsink)
 	}
 
 	if (me->use_dmabuf) {
+		if (me->priv->prev_displaying_buf && GST_IS_BUFFER(me->priv->prev_displaying_buf)) {
+			gst_buffer_unref(me->priv->prev_displaying_buf);
+			me->priv->prev_displaying_buf = NULL;
+		}
 		if (me->priv->displaying_buf && GST_IS_BUFFER(me->priv->displaying_buf)) {
 			gst_buffer_unref(me->priv->displaying_buf);
 			me->priv->displaying_buf = NULL;
@@ -1142,8 +1187,12 @@ gst_rto_fbdevsink_render (GstBaseSink * bsink, GstBuffer * buf)
 			 * unref してデバイスに queue する
 			 */
 			if (! isFrameSkipped) {
+				if (NULL != me->priv->prev_displaying_buf) {
+					gst_buffer_unref(me->priv->prev_displaying_buf);
+					me->priv->prev_displaying_buf = NULL;
+				}
 				if (NULL != me->priv->displaying_buf) {
-					gst_buffer_unref(me->priv->displaying_buf);
+					me->priv->prev_displaying_buf = me->priv->displaying_buf;
 					me->priv->displaying_buf = NULL;
 				}
 				me->priv->displaying_buf = gst_buffer_ref(buf);

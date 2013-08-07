@@ -25,7 +25,7 @@
 G_BEGIN_DECLS
 
 /* DMABUF の個数		*/
-#define NUM_FB_DMABUF			3
+#define NUM_FB_DMABUF			4
 
 typedef struct _GstRtoDmabufMeta GstRtoDmabufMeta;
 
