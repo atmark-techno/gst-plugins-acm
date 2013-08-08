@@ -197,7 +197,8 @@ gst_v4l2_buffer_pool_alloc_buffer (GstBufferPool * bpool, GstBuffer ** buffer,
 						VIDIOC_QUERYBUF, &meta->vbuffer) < 0) {
 			goto querybuf_failed;
 		}
-		
+
+#if 0	// for debug
 		GST_INFO_OBJECT (pool, "  index:     %u", meta->vbuffer.index);
 		GST_INFO_OBJECT (pool, "  type:      %d", meta->vbuffer.type);
 		GST_INFO_OBJECT (pool, "  bytesused: %u", meta->vbuffer.bytesused);
@@ -207,7 +208,8 @@ gst_v4l2_buffer_pool_alloc_buffer (GstBufferPool * bpool, GstBuffer ** buffer,
 		if (meta->vbuffer.memory == V4L2_MEMORY_MMAP)
 			GST_INFO_OBJECT (pool, "  MMAP offset:  %u", meta->vbuffer.m.offset);
 		GST_INFO_OBJECT (pool, "  length:    %u", meta->vbuffer.length);
-		
+#endif
+
 		meta->mem = v4l2_mmap (0, meta->vbuffer.length,
 						PROT_READ | PROT_WRITE, MAP_SHARED, pool->init_param.video_fd,
 						meta->vbuffer.m.offset);
@@ -241,6 +243,7 @@ gst_v4l2_buffer_pool_alloc_buffer (GstBufferPool * bpool, GstBuffer ** buffer,
 			goto querybuf_failed;
 		}
 
+#if 0	// for debug
 		GST_INFO_OBJECT (pool, "  index:     %u", meta->vbuffer.index);
 		GST_INFO_OBJECT (pool, "  type:      %d", meta->vbuffer.type);
 		GST_INFO_OBJECT (pool, "  bytesused: %u", meta->vbuffer.bytesused);
@@ -249,6 +252,7 @@ gst_v4l2_buffer_pool_alloc_buffer (GstBufferPool * bpool, GstBuffer ** buffer,
 		GST_INFO_OBJECT (pool, "  memory:    %d", meta->vbuffer.memory);
 		GST_INFO_OBJECT (pool, "  userptr:   %p", meta->vbuffer.m.userptr);
 		GST_INFO_OBJECT (pool, "  length:    %u", meta->vbuffer.length);
+#endif
 
 		/* DMABUFのfdをメタデータとして保存		*/
 		if (! gst_buffer_add_rto_dmabuf_meta (newbuf,

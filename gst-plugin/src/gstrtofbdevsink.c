@@ -44,9 +44,6 @@
 #define DEFAULT_USE_DMABUF		TRUE
 #define DEFAULT_ENABLE_VSYNC	TRUE
 
-/* 表示遅延許容時間	ディスプレイのリフレッシュレート 60Hz = 1/60 sec x 1.1 */
-#define LATENESS_SEC			0.0184	// 1/60 x 1.1
-
 /* デバッグログ出力フラグ		*/
 #define DBG_LOG_RENDER				0
 #define DBG_LOG_RENDER_SKIP			0
@@ -90,6 +87,9 @@ struct _GstRtoFBDevSinkPrivate
 
 	/* フレームレート（秒）		*/
 	double framerate_sec;
+
+	/* 表示遅延許容時間（秒）	 */
+	double lateness_sec;
 
 	/* 前回表示時刻（秒）	*/
 	double prev_display_time_sec;
@@ -140,6 +140,49 @@ swapendian (uint32_t val)
 			| (val & 0xff0000) >> 8 | (val & 0xff000000) >> 24;
 }
 
+static guint32
+get_disp_refresh_rate(GstRtoFBDevSink *me, struct fb_var_screeninfo * var)
+{
+	guint32 pixclock, hfreq, htotal, vtotal;
+	guint32 refresh;
+
+#if 0	// for debug
+	GST_INFO_OBJECT(me, "pixclock:%u", var->pixclock);
+	GST_INFO_OBJECT(me, "xres:%u, right_margin:%u, hsync_len:%u, left_margin:%u",
+		var->xres, var->right_margin, var->hsync_len, var->left_margin);
+	GST_INFO_OBJECT(me, "yres:%u, lower_margin:%u, vsync_len:%u, upper_margin:%u",
+		var->yres, var->lower_margin, var->vsync_len, var->upper_margin);
+#endif
+
+	if (! var->pixclock) {
+		GST_WARNING_OBJECT(me, "pixclock is not set!");
+		return 60;
+	}
+
+	pixclock = PICOS2KHZ(var->pixclock) * 1000;
+	
+	htotal = var->xres + var->right_margin + var->hsync_len + var->left_margin;
+	vtotal = var->yres + var->lower_margin + var->vsync_len + var->upper_margin;
+	
+	if (var->vmode & FB_VMODE_INTERLACED) {
+		vtotal /= 2;
+	}
+	if (var->vmode & FB_VMODE_DOUBLE) {
+		vtotal *= 2;
+	}
+	
+	hfreq = pixclock / htotal;
+	refresh = hfreq / vtotal;
+
+#if 0	// for debug
+	GST_INFO_OBJECT(me, "pixclock:%u, htotal:%u, vtotal:%u, hfreq:%u, refresh:%u",
+					 pixclock, htotal, vtotal, hfreq, refresh);
+#endif
+
+	GST_INFO_OBJECT(me, "display's refresh rate is %u Hz", refresh);
+
+	return refresh;
+}
 
 static void gst_rto_fbdevsink_get_times (GstBaseSink * basesink,
     GstBuffer * buffer, GstClockTime * start, GstClockTime * end);
@@ -387,6 +430,7 @@ gst_rto_fbdevsink_init (GstRtoFBDevSink * me)
 	me->is_changed_fb_varinfo = FALSE;
 
 	me->priv->framerate_sec = 0;
+	me->priv->lateness_sec = 0;
 	me->priv->prev_display_time_sec = 0;
 
 	/* last buffer 保持無効にする
@@ -473,6 +517,12 @@ gst_rto_fbdevsink_start (GstBaseSink * bsink)
 
 	/* レストア用にオリジナル情報を保存		*/
 	me->saved_varinfo = me->varinfo;
+
+	/* ディスプレイのリフレッシュレートから表示遅延許容時間を算出
+	 * （1.0 (sec) / ディスプレイのリフレッシュレート x 1.1 ）
+	 */
+	me->priv->lateness_sec = (double)1.1 / get_disp_refresh_rate(me, &(me->varinfo));
+	GST_INFO_OBJECT (me, "lateness_sec: %f", me->priv->lateness_sec);
 
 	if (me->use_dmabuf) {
 		/* DMABUF FDを取得 */
@@ -1131,7 +1181,7 @@ gst_rto_fbdevsink_render (GstBaseSink * bsink, GstBuffer * buf)
 				displayTime = gettimeofday_sec();
 				timeDiff = displayTime - me->priv->prev_display_time_sec;
 				
-				if (timeDiff < (me->priv->framerate_sec + LATENESS_SEC)) {
+				if (timeDiff < (me->priv->framerate_sec + me->priv->lateness_sec)) {
 					r = ioctl (me->fd, FBIOPAN_DISPLAY, &(me->varinfo));
 					if (0 != r) {
 						goto fbiopan_display_failed;
