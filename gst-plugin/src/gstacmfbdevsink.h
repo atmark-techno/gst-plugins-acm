@@ -19,8 +19,8 @@
  */
 
 
-#ifndef __GST_RTOFBDEVSINK_H__
-#define __GST_RTOFBDEVSINK_H__
+#ifndef __GST_ACMFBDEVSINK_H__
+#define __GST_ACMFBDEVSINK_H__
 
 #include <gst/gst.h>
 #include <gst/video/gstvideosink.h>
@@ -30,27 +30,27 @@
 
 G_BEGIN_DECLS
 
-#define GST_TYPE_RTOFBDEVSINK \
-  (gst_rto_fbdevsink_get_type())
-#define GST_RTOFBDEVSINK(obj) \
-  (G_TYPE_CHECK_INSTANCE_CAST((obj),GST_TYPE_RTOFBDEVSINK,GstRtoFBDevSink))
-#define GST_RTOFBDEVSINK_CLASS(klass) \
-  (G_TYPE_CHECK_CLASS_CAST((klass),GST_TYPE_RTOFBDEVSINK,GstRtoFBDevSinkClass))
-#define GST_IS_RTOFBDEVSINK(obj) \
-  (G_TYPE_CHECK_INSTANCE_TYPE((obj),GST_TYPE_RTOFBDEVSINK))
-#define GST_IS_RTOFBDEVSINK_CLASS(klass) \
-  (G_TYPE_CHECK_CLASS_TYPE((klass),GST_TYPE_RTOFBDEVSINK))
+#define GST_TYPE_ACMFBDEVSINK \
+  (gst_acm_fbdevsink_get_type())
+#define GST_ACMFBDEVSINK(obj) \
+  (G_TYPE_CHECK_INSTANCE_CAST((obj),GST_TYPE_ACMFBDEVSINK,GstAcmFBDevSink))
+#define GST_ACMFBDEVSINK_CLASS(klass) \
+  (G_TYPE_CHECK_CLASS_CAST((klass),GST_TYPE_ACMFBDEVSINK,GstAcmFBDevSinkClass))
+#define GST_IS_ACMFBDEVSINK(obj) \
+  (G_TYPE_CHECK_INSTANCE_TYPE((obj),GST_TYPE_ACMFBDEVSINK))
+#define GST_IS_ACMFBDEVSINK_CLASS(klass) \
+  (G_TYPE_CHECK_CLASS_TYPE((klass),GST_TYPE_ACMFBDEVSINK))
 
 typedef enum {
-	GST_RTOFBDEVSINK_OPEN      = (GST_ELEMENT_FLAG_LAST << 0),
-	GST_RTOFBDEVSINK_FLAG_LAST = (GST_ELEMENT_FLAG_LAST << 2),
-} GstRtoFBDevSinkFlags;
+	GST_ACMFBDEVSINK_OPEN      = (GST_ELEMENT_FLAG_LAST << 0),
+	GST_ACMFBDEVSINK_FLAG_LAST = (GST_ELEMENT_FLAG_LAST << 2),
+} GstAcmFBDevSinkFlags;
 
-typedef struct _GstRtoFBDevSink GstRtoFBDevSink;
-typedef struct _GstRtoFBDevSinkPrivate GstRtoFBDevSinkPrivate;
-typedef struct _GstRtoFBDevSinkClass GstRtoFBDevSinkClass;
+typedef struct _GstAcmFBDevSink GstAcmFBDevSink;
+typedef struct _GstAcmFBDevSinkPrivate GstAcmFBDevSinkPrivate;
+typedef struct _GstAcmFBDevSinkClass GstAcmFBDevSinkClass;
 
-struct _GstRtoFBDevSink {
+struct _GstAcmFBDevSink {
 	GstBaseSink element;
 	
 	struct fb_fix_screeninfo fixinfo;
@@ -80,18 +80,18 @@ struct _GstRtoFBDevSink {
 	gboolean enable_vsync;
 
 	/*< private >*/
-	GstRtoFBDevSinkPrivate *priv;
+	GstAcmFBDevSinkPrivate *priv;
 };
 
-struct _GstRtoFBDevSinkClass {
+struct _GstAcmFBDevSinkClass {
 	GstBaseSinkClass parent_class;
 };
 
-GType gst_rto_fbdevsink_get_type(void);
+GType gst_acm_fbdevsink_get_type(void);
 
 G_END_DECLS
 
-#endif /* __GST_RTOFBDEVSINK_H__ */
+#endif /* __GST_ACMFBDEVSINK_H__ */
 
 /*
  * End of file

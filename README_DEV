@@ -1,5 +1,5 @@
 
-How to build RTO GStreamer plugin
+How to build ACM GStreamer plugin
 
 $ cd gst-plugin
 $ autoreconf -vfi

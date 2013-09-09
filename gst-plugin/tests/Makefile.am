@@ -1,45 +1,45 @@
 # name of your binary
-bin_PROGRAMS = rtoaacdec rtoh264dec rtofbdevsink
+bin_PROGRAMS = acmaacdec acmh264dec acmfbdevsink
 
 
 
 # list of source files
 # the prefix is the name of the binary
-rtoaacdec_SOURCES = rtoaacdec.c
+acmaacdec_SOURCES = acmaacdec.c
 
 # list of headers we're not going to install
 noinst_HEADERS = 
 
 # our CFLAGS and LDFLAGS used for compiling and linking
 # make sure you prefix these with the name of your binary
-rtoaacdec_CFLAGS = $(GST_CFLAGS)
-rtoaacdec_LDFLAGS = $(GST_LIBS) -lgstcheck-1.0 -lm
+acmaacdec_CFLAGS = $(GST_CFLAGS)
+acmaacdec_LDFLAGS = $(GST_LIBS) -lgstcheck-1.0 -lm
 
 
 
 # list of source files
 # the prefix is the name of the binary
-rtoh264dec_SOURCES = rtoh264dec.c
+acmh264dec_SOURCES = acmh264dec.c
 
 # list of headers we're not going to install
 noinst_HEADERS += 
 
 # our CFLAGS and LDFLAGS used for compiling and linking
 # make sure you prefix these with the name of your binary
-rtoh264dec_CFLAGS = $(GST_CFLAGS)
-rtoh264dec_LDFLAGS = $(GST_LIBS) -lgstcheck-1.0 -lm
+acmh264dec_CFLAGS = $(GST_CFLAGS)
+acmh264dec_LDFLAGS = $(GST_LIBS) -lgstcheck-1.0 -lm
 
 
 
 # list of source files
 # the prefix is the name of the binary
-rtofbdevsink_SOURCES = rtofbdevsink.c
+acmfbdevsink_SOURCES = acmfbdevsink.c
 
 # list of headers we're not going to install
 noinst_HEADERS += 
 
 # our CFLAGS and LDFLAGS used for compiling and linking
 # make sure you prefix these with the name of your binary
-rtofbdevsink_CFLAGS = $(GST_CFLAGS)
-rtofbdevsink_LDFLAGS = $(GST_LIBS) -lgstcheck-1.0 -lm
+acmfbdevsink_CFLAGS = $(GST_CFLAGS)
+acmfbdevsink_LDFLAGS = $(GST_LIBS) -lgstcheck-1.0 -lm
 

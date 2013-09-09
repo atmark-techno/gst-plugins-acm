@@ -1,4 +1,4 @@
-/* GStreamer RTO AAC Decoder plugin
+/* GStreamer ACM AAC Decoder plugin
  * Copyright (C) 2013 Kazunari Ohtsuka <<user@hostname.org>>
  *
  * This library is free software; you can redistribute it and/or
@@ -18,17 +18,17 @@
  */
 
 /**
- * SECTION:element-rtoaacdec
+ * SECTION:element-acmaacdec
  *
- * rtoaacdec decodes AAC (MPEG-4 part 3) stream.
+ * acmaacdec decodes AAC (MPEG-4 part 3) stream.
  *
  * <refsect2>
  * <title>Example launch lines</title>
  * |[
- * gst-launch filesrc location=example.mp4 ! qtdemux ! rtoaacdec ! audioconvert ! audioresample ! autoaudiosink
+ * gst-launch filesrc location=example.mp4 ! qtdemux ! acmaacdec ! audioconvert ! audioresample ! autoaudiosink
  * ]| Play aac from mp4 file.
  * |[
- * gst-launch filesrc location=example.adts ! rtoaacdec ! audioconvert ! audioresample ! autoaudiosink
+ * gst-launch filesrc location=example.adts ! acmaacdec ! audioconvert ! audioresample ! autoaudiosink
  * ]| Play standalone aac bitstream.
  * </refsect2>
  */
@@ -48,7 +48,7 @@
 #include <gst/audio/audio.h>
 #include <gst/base/gstbitreader.h>
 
-#include "gstrtoaacdec.h"
+#include "gstacmaacdec.h"
 #include "v4l2_util.h"
 
 
@@ -83,9 +83,9 @@ struct acm_aacdec_private_format {
 /* デコーダ初期化パラメータのデフォルト値	*/
 #define DEFAULT_VIDEO_DEVICE		"/dev/video0"
 #define DEFAULT_ALLOW_MIXDOWN		FALSE
-#define DEFAULT_MIXDOWN_MODE		GST_RTOAACDEC_MIXDOWN_MODE_STEREO
-#define DEFAULT_COMPLIANT_STANDARD	GST_RTOAACDEC_MIXDOWN_COMPLIANT_ISO
-#define DEFAULT_PCM_FORMAT			GST_RTOAACDEC_PCM_FMT_INTERLEAVED
+#define DEFAULT_MIXDOWN_MODE		GST_ACMAACDEC_MIXDOWN_MODE_STEREO
+#define DEFAULT_COMPLIANT_STANDARD	GST_ACMAACDEC_MIXDOWN_COMPLIANT_ISO
+#define DEFAULT_PCM_FORMAT			GST_ACMAACDEC_PCM_FMT_INTERLEAVED
 #define DEFAULT_MAX_CHANNEL			6
 
 /* select() の timeout */
@@ -124,7 +124,7 @@ static double g_time_total_select_in = 0;
 static double g_time_total_select_out = 0;
 #endif
 
-struct _GstRtoAacDecPrivate
+struct _GstAcmAacDecPrivate
 {
 	GstPadChainFunction base_chain;
 	
@@ -136,12 +136,12 @@ struct _GstRtoAacDecPrivate
 	guint he_aac_samplerate;
 };
 
-GST_DEBUG_CATEGORY_STATIC (rtoaacdec_debug);
-#define GST_CAT_DEFAULT rtoaacdec_debug
+GST_DEBUG_CATEGORY_STATIC (acmaacdec_debug);
+#define GST_CAT_DEFAULT acmaacdec_debug
 
-#define GST_RTOAACDEC_GET_PRIVATE(obj)  \
-	(G_TYPE_INSTANCE_GET_PRIVATE ((obj), GST_TYPE_RTOAACDEC, \
-		GstRtoAacDecPrivate))
+#define GST_ACMAACDEC_GET_PRIVATE(obj)  \
+	(G_TYPE_INSTANCE_GET_PRIVATE ((obj), GST_TYPE_ACMAACDEC, \
+		GstAcmAacDecPrivate))
 
 /* property */
 enum
@@ -248,46 +248,46 @@ aac_rate_idx (gint rate)
 		return 11;	// 8,000 Hz
 }
 
-static gboolean gst_rto_aac_dec_open (GstAudioDecoder * dec);
-static gboolean gst_rto_aac_dec_close (GstAudioDecoder * dec);
-static gboolean gst_rto_aac_dec_start (GstAudioDecoder * dec);
-static gboolean gst_rto_aac_dec_stop (GstAudioDecoder * dec);
-static gboolean gst_rto_aac_dec_set_format (GstAudioDecoder * dec,
+static gboolean gst_acm_aac_dec_open (GstAudioDecoder * dec);
+static gboolean gst_acm_aac_dec_close (GstAudioDecoder * dec);
+static gboolean gst_acm_aac_dec_start (GstAudioDecoder * dec);
+static gboolean gst_acm_aac_dec_stop (GstAudioDecoder * dec);
+static gboolean gst_acm_aac_dec_set_format (GstAudioDecoder * dec,
 	GstCaps * caps);
-static gboolean gst_rto_aac_dec_update_caps (GstRtoAacDec * me);
-static gboolean gst_rto_aac_dec_parse (GstAudioDecoder * dec,
+static gboolean gst_acm_aac_dec_update_caps (GstAcmAacDec * me);
+static gboolean gst_acm_aac_dec_parse (GstAudioDecoder * dec,
 	GstAdapter * adapter, gint * offset, gint * length);
-static GstFlowReturn gst_rto_aac_dec_handle_frame (GstAudioDecoder * dec,
+static GstFlowReturn gst_acm_aac_dec_handle_frame (GstAudioDecoder * dec,
     GstBuffer * buffer);
-static void gst_rto_aac_dec_flush (GstAudioDecoder * dec, gboolean hard);
-static gboolean gst_rto_aac_dec_sink_event (GstAudioDecoder * dec,
+static void gst_acm_aac_dec_flush (GstAudioDecoder * dec, gboolean hard);
+static gboolean gst_acm_aac_dec_sink_event (GstAudioDecoder * dec,
 	GstEvent *event);
 
-static gboolean gst_rto_aac_dec_init_decoder (GstRtoAacDec * me);
-static gboolean gst_rto_aac_dec_cleanup_decoder (GstRtoAacDec * me);
-static GstFlowReturn gst_rto_aac_dec_handle_in_frame(GstRtoAacDec * me,
+static gboolean gst_acm_aac_dec_init_decoder (GstAcmAacDec * me);
+static gboolean gst_acm_aac_dec_cleanup_decoder (GstAcmAacDec * me);
+static GstFlowReturn gst_acm_aac_dec_handle_in_frame(GstAcmAacDec * me,
 	GstBuffer *v4l2buf_in, GstBuffer *inbuf);
-static GstFlowReturn gst_rto_aac_dec_handle_out_frame(GstRtoAacDec * me,
+static GstFlowReturn gst_acm_aac_dec_handle_out_frame(GstAcmAacDec * me,
 	GstBuffer *v4l2buf_out, gboolean* is_eos);
 
-static void gst_rto_aac_dec_set_property (GObject * object,
+static void gst_acm_aac_dec_set_property (GObject * object,
 	guint prop_id, const GValue * value, GParamSpec * pspec);
-static void gst_rto_aac_dec_get_property (GObject * object,
+static void gst_acm_aac_dec_get_property (GObject * object,
 	guint prop_id, GValue * value, GParamSpec * pspec);
-static void gst_rto_aac_dec_finalize (GObject * object);
+static void gst_acm_aac_dec_finalize (GObject * object);
 
-static GstFlowReturn gst_rto_aac_dec_chain (GstPad * pad,
+static GstFlowReturn gst_acm_aac_dec_chain (GstPad * pad,
 	GstObject * parent, GstBuffer * buf);
 
-#define gst_rto_aac_dec_parent_class parent_class
-G_DEFINE_TYPE (GstRtoAacDec, gst_rto_aac_dec, GST_TYPE_AUDIO_DECODER);
+#define gst_acm_aac_dec_parent_class parent_class
+G_DEFINE_TYPE (GstAcmAacDec, gst_acm_aac_dec, GST_TYPE_AUDIO_DECODER);
 
 
 static void
-gst_rto_aac_dec_set_property (GObject * object, guint prop_id,
+gst_acm_aac_dec_set_property (GObject * object, guint prop_id,
 							   const GValue * value, GParamSpec * pspec)
 {
-	GstRtoAacDec *me = GST_RTOAACDEC (object);
+	GstAcmAacDec *me = GST_ACMAACDEC (object);
 	
 	switch (prop_id) {
 	case PROP_DEVICE:
@@ -321,10 +321,10 @@ gst_rto_aac_dec_set_property (GObject * object, guint prop_id,
 }
 
 static void
-gst_rto_aac_dec_get_property (GObject * object, guint prop_id,
+gst_acm_aac_dec_get_property (GObject * object, guint prop_id,
 							   GValue * value, GParamSpec * pspec)
 {
-	GstRtoAacDec *me = GST_RTOAACDEC (object);
+	GstAcmAacDec *me = GST_ACMAACDEC (object);
 	
 	switch (prop_id) {
 	case PROP_DEVICE:
@@ -354,17 +354,17 @@ gst_rto_aac_dec_get_property (GObject * object, guint prop_id,
 }
 
 static void
-gst_rto_aac_dec_class_init (GstRtoAacDecClass * klass)
+gst_acm_aac_dec_class_init (GstAcmAacDecClass * klass)
 {
 	GObjectClass *gobject_class = G_OBJECT_CLASS (klass);
 	GstElementClass *element_class = GST_ELEMENT_CLASS (klass);
 	GstAudioDecoderClass *base_class = GST_AUDIO_DECODER_CLASS (klass);
 
-	g_type_class_add_private (klass, sizeof (GstRtoAacDecPrivate));
+	g_type_class_add_private (klass, sizeof (GstAcmAacDecPrivate));
 
-	gobject_class->set_property = gst_rto_aac_dec_set_property;
-	gobject_class->get_property = gst_rto_aac_dec_get_property;
-	gobject_class->finalize = gst_rto_aac_dec_finalize;
+	gobject_class->set_property = gst_acm_aac_dec_set_property;
+	gobject_class->get_property = gst_acm_aac_dec_get_property;
+	gobject_class->finalize = gst_acm_aac_dec_finalize;
 
 	g_object_class_install_property (gobject_class, PROP_DEVICE,
 		g_param_spec_string ("device", "device",
@@ -379,26 +379,26 @@ gst_rto_aac_dec_class_init (GstRtoAacDecClass * klass)
 	g_object_class_install_property (gobject_class, PROP_MIXDOWN_MODE,
 		g_param_spec_int ("mixdown-mode", "Mixdown Mode",
 			"0: mix down to stereo, 1: mix down to mono",
-			GST_RTOAACDEC_MIXDOWN_MODE_STEREO, GST_RTOAACDEC_MIXDOWN_MODE_MONO,
+			GST_ACMAACDEC_MIXDOWN_MODE_STEREO, GST_ACMAACDEC_MIXDOWN_MODE_MONO,
 			DEFAULT_MIXDOWN_MODE, G_PARAM_READWRITE));
 
 	g_object_class_install_property (gobject_class, PROP_COMPLIANT_STANDARD,
 		g_param_spec_int ("compliant-standard", "Compliant Standard",
 			"0:ISO/IEC13818-7, ISO/IEC14496-3, 1: ARIB STD-B21",
-			GST_RTOAACDEC_MIXDOWN_COMPLIANT_ISO, GST_RTOAACDEC_MIXDOWN_COMPLIANT_ARIB,
+			GST_ACMAACDEC_MIXDOWN_COMPLIANT_ISO, GST_ACMAACDEC_MIXDOWN_COMPLIANT_ARIB,
 			DEFAULT_COMPLIANT_STANDARD, G_PARAM_READWRITE));
 
 	g_object_class_install_property (gobject_class, PROP_PCM_FORMAT,
 		g_param_spec_int ("pcm-format", "PCM Format",
 			"0: interleaved, 1:non interleaved",
-			GST_RTOAACDEC_PCM_FMT_INTERLEAVED, GST_RTOAACDEC_PCM_FMT_NON_INTERLEAVED,
+			GST_ACMAACDEC_PCM_FMT_INTERLEAVED, GST_ACMAACDEC_PCM_FMT_NON_INTERLEAVED,
 			DEFAULT_PCM_FORMAT, G_PARAM_READWRITE));
 
 #if ENABLE_CHANNEL_PROPERTY
 	g_object_class_install_property (gobject_class, PROP_MAX_CHANNEL,
 		g_param_spec_uint ("max-channel", "Max Channel",
 			"number of output channel",
-			GST_RTOAACDEC_MAX_CHANNEL_MIN, GST_RTOAACDEC_MAX_CHANNEL_MAX,
+			GST_ACMAACDEC_MAX_CHANNEL_MIN, GST_ACMAACDEC_MAX_CHANNEL_MAX,
 			DEFAULT_MAX_CHANNEL, G_PARAM_READWRITE));
 #endif
 
@@ -408,24 +408,24 @@ gst_rto_aac_dec_class_init (GstRtoAacDecClass * klass)
 			gst_static_pad_template_get (&sink_template));
 	
 	gst_element_class_set_static_metadata (element_class,
-			"RTO AAC audio decoder", "Codec/Decoder/Audio",
-			"RTO MPEG-4 AAC decoder", "atmark techno");
+			"ACM AAC audio decoder", "Codec/Decoder/Audio",
+			"ACM MPEG-4 AAC decoder", "atmark techno");
 	
-	base_class->open = GST_DEBUG_FUNCPTR (gst_rto_aac_dec_open);
-	base_class->close = GST_DEBUG_FUNCPTR (gst_rto_aac_dec_close);
-	base_class->start = GST_DEBUG_FUNCPTR (gst_rto_aac_dec_start);
-	base_class->stop = GST_DEBUG_FUNCPTR (gst_rto_aac_dec_stop);
-	base_class->set_format = GST_DEBUG_FUNCPTR (gst_rto_aac_dec_set_format);
-	base_class->parse = GST_DEBUG_FUNCPTR (gst_rto_aac_dec_parse);
-	base_class->handle_frame = GST_DEBUG_FUNCPTR (gst_rto_aac_dec_handle_frame);
-	base_class->flush = GST_DEBUG_FUNCPTR (gst_rto_aac_dec_flush);
-	base_class->sink_event = GST_DEBUG_FUNCPTR (gst_rto_aac_dec_sink_event);
+	base_class->open = GST_DEBUG_FUNCPTR (gst_acm_aac_dec_open);
+	base_class->close = GST_DEBUG_FUNCPTR (gst_acm_aac_dec_close);
+	base_class->start = GST_DEBUG_FUNCPTR (gst_acm_aac_dec_start);
+	base_class->stop = GST_DEBUG_FUNCPTR (gst_acm_aac_dec_stop);
+	base_class->set_format = GST_DEBUG_FUNCPTR (gst_acm_aac_dec_set_format);
+	base_class->parse = GST_DEBUG_FUNCPTR (gst_acm_aac_dec_parse);
+	base_class->handle_frame = GST_DEBUG_FUNCPTR (gst_acm_aac_dec_handle_frame);
+	base_class->flush = GST_DEBUG_FUNCPTR (gst_acm_aac_dec_flush);
+	base_class->sink_event = GST_DEBUG_FUNCPTR (gst_acm_aac_dec_sink_event);
 }
 
 static void
-gst_rto_aac_dec_init (GstRtoAacDec * me)
+gst_acm_aac_dec_init (GstAcmAacDec * me)
 {
-	me->priv = GST_RTOAACDEC_GET_PRIVATE (me);
+	me->priv = GST_ACMAACDEC_GET_PRIVATE (me);
 
 	me->samplerate = 0;
 	me->channels = 0;
@@ -442,7 +442,7 @@ gst_rto_aac_dec_init (GstRtoAacDec * me)
 	
 	/* property	*/
 	me->videodev = NULL;
-	me->input_format = GST_RTOAACDEC_IN_FMT_UNKNOWN;
+	me->input_format = GST_ACMAACDEC_IN_FMT_UNKNOWN;
 	me->allow_mixdown = DEFAULT_ALLOW_MIXDOWN;
 	me->mixdown_mode = DEFAULT_MIXDOWN_MODE;
 	me->compliant_standard = DEFAULT_COMPLIANT_STANDARD;
@@ -451,17 +451,17 @@ gst_rto_aac_dec_init (GstRtoAacDec * me)
 	/* retrieve and intercept base class chain. */
 	me->priv->base_chain = GST_PAD_CHAINFUNC (GST_AUDIO_DECODER_SINK_PAD (me));
 	gst_pad_set_chain_function (GST_AUDIO_DECODER_SINK_PAD (me),
-								GST_DEBUG_FUNCPTR (gst_rto_aac_dec_chain));
+								GST_DEBUG_FUNCPTR (gst_acm_aac_dec_chain));
 }
 
 static void
-gst_rto_aac_dec_finalize (GObject * object)
+gst_acm_aac_dec_finalize (GObject * object)
 {
-	GstRtoAacDec *me = GST_RTOAACDEC (object);
+	GstAcmAacDec *me = GST_ACMAACDEC (object);
 	
     GST_INFO_OBJECT (me, "AACDEC FINALIZE");
 
-	/* プロパティを保持するため、gst_rto_aac_dec_close() 内で free してはいけない	*/
+	/* プロパティを保持するため、gst_acm_aac_dec_close() 内で free してはいけない	*/
 	if (me->videodev) {
 		g_free(me->videodev);
 		me->videodev = NULL;
@@ -471,16 +471,16 @@ gst_rto_aac_dec_finalize (GObject * object)
 }
 
 static gboolean
-gst_rto_aac_dec_open (GstAudioDecoder * dec)
+gst_acm_aac_dec_open (GstAudioDecoder * dec)
 {
-	GstRtoAacDec *me = GST_RTOAACDEC (dec);
+	GstAcmAacDec *me = GST_ACMAACDEC (dec);
 	
 	/* プロパティとしてセットされていなければ、デフォルト値を設定		*/
 	if (NULL == me->videodev) {
 		me->videodev = g_strdup (DEFAULT_VIDEO_DEVICE);
 	}
 
-	GST_INFO_OBJECT (me, "AACDEC OPEN RTO DECODER. (%s)", me->videodev);
+	GST_INFO_OBJECT (me, "AACDEC OPEN ACM DECODER. (%s)", me->videodev);
 	
 	/* デバイスファイルオープン	*/
 	GST_INFO_OBJECT (me, "Trying to open device %s", me->videodev);
@@ -495,11 +495,11 @@ gst_rto_aac_dec_open (GstAudioDecoder * dec)
 }
 
 static gboolean
-gst_rto_aac_dec_close (GstAudioDecoder * dec)
+gst_acm_aac_dec_close (GstAudioDecoder * dec)
 {
-	GstRtoAacDec *me = GST_RTOAACDEC (dec);
+	GstAcmAacDec *me = GST_ACMAACDEC (dec);
 	
-	GST_INFO_OBJECT (me, "AACDEC CLOSE RTO DECODER. (%s)", me->videodev);
+	GST_INFO_OBJECT (me, "AACDEC CLOSE ACM DECODER. (%s)", me->videodev);
 
 	/* close device	*/
 	if (me->video_fd > 0) {
@@ -512,9 +512,9 @@ gst_rto_aac_dec_close (GstAudioDecoder * dec)
 
 /*	global setup	*/
 static gboolean
-gst_rto_aac_dec_start (GstAudioDecoder * dec)
+gst_acm_aac_dec_start (GstAudioDecoder * dec)
 {
-	GstRtoAacDec *me = GST_RTOAACDEC (dec);
+	GstAcmAacDec *me = GST_ACMAACDEC (dec);
 	
 	GST_INFO_OBJECT (me, "AACDEC START");
 
@@ -546,14 +546,14 @@ gst_rto_aac_dec_start (GstAudioDecoder * dec)
 
 /*	end of all processing	*/
 static gboolean
-gst_rto_aac_dec_stop (GstAudioDecoder * dec)
+gst_acm_aac_dec_stop (GstAudioDecoder * dec)
 {
-	GstRtoAacDec *me = GST_RTOAACDEC (dec);
+	GstAcmAacDec *me = GST_ACMAACDEC (dec);
 	
 	GST_INFO_OBJECT (me, "AACDEC STOP");
 	
 	/* クリーンアップ処理	*/
-	gst_rto_aac_dec_cleanup_decoder (me);
+	gst_acm_aac_dec_cleanup_decoder (me);
 
 	/* プロパティ以外の変数を再初期化		*/
 	me->samplerate = 0;
@@ -572,7 +572,7 @@ gst_rto_aac_dec_stop (GstAudioDecoder * dec)
 }
 
 static gboolean
-gst_rto_aac_dec_analize_codecdata(GstRtoAacDec *me, GstBuffer * codec_data)
+gst_acm_aac_dec_analize_codecdata(GstAcmAacDec *me, GstBuffer * codec_data)
 {
 	gboolean ret = TRUE;
 	GstMapInfo map;
@@ -928,9 +928,9 @@ wrong_length:
 
 /*	format of input audio data	*/
 static gboolean
-gst_rto_aac_dec_set_format (GstAudioDecoder * dec, GstCaps * caps)
+gst_acm_aac_dec_set_format (GstAudioDecoder * dec, GstCaps * caps)
 {
-	GstRtoAacDec *me = GST_RTOAACDEC (dec);
+	GstAcmAacDec *me = GST_ACMAACDEC (dec);
 	gboolean ret = TRUE;
 	GstStructure *structure = gst_caps_get_structure (caps, 0);
 	GstBuffer *buf = NULL;
@@ -944,20 +944,20 @@ gst_rto_aac_dec_set_format (GstAudioDecoder * dec, GstCaps * caps)
 	/* Assume raw stream */
 	me->packetised = FALSE;
 
-	if (GST_RTOAACDEC_IN_FMT_UNKNOWN == me->input_format) {
+	if (GST_ACMAACDEC_IN_FMT_UNKNOWN == me->input_format) {
 		/* ATDS or RAW ?	*/
 		stream_format = gst_structure_get_string (structure, "stream-format");
 		GST_INFO_OBJECT(me, "stream format = %s",
 						(NULL == stream_format ? "null" : stream_format));
 		if (NULL == stream_format){
-			me->input_format = GST_RTOAACDEC_IN_FMT_RAW; /* Assume raw */
+			me->input_format = GST_ACMAACDEC_IN_FMT_RAW; /* Assume raw */
 		}
 		else {
 			if (g_str_equal(stream_format, "raw")){
-				me->input_format = GST_RTOAACDEC_IN_FMT_RAW; /* RAW */
+				me->input_format = GST_ACMAACDEC_IN_FMT_RAW; /* RAW */
 			}
 			else if (g_str_equal(stream_format, "adts")){
-				me->input_format = GST_RTOAACDEC_IN_FMT_ADTS; /* ADTS */
+				me->input_format = GST_ACMAACDEC_IN_FMT_ADTS; /* ADTS */
 			}
 			else {
 				/* ADIF (およびその他の形式) は未サポート		*/
@@ -986,7 +986,7 @@ gst_rto_aac_dec_set_format (GstAudioDecoder * dec, GstCaps * caps)
 		buf = gst_value_get_buffer (value);
 		g_return_val_if_fail (buf != NULL, FALSE);
 		
-		if (! gst_rto_aac_dec_analize_codecdata(me, buf)) {
+		if (! gst_acm_aac_dec_analize_codecdata(me, buf)) {
 			goto wrong_codec_data;
 		}
 	}
@@ -1014,10 +1014,10 @@ gst_rto_aac_dec_set_format (GstAudioDecoder * dec, GstCaps * caps)
 		me->out_channels = me->channels;
 	}
 	if (me->allow_mixdown) {
-		if (GST_RTOAACDEC_MIXDOWN_MODE_STEREO == me->mixdown_mode) {
+		if (GST_ACMAACDEC_MIXDOWN_MODE_STEREO == me->mixdown_mode) {
 			me->out_channels = 2;
 		}
-		else if (GST_RTOAACDEC_MIXDOWN_MODE_MONO == me->mixdown_mode) {
+		else if (GST_ACMAACDEC_MIXDOWN_MODE_MONO == me->mixdown_mode) {
 			me->out_channels = 1;
 		}
 	}
@@ -1026,15 +1026,15 @@ gst_rto_aac_dec_set_format (GstAudioDecoder * dec, GstCaps * caps)
 		/* 3 チャンネル以上は非イタリーブ形式になる */
 		GST_INFO_OBJECT (me, "output PCM is NON_INTERLEAVED (ch of input:%d)",
 						 me->channels);
-		me->pcm_format = GST_RTOAACDEC_PCM_FMT_NON_INTERLEAVED;
+		me->pcm_format = GST_ACMAACDEC_PCM_FMT_NON_INTERLEAVED;
 	}
 
-	if (! gst_rto_aac_dec_update_caps (me)) {
+	if (! gst_acm_aac_dec_update_caps (me)) {
 		goto negotiation_failed;
 	}
 
 	/* デコーダ初期化	*/
-	if (! gst_rto_aac_dec_init_decoder(me)) {
+	if (! gst_acm_aac_dec_init_decoder(me)) {
 		goto init_failed;
 	}
 
@@ -1066,7 +1066,7 @@ init_failed:
 }
 
 static gboolean
-gst_rto_aac_dec_update_caps (GstRtoAacDec * me)
+gst_acm_aac_dec_update_caps (GstAcmAacDec * me)
 {
 	gboolean ret = TRUE;
 	GstAudioInfo ainfo;
@@ -1082,7 +1082,7 @@ gst_rto_aac_dec_update_caps (GstRtoAacDec * me)
 	GST_INFO_OBJECT (me, "set caps to src pad.");
     GST_INFO_OBJECT (me, " channels=%d, rate=%d, %s",
 					 me->out_channels, me->out_samplerate,
-					 (GST_RTOAACDEC_PCM_FMT_INTERLEAVED == me->pcm_format
+					 (GST_ACMAACDEC_PCM_FMT_INTERLEAVED == me->pcm_format
 					  ? "interleaved" : "non interleaved"));
     GST_INFO_OBJECT (me, " is HE-AAC=%d, rate=%d",
 					 me->priv->is_he_aac, me->priv->he_aac_samplerate);
@@ -1097,7 +1097,7 @@ gst_rto_aac_dec_update_caps (GstRtoAacDec * me)
 	gst_audio_info_set_format (&ainfo, GST_AUDIO_FORMAT_S16,
 							   samplerate, me->out_channels,
 							   channelpositions[me->out_channels - 1]);
-	if (GST_RTOAACDEC_PCM_FMT_NON_INTERLEAVED == me->pcm_format) {
+	if (GST_ACMAACDEC_PCM_FMT_NON_INTERLEAVED == me->pcm_format) {
 		/* 非インタリーブ	*/
 		ainfo.layout = GST_AUDIO_LAYOUT_NON_INTERLEAVED;
 	}
@@ -1127,7 +1127,7 @@ gst_rto_aac_dec_update_caps (GstRtoAacDec * me)
  * gst/typefind/) for ADTS because 12 bits isn't very reliable.
  */
 static gboolean
-gst_rto_aac_dec_sync (GstRtoAacDec * me, const guint8 * data, guint size, gboolean next,
+gst_acm_aac_dec_sync (GstAcmAacDec * me, const guint8 * data, guint size, gboolean next,
     gint * off, gint * length)
 {
 	guint n = 0;
@@ -1205,10 +1205,10 @@ exit:
 }
 
 static GstFlowReturn
-gst_rto_aac_dec_parse (GstAudioDecoder * dec, GstAdapter * adapter,
+gst_acm_aac_dec_parse (GstAudioDecoder * dec, GstAdapter * adapter,
     gint * offset, gint * length)
 {
-	GstRtoAacDec *me = GST_RTOAACDEC (dec);
+	GstAcmAacDec *me = GST_ACMAACDEC (dec);
 	const guint8 *data = NULL;
 	guint size = 0;
 	gboolean sync = FALSE, eos = FALSE;
@@ -1228,7 +1228,7 @@ gst_rto_aac_dec_parse (GstAudioDecoder * dec, GstAdapter * adapter,
 		gboolean ret;
 		
 		data = gst_adapter_map (adapter, size);
-		ret = gst_rto_aac_dec_sync (me, data, size, !eos, offset, length);
+		ret = gst_acm_aac_dec_sync (me, data, size, !eos, offset, length);
 		gst_adapter_unmap (adapter);
 		
 		return (ret ? GST_FLOW_OK : GST_FLOW_EOS);
@@ -1236,12 +1236,12 @@ gst_rto_aac_dec_parse (GstAudioDecoder * dec, GstAdapter * adapter,
 }
 
 static GstFlowReturn
-gst_rto_aac_dec_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
+gst_acm_aac_dec_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
 {
-	GstRtoAacDec *me = GST_RTOAACDEC (parent);
+	GstAcmAacDec *me = GST_ACMAACDEC (parent);
 	
 	/* first frame
-	 * gst_rto_aac_dec_set_format() が呼ばれて、デコーダの初期化を行う
+	 * gst_acm_aac_dec_set_format() が呼ばれて、デコーダの初期化を行う
 	 * 念のため入力フォーマットをチェック
 	 */
 	if (! me->is_handled_1stframe) {
@@ -1261,16 +1261,16 @@ gst_rto_aac_dec_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
 			}
 			else if (map.data[0] == 0xff && (map.data[1] >> 4) == 0xf) {
 				/* ADTS type header */
-				me->input_format = GST_RTOAACDEC_IN_FMT_ADTS;
+				me->input_format = GST_ACMAACDEC_IN_FMT_ADTS;
 				GST_INFO_OBJECT (me, "ADTS type detected");
 			}
 			else {
-				me->input_format = GST_RTOAACDEC_IN_FMT_RAW;
+				me->input_format = GST_ACMAACDEC_IN_FMT_RAW;
 				GST_INFO_OBJECT (me, "RAW type detected");
 			}
 		}
 		else {
-			me->input_format = GST_RTOAACDEC_IN_FMT_UNKNOWN;
+			me->input_format = GST_ACMAACDEC_IN_FMT_UNKNOWN;
 			GST_INFO_OBJECT (me, "Unknown type detected");
 		}
 		gst_buffer_unmap (buf, &map);
@@ -1283,9 +1283,9 @@ gst_rto_aac_dec_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
 }
 
 static GstFlowReturn
-gst_rto_aac_dec_handle_frame (GstAudioDecoder * dec, GstBuffer * buffer)
+gst_acm_aac_dec_handle_frame (GstAudioDecoder * dec, GstBuffer * buffer)
 {
-	GstRtoAacDec *me = GST_RTOAACDEC (dec);
+	GstAcmAacDec *me = GST_ACMAACDEC (dec);
 	GstFlowReturn ret = GST_FLOW_OK;
 	int r = 0;
 	fd_set write_fds;
@@ -1434,7 +1434,7 @@ gst_rto_aac_dec_handle_frame (GstAudioDecoder * dec, GstBuffer * buffer)
 #if DBG_LOG_PERF_PUSH
 			GST_INFO_OBJECT (me, "AACDEC-PUSH HANDLE OUT START");
 #endif
-			ret = gst_rto_aac_dec_handle_out_frame(me, v4l2buf_out, NULL);
+			ret = gst_acm_aac_dec_handle_out_frame(me, v4l2buf_out, NULL);
 			if (GST_FLOW_OK != ret) {
 				goto handle_out_failed;
 			}
@@ -1520,7 +1520,7 @@ gst_rto_aac_dec_handle_frame (GstAudioDecoder * dec, GstBuffer * buffer)
 		GST_INFO_OBJECT (me, "AACDEC-CHAIN DQBUF END");
 #endif
 	}
-	ret = gst_rto_aac_dec_handle_in_frame(me, v4l2buf_in, buffer);
+	ret = gst_acm_aac_dec_handle_in_frame(me, v4l2buf_in, buffer);
 	if (GST_FLOW_OK != ret) {
 		goto handle_in_failed;
 	}
@@ -1541,7 +1541,7 @@ gst_rto_aac_dec_handle_frame (GstAudioDecoder * dec, GstBuffer * buffer)
 			goto dqbuf_failed;
 		}
 		
-		ret = gst_rto_aac_dec_handle_out_frame(me, v4l2buf_out, NULL);
+		ret = gst_acm_aac_dec_handle_out_frame(me, v4l2buf_out, NULL);
 		if (GST_FLOW_OK != ret) {
 			goto handle_out_failed;
 		}
@@ -1629,18 +1629,18 @@ negotiation_failed:
 }
 
 static void
-gst_rto_aac_dec_flush (GstAudioDecoder * dec, gboolean hard)
+gst_acm_aac_dec_flush (GstAudioDecoder * dec, gboolean hard)
 {
-	GstRtoAacDec *me = GST_RTOAACDEC (dec);
+	GstAcmAacDec *me = GST_ACMAACDEC (dec);
 	GST_INFO_OBJECT (me, "AACDEC FLUSH");
 
 	/* do nothing	*/
 }
 
 static gboolean
-gst_rto_aac_dec_sink_event (GstAudioDecoder * dec, GstEvent *event)
+gst_acm_aac_dec_sink_event (GstAudioDecoder * dec, GstEvent *event)
 {
-	GstRtoAacDec *me = GST_RTOAACDEC (dec);
+	GstAcmAacDec *me = GST_ACMAACDEC (dec);
 	gboolean ret = FALSE;
 
 	GST_DEBUG_OBJECT (me, "RECEIVED EVENT (%d)", GST_EVENT_TYPE(event));
@@ -1692,7 +1692,7 @@ gst_rto_aac_dec_sink_event (GstAudioDecoder * dec, GstEvent *event)
 					goto dqbuf_failed;
 				}
 				
-				ret = gst_rto_aac_dec_handle_out_frame(me, v4l2buf_out, &isEOS);
+				ret = gst_acm_aac_dec_handle_out_frame(me, v4l2buf_out, &isEOS);
 				if (GST_FLOW_OK != ret) {
 					goto handle_out_failed;
 				}
@@ -1750,7 +1750,7 @@ notify_eos_failed:
 }
 
 static gboolean
-gst_rto_aac_dec_init_decoder (GstRtoAacDec * me)
+gst_acm_aac_dec_init_decoder (GstAcmAacDec * me)
 {
 	gboolean ret = TRUE;
 	enum v4l2_buf_type type;
@@ -1760,7 +1760,7 @@ gst_rto_aac_dec_init_decoder (GstRtoAacDec * me)
 	struct v4l2_format fmt;
 	struct acm_aacdec_private_format* pfmt;
 
-	GST_DEBUG_OBJECT (me, "AACDEC INITIALIZE RTO DECODER...");
+	GST_DEBUG_OBJECT (me, "AACDEC INITIALIZE ACM DECODER...");
 
 	/* デコード初期化パラメータセット		*/
 	GST_INFO_OBJECT (me,
@@ -1787,10 +1787,10 @@ gst_rto_aac_dec_init_decoder (GstRtoAacDec * me)
 		pfmt->max_channel = me->channels;
 	}
 	if (me->allow_mixdown) {
-		pfmt->down_mix = GST_RTOAACDEC_ALLOW_MIXDOWN;
+		pfmt->down_mix = GST_ACMAACDEC_ALLOW_MIXDOWN;
 	}
 	else {
-		pfmt->down_mix = GST_RTOAACDEC_NOT_ALLOW_MIXDOWN;
+		pfmt->down_mix = GST_ACMAACDEC_NOT_ALLOW_MIXDOWN;
 	}
 	pfmt->down_mix_mode = me->mixdown_mode;
 	pfmt->compliance = me->compliant_standard;
@@ -1897,12 +1897,12 @@ start_failed:
 }
 
 static gboolean
-gst_rto_aac_dec_cleanup_decoder (GstRtoAacDec * me)
+gst_acm_aac_dec_cleanup_decoder (GstAcmAacDec * me)
 {
 	enum v4l2_buf_type type;
 	int r;
 	
-	GST_INFO_OBJECT (me, "AACDEC CLEANUP RTO DECODER...");
+	GST_INFO_OBJECT (me, "AACDEC CLEANUP ACM DECODER...");
 	
 	/* バッファプールのクリーンアップ	*/
 	if (me->pool_in) {
@@ -1957,7 +1957,7 @@ stop_failed:
 }
 
 static GstFlowReturn
-gst_rto_aac_dec_handle_in_frame(GstRtoAacDec * me,
+gst_acm_aac_dec_handle_in_frame(GstAcmAacDec * me,
 	GstBuffer *v4l2buf_in, GstBuffer *inbuf)
 {
 	GstFlowReturn ret = GST_FLOW_OK;
@@ -2009,7 +2009,7 @@ qbuf_failed:
 }
 
 static GstFlowReturn
-gst_rto_aac_dec_handle_out_frame(GstRtoAacDec * me,
+gst_acm_aac_dec_handle_out_frame(GstAcmAacDec * me,
 	GstBuffer *v4l2buf_out, gboolean* is_eos)
 {
 	GstFlowReturn ret = GST_FLOW_OK;
@@ -2267,17 +2267,17 @@ null_buffer:
 static gboolean
 plugin_init (GstPlugin * plugin)
 {
-	GST_DEBUG_CATEGORY_INIT (rtoaacdec_debug, "rtoaacdec", 0, "AAC decoding");
+	GST_DEBUG_CATEGORY_INIT (acmaacdec_debug, "acmaacdec", 0, "AAC decoding");
 
-	return gst_element_register (plugin, "rtoaacdec",
-							   GST_RANK_PRIMARY, GST_TYPE_RTOAACDEC);
+	return gst_element_register (plugin, "acmaacdec",
+							   GST_RANK_PRIMARY, GST_TYPE_ACMAACDEC);
 }
 
 GST_PLUGIN_DEFINE (
 	GST_VERSION_MAJOR,
     GST_VERSION_MINOR,
-    rtoaacdec,
-    "RTO AAC Decoder",
+    acmaacdec,
+    "ACM AAC Decoder",
     plugin_init,
 	VERSION,
 	"GPL",

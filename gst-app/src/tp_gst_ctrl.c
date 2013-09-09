@@ -45,10 +45,10 @@
 # define VIDEO_SINK		 "autovideosink" /* video sink */
 # define TS_DEMUX        "tsdemux"
 #else
-# define AAC_DECODER     "rtoaacdec"     /* HW AAC デコーダ */
+# define AAC_DECODER     "acmaacdec"     /* HW AAC デコーダ */
 # define AUDIO_SINK      "acmalsasink"
-# define H264_DECODER    "rtoh264dec"    /* HW H264 デコーダ */
-# define VIDEO_SINK      "rtofbdevsink"  /* video sink */
+# define H264_DECODER    "acmh264dec"    /* HW H264 デコーダ */
+# define VIDEO_SINK      "acmfbdevsink"  /* video sink */
 # define TS_DEMUX        "tsdemux"		 // TODO : acmtsdemux ?
 #endif // _USE_SW_DECODER
 

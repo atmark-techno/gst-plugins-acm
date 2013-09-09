@@ -37,7 +37,7 @@
 
 #include "gstv4l2bufferpool.h"
 #include "v4l2_util.h"
-#include "gstrtodmabufmeta.h"
+#include "gstacmdmabufmeta.h"
 
 /* videodev2.h is not versioned and we can't easily check for the presence
  * of enum values at compile time, but the V4L2_CAP_VIDEO_OUTPUT_OVERLAY define
@@ -255,7 +255,7 @@ gst_v4l2_buffer_pool_alloc_buffer (GstBufferPool * bpool, GstBuffer ** buffer,
 #endif
 
 		/* DMABUFのfdをメタデータとして保存		*/
-		if (! gst_buffer_add_rto_dmabuf_meta (newbuf,
+		if (! gst_buffer_add_acm_dmabuf_meta (newbuf,
 				pool->init_param.fb_dmabuf_fd[index],
 				index)) {
 			goto add_dmabuf_meta_failed;
@@ -596,9 +596,9 @@ gst_v4l2_buffer_pool_qbuf (GstV4l2BufferPool * pool, GstBuffer * buf, gsize size
 #if 0	/* for debug (video ouput)	*/
 	if (V4L2_BUF_TYPE_VIDEO_CAPTURE == pool->init_param.type
 		&& NUM_FB_DMABUF == pool->num_buffers /* H264Dec */ ) {
-		GstRtoDmabufMeta *dmabufmeta = NULL;
+		GstAcmDmabufMeta *dmabufmeta = NULL;
 
-		dmabufmeta = gst_buffer_get_rto_dmabuf_meta (buf);
+		dmabufmeta = gst_buffer_get_acm_dmabuf_meta (buf);
 		if (dmabufmeta) {
 			GST_INFO_OBJECT (pool, "VIDIOC_QBUF : %d, %d - meta(%d, %d)",
 				meta->vbuffer.index, meta->vbuffer.m.fd,
@@ -839,7 +839,7 @@ gst_v4l2_buffer_pool_dqbuf_ex (GstV4l2BufferPool * pool, GstBuffer ** buffer,
 #if 0	/* for debug	*/
 	if (V4L2_BUF_TYPE_VIDEO_CAPTURE == pool->init_param.type) {
 		GstV4l2Meta *meta;
-		GstRtoDmabufMeta *dmabufmeta = NULL;
+		GstAcmDmabufMeta *dmabufmeta = NULL;
 
 		meta = GST_V4L2_META_GET (outbuf);
 		if (NULL == meta) {
@@ -848,7 +848,7 @@ gst_v4l2_buffer_pool_dqbuf_ex (GstV4l2BufferPool * pool, GstBuffer ** buffer,
 			return GST_FLOW_ERROR;
 		}
 
-		dmabufmeta = gst_buffer_get_rto_dmabuf_meta (outbuf);
+		dmabufmeta = gst_buffer_get_acm_dmabuf_meta (outbuf);
 		if (dmabufmeta) {
 			GST_INFO_OBJECT (pool, "VIDIOC_DQBUF : %d, %d - meta(%d, %d)",
 							 meta->vbuffer.index, meta->vbuffer.m.fd,

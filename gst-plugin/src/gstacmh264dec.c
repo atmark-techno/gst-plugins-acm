@@ -1,4 +1,4 @@
-/* GStreamer RTO H264 Decoder plugin
+/* GStreamer ACM H264 Decoder plugin
  * Copyright (C) 2013 Kazunari Ohtsuka <<user@hostname.org>>
  *
  * This library is free software; you can redistribute it and/or
@@ -18,14 +18,14 @@
  */
 
 /**
- * SECTION:element-rtoh264dec
+ * SECTION:element-acmh264dec
  *
- * rtoh264dec decodes H264 (MPEG-4) stream.
+ * acmh264dec decodes H264 (MPEG-4) stream.
  *
  * <refsect2>
  * <title>Example launch lines</title>
  * |[
- * gst-launch filesrc location=example.mp4 ! qtdemux ! rtoh264dec ! autovideosink
+ * gst-launch filesrc location=example.mp4 ! qtdemux ! acmh264dec ! autovideosink
  * ]| Play h264 from mp4 file.
  * </refsect2>
  */
@@ -45,9 +45,9 @@
 #define GST_USE_UNSTABLE_API
 #include <gst/codecparsers/gsth264parser.h>
 
-#include "gstrtoh264dec.h"
+#include "gstacmh264dec.h"
 #include "v4l2_util.h"
-#include "gstrtodmabufmeta.h"
+#include "gstacmdmabufmeta.h"
 
 
 /* バッファプール内のバッファを no copy で down stream に push する	*/
@@ -80,7 +80,7 @@
 #define DEFAULT_OUT_HEIGHT				0
 #define DEFAULT_FMEM_NUM				17
 #define DEFAULT_BUF_PIC_CNT				17
-#define DEFAULT_OUT_FORMAT				GST_RTOH264DEC_OUT_FMT_RGB24
+#define DEFAULT_OUT_FORMAT				GST_ACMH264DEC_OUT_FMT_RGB24
 #define DEFAULT_OUT_VIDEO_FORMAT_STR	"RGB"
 #define DEFAULT_ENABLE_VIO6				TRUE
 #define DEFAULT_FRAME_STRIDE			0
@@ -130,7 +130,7 @@ static double g_time_total_select_out = 0;
 #endif
 
 
-struct _GstRtoH264DecPrivate
+struct _GstAcmH264DecPrivate
 {
 	/* V4L2_BUF_TYPE_VIDEO_OUTPUT 側に入力したフレーム数と、
 	 * V4L2_BUF_TYPE_VIDEO_CAPTURE 側から取り出したフレーム数の差分
@@ -177,13 +177,13 @@ typedef enum
 } GstVideoCodecFrameFlagsEx;
 #endif
 
-GST_DEBUG_CATEGORY_STATIC (rtoh264dec_debug);
-#define GST_CAT_DEFAULT (rtoh264dec_debug)
+GST_DEBUG_CATEGORY_STATIC (acmh264dec_debug);
+#define GST_CAT_DEFAULT (acmh264dec_debug)
 GST_DEBUG_CATEGORY_EXTERN (GST_CAT_PERFORMANCE);
 
-#define GST_RTOH264DEC_GET_PRIVATE(obj)  \
-	(G_TYPE_INSTANCE_GET_PRIVATE ((obj), GST_TYPE_RTOH264DEC, \
-		GstRtoH264DecPrivate))
+#define GST_ACMH264DEC_GET_PRIVATE(obj)  \
+	(G_TYPE_INSTANCE_GET_PRIVATE ((obj), GST_TYPE_ACMH264DEC, \
+		GstAcmH264DecPrivate))
 
 /* property */
 enum
@@ -257,7 +257,7 @@ GST_STATIC_PAD_TEMPLATE ("src",
 
 /* for debug */
 static void
-log_buf_status_of_input(GstRtoH264Dec * me)
+log_buf_status_of_input(GstAcmH264Dec * me)
 {
 	struct v4l2_buffer vbuffer;
 	int index;
@@ -290,7 +290,7 @@ log_buf_status_of_input(GstRtoH264Dec * me)
 }
 
 static int
-queued_buf_status_of_input(GstRtoH264Dec * me)
+queued_buf_status_of_input(GstAcmH264Dec * me)
 {
 	struct v4l2_buffer vbuffer;
 	int index;
@@ -327,43 +327,43 @@ queued_buf_status_of_input(GstRtoH264Dec * me)
 }
 
 /* GstVideoDecoder base class method */
-static gboolean gst_rto_h264_dec_open (GstVideoDecoder * dec);
-static gboolean gst_rto_h264_dec_close (GstVideoDecoder * dec);
-static gboolean gst_rto_h264_dec_start (GstVideoDecoder * dec);
-static gboolean gst_rto_h264_dec_stop (GstVideoDecoder * dec);
-static gboolean gst_rto_h264_dec_set_format (GstVideoDecoder * dec,
+static gboolean gst_acm_h264_dec_open (GstVideoDecoder * dec);
+static gboolean gst_acm_h264_dec_close (GstVideoDecoder * dec);
+static gboolean gst_acm_h264_dec_start (GstVideoDecoder * dec);
+static gboolean gst_acm_h264_dec_stop (GstVideoDecoder * dec);
+static gboolean gst_acm_h264_dec_set_format (GstVideoDecoder * dec,
     GstVideoCodecState * state);
-static gboolean gst_rto_h264_dec_reset (GstVideoDecoder * dec, gboolean hard);
-static GstFlowReturn gst_rto_h264_dec_finish (GstVideoDecoder * dec);
-static GstFlowReturn gst_rto_h264_dec_parse (GstVideoDecoder *dec,
+static gboolean gst_acm_h264_dec_reset (GstVideoDecoder * dec, gboolean hard);
+static GstFlowReturn gst_acm_h264_dec_finish (GstVideoDecoder * dec);
+static GstFlowReturn gst_acm_h264_dec_parse (GstVideoDecoder *dec,
 	GstVideoCodecFrame *frame, GstAdapter *adapter, gboolean at_eos);
-static GstFlowReturn gst_rto_h264_dec_handle_frame (GstVideoDecoder * dec,
+static GstFlowReturn gst_acm_h264_dec_handle_frame (GstVideoDecoder * dec,
     GstVideoCodecFrame * frame);
-static gboolean gst_rto_h264_dec_sink_event (GstVideoDecoder * dec,
+static gboolean gst_acm_h264_dec_sink_event (GstVideoDecoder * dec,
 	GstEvent *event);
 
-static gboolean gst_rto_h264_dec_init_decoder (GstRtoH264Dec * me);
-static gboolean gst_rto_h264_dec_cleanup_decoder (GstRtoH264Dec * me);
-static GstFlowReturn gst_rto_h264_dec_handle_in_frame(GstRtoH264Dec * me,
+static gboolean gst_acm_h264_dec_init_decoder (GstAcmH264Dec * me);
+static gboolean gst_acm_h264_dec_cleanup_decoder (GstAcmH264Dec * me);
+static GstFlowReturn gst_acm_h264_dec_handle_in_frame(GstAcmH264Dec * me,
 	struct v4l2_buffer* v4l2buf_in, GstBuffer *inbuf);
-static GstFlowReturn gst_rto_h264_dec_handle_out_frame(GstRtoH264Dec * me,
+static GstFlowReturn gst_acm_h264_dec_handle_out_frame(GstAcmH264Dec * me,
 	GstBuffer *v4l2buf_out, gboolean* is_eos);
 
-static void gst_rto_h264_dec_set_property (GObject * object, guint prop_id,
+static void gst_acm_h264_dec_set_property (GObject * object, guint prop_id,
 	const GValue * value, GParamSpec * pspec);
-static void gst_rto_h264_dec_get_property (GObject * object, guint prop_id,
+static void gst_acm_h264_dec_get_property (GObject * object, guint prop_id,
 	GValue * value, GParamSpec * pspec);
-static void gst_rto_h264_dec_finalize (GObject * object);
+static void gst_acm_h264_dec_finalize (GObject * object);
 
-#define gst_rto_h264_dec_parent_class parent_class
-G_DEFINE_TYPE (GstRtoH264Dec, gst_rto_h264_dec, GST_TYPE_VIDEO_DECODER);
+#define gst_acm_h264_dec_parent_class parent_class
+G_DEFINE_TYPE (GstAcmH264Dec, gst_acm_h264_dec, GST_TYPE_VIDEO_DECODER);
 
 
 static void
-gst_rto_h264_dec_set_property (GObject * object, guint prop_id,
+gst_acm_h264_dec_set_property (GObject * object, guint prop_id,
 							  const GValue * value, GParamSpec * pspec)
 {
-	GstRtoH264Dec *me = GST_RTOH264DEC (object);
+	GstAcmH264Dec *me = GST_ACMH264DEC (object);
 
 	switch (prop_id) {
 	case PROP_DEVICE:
@@ -392,15 +392,15 @@ gst_rto_h264_dec_set_property (GObject * object, guint prop_id,
 		me->out_video_fmt_str = g_value_dup_string (value);
 		if (g_str_equal (me->out_video_fmt_str, "NV12")) {
 			me->out_video_fmt = GST_VIDEO_FORMAT_NV12;
-			me->output_format = GST_RTOH264DEC_OUT_FMT_YUV420;
+			me->output_format = GST_ACMH264DEC_OUT_FMT_YUV420;
 		}
 		else if (g_str_equal (me->out_video_fmt_str, "RGBx")) {
 			me->out_video_fmt = GST_VIDEO_FORMAT_RGBx;
-			me->output_format = GST_RTOH264DEC_OUT_FMT_RGB32;
+			me->output_format = GST_ACMH264DEC_OUT_FMT_RGB32;
 		}
 		else if (g_str_equal (me->out_video_fmt_str, "RGB")) {
 			me->out_video_fmt = GST_VIDEO_FORMAT_RGB;
-			me->output_format = GST_RTOH264DEC_OUT_FMT_RGB24;
+			me->output_format = GST_ACMH264DEC_OUT_FMT_RGB24;
 		}
 		else {
 			G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
@@ -425,10 +425,10 @@ gst_rto_h264_dec_set_property (GObject * object, guint prop_id,
 }
 
 static void
-gst_rto_h264_dec_get_property (GObject * object, guint prop_id,
+gst_acm_h264_dec_get_property (GObject * object, guint prop_id,
 	GValue * value, GParamSpec * pspec)
 {
-	GstRtoH264Dec *me = GST_RTOH264DEC (object);
+	GstAcmH264Dec *me = GST_ACMH264DEC (object);
 	
 	switch (prop_id) {
 	case PROP_DEVICE:
@@ -468,17 +468,17 @@ gst_rto_h264_dec_get_property (GObject * object, guint prop_id,
 }
 
 static void
-gst_rto_h264_dec_class_init (GstRtoH264DecClass * klass)
+gst_acm_h264_dec_class_init (GstAcmH264DecClass * klass)
 {
 	GObjectClass *gobject_class = G_OBJECT_CLASS (klass);
 	GstElementClass *element_class = GST_ELEMENT_CLASS (klass);
 	GstVideoDecoderClass *video_decoder_class = GST_VIDEO_DECODER_CLASS (klass);
 
-	g_type_class_add_private (klass, sizeof (GstRtoH264DecPrivate));
+	g_type_class_add_private (klass, sizeof (GstAcmH264DecPrivate));
 
-	gobject_class->set_property = gst_rto_h264_dec_set_property;
-	gobject_class->get_property = gst_rto_h264_dec_get_property;
-	gobject_class->finalize = gst_rto_h264_dec_finalize;
+	gobject_class->set_property = gst_acm_h264_dec_set_property;
+	gobject_class->get_property = gst_acm_h264_dec_get_property;
+	gobject_class->finalize = gst_acm_h264_dec_finalize;
 	
 	g_object_class_install_property (gobject_class, PROP_DEVICE,
 		g_param_spec_string ("device", "device",
@@ -488,43 +488,43 @@ gst_rto_h264_dec_class_init (GstRtoH264DecClass * klass)
 	g_object_class_install_property (gobject_class, PROP_OUT_WIDTH,
 		g_param_spec_uint ("width", "Width",
 			"Width of output video. (0 is unspecified)",
-		GST_RTOH264DEC_WIDTH_MIN, GST_RTOH264DEC_WIDTH_MAX,
+		GST_ACMH264DEC_WIDTH_MIN, GST_ACMH264DEC_WIDTH_MAX,
 		DEFAULT_OUT_WIDTH, G_PARAM_READWRITE));
 
 	g_object_class_install_property (gobject_class, PROP_OUT_HEIGHT,
 		g_param_spec_uint ("height", "Height",
 			"Height of output video. (0 is unspecified)",
-		GST_RTOH264DEC_HEIGHT_MIN, GST_RTOH264DEC_HEIGHT_MAX,
+		GST_ACMH264DEC_HEIGHT_MIN, GST_ACMH264DEC_HEIGHT_MAX,
 		DEFAULT_OUT_HEIGHT, G_PARAM_READWRITE));
 
 	g_object_class_install_property (gobject_class, PROP_FRAME_STRIDE,
 		g_param_spec_uint ("stride", "Stride",
 			"Stride of output video. (0 is unspecified)",
-		GST_RTOH264DEC_STRIDE_MIN, GST_RTOH264DEC_STRIDE_MAX,
+		GST_ACMH264DEC_STRIDE_MIN, GST_ACMH264DEC_STRIDE_MAX,
 		DEFAULT_FRAME_STRIDE, G_PARAM_READWRITE));
 
 	g_object_class_install_property (gobject_class, PROP_FRAME_X_OFFSET,
 		g_param_spec_uint ("x-offset", "X Offset",
 			"X Offset of output video. (0 is unspecified)",
-		GST_RTOH264DEC_X_OFFSET_MIN, GST_RTOH264DEC_X_OFFSET_MAX,
+		GST_ACMH264DEC_X_OFFSET_MIN, GST_ACMH264DEC_X_OFFSET_MAX,
 		DEFAULT_FRAME_X_OFFSET, G_PARAM_READWRITE));
 
 	g_object_class_install_property (gobject_class, PROP_FRAME_Y_OFFSET,
 		g_param_spec_uint ("y-offset", "Y Offset",
 			"Y Offset of output video. (0 is unspecified)",
-		GST_RTOH264DEC_Y_OFFSET_MIN, GST_RTOH264DEC_Y_OFFSET_MAX,
+		GST_ACMH264DEC_Y_OFFSET_MIN, GST_ACMH264DEC_Y_OFFSET_MAX,
 		DEFAULT_FRAME_Y_OFFSET, G_PARAM_READWRITE));
 
 	g_object_class_install_property (gobject_class, PROP_FMEM_NUM,
 		g_param_spec_uint ("fmem-num", "Fmem Num",
 			"Number of reference frame",
-			GST_RTOH264DEC_FMEM_NUM_MIN, GST_RTOH264DEC_FMEM_NUM_MAX,
+			GST_ACMH264DEC_FMEM_NUM_MIN, GST_ACMH264DEC_FMEM_NUM_MAX,
 			DEFAULT_FMEM_NUM, G_PARAM_READWRITE));
 
 	g_object_class_install_property (gobject_class, PROP_BUF_PIC_CNT,
 		g_param_spec_uint ("buf-pic-cnt", "Buffering Pic Cnt",
 			"Number of buffering picture",
-			GST_RTOH264DEC_BUF_PIC_CNT_MIN, GST_RTOH264DEC_BUF_PIC_CNT_MAX,
+			GST_ACMH264DEC_BUF_PIC_CNT_MIN, GST_ACMH264DEC_BUF_PIC_CNT_MAX,
 			DEFAULT_BUF_PIC_CNT, G_PARAM_READWRITE));
 
 	g_object_class_install_property (gobject_class, PROP_OUT_FORMAT,
@@ -543,27 +543,27 @@ gst_rto_h264_dec_class_init (GstRtoH264DecClass * klass)
 			gst_static_pad_template_get (&sink_template_factory));
 
 	gst_element_class_set_static_metadata (element_class,
-			"RTO H264 video decoder", "Codec/Decoder/Video",
-			"RTO H.264/AVC decoder", "atmark techno");
+			"ACM H264 video decoder", "Codec/Decoder/Video",
+			"ACM H.264/AVC decoder", "atmark techno");
 
-	video_decoder_class->open = GST_DEBUG_FUNCPTR (gst_rto_h264_dec_open);
-	video_decoder_class->close = GST_DEBUG_FUNCPTR (gst_rto_h264_dec_close);
-	video_decoder_class->start = GST_DEBUG_FUNCPTR (gst_rto_h264_dec_start);
-	video_decoder_class->stop = GST_DEBUG_FUNCPTR (gst_rto_h264_dec_stop);
-	video_decoder_class->reset = GST_DEBUG_FUNCPTR (gst_rto_h264_dec_reset);
-	video_decoder_class->set_format = GST_DEBUG_FUNCPTR (gst_rto_h264_dec_set_format);
-	video_decoder_class->parse = GST_DEBUG_FUNCPTR (gst_rto_h264_dec_parse);
+	video_decoder_class->open = GST_DEBUG_FUNCPTR (gst_acm_h264_dec_open);
+	video_decoder_class->close = GST_DEBUG_FUNCPTR (gst_acm_h264_dec_close);
+	video_decoder_class->start = GST_DEBUG_FUNCPTR (gst_acm_h264_dec_start);
+	video_decoder_class->stop = GST_DEBUG_FUNCPTR (gst_acm_h264_dec_stop);
+	video_decoder_class->reset = GST_DEBUG_FUNCPTR (gst_acm_h264_dec_reset);
+	video_decoder_class->set_format = GST_DEBUG_FUNCPTR (gst_acm_h264_dec_set_format);
+	video_decoder_class->parse = GST_DEBUG_FUNCPTR (gst_acm_h264_dec_parse);
 	video_decoder_class->handle_frame =
-		GST_DEBUG_FUNCPTR (gst_rto_h264_dec_handle_frame);
-	video_decoder_class->finish = GST_DEBUG_FUNCPTR (gst_rto_h264_dec_finish);
+		GST_DEBUG_FUNCPTR (gst_acm_h264_dec_handle_frame);
+	video_decoder_class->finish = GST_DEBUG_FUNCPTR (gst_acm_h264_dec_finish);
 	video_decoder_class->sink_event =
-		GST_DEBUG_FUNCPTR (gst_rto_h264_dec_sink_event);
+		GST_DEBUG_FUNCPTR (gst_acm_h264_dec_sink_event);
 }
 
 static void
-gst_rto_h264_dec_init (GstRtoH264Dec * me)
+gst_acm_h264_dec_init (GstAcmH264Dec * me)
 {
-	me->priv = GST_RTOH264DEC_GET_PRIVATE (me);
+	me->priv = GST_ACMH264DEC_GET_PRIVATE (me);
 
 	me->width = 0;
 	me->height = 0;
@@ -588,8 +588,8 @@ gst_rto_h264_dec_init (GstRtoH264Dec * me)
 	me->videodev = NULL;
 	me->fmem_num = DEFAULT_FMEM_NUM;
 	me->buffering_pic_cnt = DEFAULT_BUF_PIC_CNT;
-	me->input_format = GST_RTOH264DEC_IN_FMT_UNKNOWN;
-	me->output_format = GST_RTOH264DEC_OUT_FMT_UNKNOWN;
+	me->input_format = GST_ACMH264DEC_IN_FMT_UNKNOWN;
+	me->output_format = GST_ACMH264DEC_OUT_FMT_UNKNOWN;
 	me->enable_vio6 = DEFAULT_ENABLE_VIO6;
 	me->frame_stride = DEFAULT_FRAME_STRIDE;
 	me->frame_x_offset = DEFAULT_FRAME_X_OFFSET;
@@ -607,13 +607,13 @@ gst_rto_h264_dec_init (GstRtoH264Dec * me)
 }
 
 static void
-gst_rto_h264_dec_finalize (GObject * object)
+gst_acm_h264_dec_finalize (GObject * object)
 {
-	GstRtoH264Dec *me = GST_RTOH264DEC (object);
+	GstAcmH264Dec *me = GST_ACMH264DEC (object);
 
 	GST_INFO_OBJECT (me, "H264DEC FINALIZE");
 
-	/* プロパティを保持するため、gst_rto_h264_dec_close() 内で free してはいけない	*/
+	/* プロパティを保持するため、gst_acm_h264_dec_close() 内で free してはいけない	*/
 	if (me->videodev) {
 		g_free(me->videodev);
 		me->videodev = NULL;
@@ -627,16 +627,16 @@ gst_rto_h264_dec_finalize (GObject * object)
 }
 
 static gboolean
-gst_rto_h264_dec_open (GstVideoDecoder * dec)
+gst_acm_h264_dec_open (GstVideoDecoder * dec)
 {
-	GstRtoH264Dec *me = GST_RTOH264DEC (dec);
+	GstAcmH264Dec *me = GST_ACMH264DEC (dec);
 
 	/* プロパティとしてセットされていなければ、デフォルト値を設定		*/
 	if (NULL == me->videodev) {
 		me->videodev = g_strdup (DEFAULT_VIDEO_DEVICE);
 	}
 
-	GST_INFO_OBJECT (me, "H264DEC OPEN RTO DECODER. (%s)", me->videodev);
+	GST_INFO_OBJECT (me, "H264DEC OPEN ACM DECODER. (%s)", me->videodev);
 	
 	/* デバイスファイルオープン	*/
 	GST_INFO_OBJECT (me, "Trying to open device %s", me->videodev);
@@ -658,11 +658,11 @@ gst_rto_h264_dec_open (GstVideoDecoder * dec)
 }
 
 static gboolean
-gst_rto_h264_dec_close (GstVideoDecoder * dec)
+gst_acm_h264_dec_close (GstVideoDecoder * dec)
 {
-	GstRtoH264Dec *me = GST_RTOH264DEC (dec);
+	GstAcmH264Dec *me = GST_ACMH264DEC (dec);
 
-	GST_INFO_OBJECT (me, "H264DEC CLOSE RTO DECODER. (%s)", me->videodev);
+	GST_INFO_OBJECT (me, "H264DEC CLOSE ACM DECODER. (%s)", me->videodev);
 	
 	/* close device	*/
 	if (me->video_fd > 0) {
@@ -674,10 +674,10 @@ gst_rto_h264_dec_close (GstVideoDecoder * dec)
 }
 
 static gboolean
-gst_rto_h264_dec_start (GstVideoDecoder * dec)
+gst_acm_h264_dec_start (GstVideoDecoder * dec)
 {
 	gint i;
-	GstRtoH264Dec *me = GST_RTOH264DEC (dec);
+	GstAcmH264Dec *me = GST_ACMH264DEC (dec);
 	
 	GST_INFO_OBJECT (me, "H264DEC START");
 
@@ -724,9 +724,9 @@ gst_rto_h264_dec_start (GstVideoDecoder * dec)
 }
 
 static gboolean
-gst_rto_h264_dec_stop (GstVideoDecoder * dec)
+gst_acm_h264_dec_stop (GstVideoDecoder * dec)
 {
-	GstRtoH264Dec *me = GST_RTOH264DEC (dec);
+	GstAcmH264Dec *me = GST_ACMH264DEC (dec);
 
 	GST_INFO_OBJECT (me, "H264DEC STOP");
 	
@@ -745,7 +745,7 @@ gst_rto_h264_dec_stop (GstVideoDecoder * dec)
 	}
 
 	/* クリーンアップ処理	*/
-	gst_rto_h264_dec_cleanup_decoder (me);
+	gst_acm_h264_dec_cleanup_decoder (me);
 
 #if SUPPORT_CODED_FIELD
 	if (me->priv->nalparser) {
@@ -758,7 +758,7 @@ gst_rto_h264_dec_stop (GstVideoDecoder * dec)
 }
 
 static gboolean
-gst_rto_h264_dec_analize_codecdata(GstRtoH264Dec *me, GstBuffer * codec_data)
+gst_acm_h264_dec_analize_codecdata(GstAcmH264Dec *me, GstBuffer * codec_data)
 {
 	unsigned int sps_size, pps_size;
 	unsigned int spses_size = 0, ppses_size = 0;
@@ -922,9 +922,9 @@ avcc_too_small:
 }
 
 static gboolean
-gst_rto_h264_dec_set_format (GstVideoDecoder * dec, GstVideoCodecState * state)
+gst_acm_h264_dec_set_format (GstVideoDecoder * dec, GstVideoCodecState * state)
 {
-	GstRtoH264Dec *me = GST_RTOH264DEC (dec);
+	GstAcmH264Dec *me = GST_ACMH264DEC (dec);
 	gboolean ret = TRUE;
 	GstVideoInfo *vinfo;
 	GstStructure *structure = NULL;
@@ -952,14 +952,14 @@ gst_rto_h264_dec_set_format (GstVideoDecoder * dec, GstVideoCodecState * state)
 					 (NULL == alignment ? "null" : alignment));
 	if (NULL != alignment) {
 		if (g_str_equal(alignment, "au")) {
-			me->input_format = GST_RTOH264DEC_IN_FMT_MP4;
+			me->input_format = GST_ACMH264DEC_IN_FMT_MP4;
 		}
 		else if (g_str_equal(alignment, "nal")) {
-			me->input_format = GST_RTOH264DEC_IN_FMT_ES;
+			me->input_format = GST_ACMH264DEC_IN_FMT_ES;
 		}
 	}
 	else {
-		me->input_format = GST_RTOH264DEC_IN_FMT_MP4;
+		me->input_format = GST_ACMH264DEC_IN_FMT_MP4;
 	}
 
 	me->width = vinfo->width;
@@ -983,7 +983,7 @@ gst_rto_h264_dec_set_format (GstVideoDecoder * dec, GstVideoCodecState * state)
 
 	/* analize codecdata */
 	if (state->codec_data) {
-		gst_rto_h264_dec_analize_codecdata(me, state->codec_data);
+		gst_acm_h264_dec_analize_codecdata(me, state->codec_data);
 
 #if 0	/* for debug	*/
 		{
@@ -1014,7 +1014,7 @@ gst_rto_h264_dec_set_format (GstVideoDecoder * dec, GstVideoCodecState * state)
 		GstStructure *callStructure;
 		const GstStructure *resStructure;
 		
-		callStructure = gst_structure_new ("GstRtoFBDevScreenInfoQuery",
+		callStructure = gst_structure_new ("GstAcmFBDevScreenInfoQuery",
 										   "screen_width", G_TYPE_INT, 0,
 										   "screen_height", G_TYPE_INT, 0,
 										   NULL);
@@ -1028,7 +1028,7 @@ gst_rto_h264_dec_set_format (GstVideoDecoder * dec, GstVideoCodecState * state)
 		
 		resStructure = gst_query_get_structure (customQuery);
 		if (resStructure == NULL
-			|| ! gst_structure_has_name (resStructure, "GstRtoFBDevScreenInfoQuery")) {
+			|| ! gst_structure_has_name (resStructure, "GstAcmFBDevScreenInfoQuery")) {
 			GST_ERROR_OBJECT (me, "query is invalid");
 			return FALSE;
 		}
@@ -1117,7 +1117,7 @@ gst_rto_h264_dec_set_format (GstVideoDecoder * dec, GstVideoCodecState * state)
 		guint i;
 
 		for (i = 0; i < NUM_FB_DMABUF; i++) {
-			callStructure = gst_structure_new ("GstRtoFBDevDmaBufQuery",
+			callStructure = gst_structure_new ("GstAcmFBDevDmaBufQuery",
 							   "index", G_TYPE_INT, i,
 							   "fd", G_TYPE_INT, -1,
 								NULL);
@@ -1131,7 +1131,7 @@ gst_rto_h264_dec_set_format (GstVideoDecoder * dec, GstVideoCodecState * state)
 			
 			resStructure = gst_query_get_structure (customQuery);
 			if (resStructure == NULL
-				|| ! gst_structure_has_name (resStructure, "GstRtoFBDevDmaBufQuery")) {
+				|| ! gst_structure_has_name (resStructure, "GstAcmFBDevDmaBufQuery")) {
 				GST_ERROR_OBJECT (me, "query is invalid");
 				return FALSE;
 			}
@@ -1159,7 +1159,7 @@ gst_rto_h264_dec_set_format (GstVideoDecoder * dec, GstVideoCodecState * state)
 	}
 
 	/* デコーダ初期化	*/
-	if (! gst_rto_h264_dec_init_decoder(me)) {
+	if (! gst_acm_h264_dec_init_decoder(me)) {
 		goto init_failed;
 	}
 
@@ -1187,9 +1187,9 @@ init_failed:
  * Optional. Allows subclass (decoder) to perform post-seek semantics reset.
  */
 static gboolean
-gst_rto_h264_dec_reset (GstVideoDecoder * dec, gboolean hard)
+gst_acm_h264_dec_reset (GstVideoDecoder * dec, gboolean hard)
 {
-	GstRtoH264Dec *me = GST_RTOH264DEC (dec);
+	GstAcmH264Dec *me = GST_ACMH264DEC (dec);
 
 	GST_INFO_OBJECT (me, "H264DEC RESET %s", hard ? "hard" : "soft");
 
@@ -1201,9 +1201,9 @@ gst_rto_h264_dec_reset (GstVideoDecoder * dec, gboolean hard)
  * (e.g. at EOS).
  */
 static GstFlowReturn
-gst_rto_h264_dec_finish (GstVideoDecoder * dec)
+gst_acm_h264_dec_finish (GstVideoDecoder * dec)
 {
-	GstRtoH264Dec *me = GST_RTOH264DEC (dec);
+	GstAcmH264Dec *me = GST_ACMH264DEC (dec);
 
 	GST_INFO_OBJECT (me, "H264DEC FINISH");
 
@@ -1213,10 +1213,10 @@ gst_rto_h264_dec_finish (GstVideoDecoder * dec)
 }
 
 static GstFlowReturn
-gst_rto_h264_dec_parse (GstVideoDecoder *dec, GstVideoCodecFrame *frame,
+gst_acm_h264_dec_parse (GstVideoDecoder *dec, GstVideoCodecFrame *frame,
 					   GstAdapter *adapter, gboolean at_eos)
 {
-	GstRtoH264Dec *me = GST_RTOH264DEC (dec);
+	GstAcmH264Dec *me = GST_ACMH264DEC (dec);
 	
 	GST_INFO_OBJECT (me, "H264DEC PARSE at_eos:%d", at_eos);
 	
@@ -1224,7 +1224,7 @@ gst_rto_h264_dec_parse (GstVideoDecoder *dec, GstVideoCodecFrame *frame,
 }
 
 static gboolean
-gst_rto_h264_dec_parse_nal(GstRtoH264Dec *me, GstVideoCodecFrame * frame)
+gst_acm_h264_dec_parse_nal(GstAcmH264Dec *me, GstVideoCodecFrame * frame)
 {
 	GstBuffer *buffer = frame->input_buffer;
 	GstMapInfo map_parse;
@@ -1355,10 +1355,10 @@ negotiate_failed:
 }
 
 static GstFlowReturn
-gst_rto_h264_dec_handle_frame (GstVideoDecoder * dec,
+gst_acm_h264_dec_handle_frame (GstVideoDecoder * dec,
     GstVideoCodecFrame * frame)
 {
-	GstRtoH264Dec *me = GST_RTOH264DEC (dec);
+	GstAcmH264Dec *me = GST_ACMH264DEC (dec);
 	GstBuffer *buffer = frame->input_buffer;
 	GstFlowReturn ret = GST_FLOW_OK;
 	int r = 0;
@@ -1449,7 +1449,7 @@ gst_rto_h264_dec_handle_frame (GstVideoDecoder * dec,
 
 #if SUPPORT_CODED_FIELD
 	if (me->priv->is_interlaced) {
-		gst_rto_h264_dec_parse_nal(me, frame);
+		gst_acm_h264_dec_parse_nal(me, frame);
 	}
 #endif
 
@@ -1463,7 +1463,7 @@ gst_rto_h264_dec_handle_frame (GstVideoDecoder * dec,
 			v4l2buf_in = &(me->priv->input_vbuffer[me->num_inbuf_acquired]);
 			me->num_inbuf_acquired++;
 
-			ret = gst_rto_h264_dec_handle_in_frame(me, v4l2buf_in, buffer);
+			ret = gst_acm_h264_dec_handle_in_frame(me, v4l2buf_in, buffer);
 			if (GST_FLOW_OK != ret) {
 				goto handle_in_failed;
 			}
@@ -1502,7 +1502,7 @@ gst_rto_h264_dec_handle_frame (GstVideoDecoder * dec,
 			v4l2buf_in = &(me->priv->input_vbuffer[me->num_inbuf_acquired]);
 			me->num_inbuf_acquired++;
 
-			ret = gst_rto_h264_dec_handle_in_frame(me, v4l2buf_in, buffer);
+			ret = gst_acm_h264_dec_handle_in_frame(me, v4l2buf_in, buffer);
 			if (GST_FLOW_OK != ret) {
 				goto handle_in_failed;
 			}
@@ -1571,7 +1571,7 @@ gst_rto_h264_dec_handle_frame (GstVideoDecoder * dec,
 #if DBG_LOG_PERF_PUSH
 			GST_INFO_OBJECT (me, "H264DEC-PUSH HANDLE OUT START");
 #endif
-			ret = gst_rto_h264_dec_handle_out_frame(me, v4l2buf_out, NULL);
+			ret = gst_acm_h264_dec_handle_out_frame(me, v4l2buf_out, NULL);
 #if DBG_LOG_PERF_PUSH
 			GST_INFO_OBJECT (me, "H264DEC-PUSH HANDLE OUT END");
 #endif
@@ -1685,7 +1685,7 @@ gst_rto_h264_dec_handle_frame (GstVideoDecoder * dec,
 #if DBG_LOG_PERF_PUSH
 				GST_INFO_OBJECT (me, "H264DEC-PUSH HANDLE OUT START");
 #endif
-				ret = gst_rto_h264_dec_handle_out_frame(me, v4l2buf_out, NULL);
+				ret = gst_acm_h264_dec_handle_out_frame(me, v4l2buf_out, NULL);
 				if (GST_FLOW_OK != ret) {
 					if (GST_FLOW_FLUSHING == ret) {
 						GST_DEBUG_OBJECT(me, "FLUSHING - continue.");
@@ -1786,7 +1786,7 @@ gst_rto_h264_dec_handle_frame (GstVideoDecoder * dec,
 	GST_INFO_OBJECT (me, "H264DEC-CHAIN DQBUF END");
 #endif
 
-	ret = gst_rto_h264_dec_handle_in_frame(me, v4l2buf_in, buffer);
+	ret = gst_acm_h264_dec_handle_in_frame(me, v4l2buf_in, buffer);
 	if (GST_FLOW_OK != ret) {
 		goto handle_in_failed;
 	}
@@ -1862,9 +1862,9 @@ handle_out_failed:
 }
 
 static gboolean
-gst_rto_h264_dec_sink_event (GstVideoDecoder * dec, GstEvent *event)
+gst_acm_h264_dec_sink_event (GstVideoDecoder * dec, GstEvent *event)
 {
-	GstRtoH264Dec *me = GST_RTOH264DEC (dec);
+	GstAcmH264Dec *me = GST_ACMH264DEC (dec);
 	gboolean ret = FALSE;
 
 	GST_DEBUG_OBJECT (me, "RECEIVED EVENT (%d)", GST_EVENT_TYPE(event));
@@ -1928,7 +1928,7 @@ gst_rto_h264_dec_sink_event (GstVideoDecoder * dec, GstEvent *event)
 				goto dqbuf_failed;
 			}
 
-			ret = gst_rto_h264_dec_handle_in_frame(me, v4l2buf_in, eosBuffer);
+			ret = gst_acm_h264_dec_handle_in_frame(me, v4l2buf_in, eosBuffer);
 			gst_buffer_unref(eosBuffer);
 			
 			if (GST_FLOW_OK != ret) {
@@ -2003,7 +2003,7 @@ gst_rto_h264_dec_sink_event (GstVideoDecoder * dec, GstEvent *event)
 #else
 				me->priv->in_out_frame_count--;
 #endif
-				ret = gst_rto_h264_dec_handle_out_frame(me, v4l2buf_out, &isEOS);
+				ret = gst_acm_h264_dec_handle_out_frame(me, v4l2buf_out, &isEOS);
 				if (GST_FLOW_OK != ret) {
 					goto handle_out_failed;
 				}
@@ -2136,7 +2136,7 @@ dqbuf_failed:
 }
 
 static gboolean
-gst_rto_h264_dec_init_decoder (GstRtoH264Dec * me)
+gst_acm_h264_dec_init_decoder (GstAcmH264Dec * me)
 {
 	gboolean ret = TRUE;
 	enum v4l2_buf_type type;
@@ -2149,7 +2149,7 @@ gst_rto_h264_dec_init_decoder (GstRtoH264Dec * me)
 	guint bytesperline = 0;
 	guint offset = 0;
 
-	GST_INFO_OBJECT (me, "H264DEC INITIALIZE RTO DECODER...");
+	GST_INFO_OBJECT (me, "H264DEC INITIALIZE ACM DECODER...");
 
 	/* 入力バッファサイズ	*/
 	guint in_frame_size = me->width * me->height * 3;
@@ -2159,13 +2159,13 @@ gst_rto_h264_dec_init_decoder (GstRtoH264Dec * me)
 	 */
 	guint out_frame_size = 0;
 	switch (me->output_format) {
-	case GST_RTOH264DEC_OUT_FMT_YUV420:
+	case GST_ACMH264DEC_OUT_FMT_YUV420:
 		out_frame_size = me->width * me->height * 2;
 		break;
-	case GST_RTOH264DEC_OUT_FMT_RGB32:
+	case GST_ACMH264DEC_OUT_FMT_RGB32:
 		out_frame_size = me->width * me->height * 4;
 		break;
-	case GST_RTOH264DEC_OUT_FMT_RGB24:
+	case GST_ACMH264DEC_OUT_FMT_RGB24:
 		out_frame_size = me->width * me->height * 3;
 		break;
 	default:
@@ -2177,15 +2177,15 @@ gst_rto_h264_dec_init_decoder (GstRtoH264Dec * me)
 
 	/* ストライド、オフセット	*/
 	switch (me->output_format) {
-	case GST_RTOH264DEC_OUT_FMT_YUV420:
+	case GST_ACMH264DEC_OUT_FMT_YUV420:
 		bytesperline = me->frame_stride * 2;
 		offset = (me->frame_y_offset * bytesperline) + (me->frame_x_offset * 2);
 		break;
-	case GST_RTOH264DEC_OUT_FMT_RGB32:
+	case GST_ACMH264DEC_OUT_FMT_RGB32:
 		bytesperline = me->frame_stride * 4;
 		offset = (me->frame_y_offset * bytesperline) + (me->frame_x_offset * 4);
 		break;
-	case GST_RTOH264DEC_OUT_FMT_RGB24:
+	case GST_ACMH264DEC_OUT_FMT_RGB24:
 		bytesperline = me->frame_stride * 3;
 		offset = (me->frame_y_offset * bytesperline) + (me->frame_x_offset * 3);
 		break;
@@ -2416,12 +2416,12 @@ start_failed:
 }
 
 static gboolean
-gst_rto_h264_dec_cleanup_decoder (GstRtoH264Dec * me)
+gst_acm_h264_dec_cleanup_decoder (GstAcmH264Dec * me)
 {
 	enum v4l2_buf_type type;
 	int r = 0;
 	
-	GST_INFO_OBJECT (me, "H264DEC CLEANUP RTO DECODER...");
+	GST_INFO_OBJECT (me, "H264DEC CLEANUP ACM DECODER...");
 	
 	/* バッファプールのクリーンアップ	*/
 	if (me->pool_out) {
@@ -2466,7 +2466,7 @@ stop_failed:
 }
 
 static GstFlowReturn
-gst_rto_h264_dec_handle_in_frame(GstRtoH264Dec * me,
+gst_acm_h264_dec_handle_in_frame(GstAcmH264Dec * me,
 	struct v4l2_buffer* v4l2buf_in, GstBuffer *inbuf)
 {
 	GstFlowReturn ret = GST_FLOW_OK;
@@ -2552,7 +2552,7 @@ qbuf_failed:
 }
 
 static GstFlowReturn
-gst_rto_h264_dec_handle_out_frame(GstRtoH264Dec * me,
+gst_acm_h264_dec_handle_out_frame(GstAcmH264Dec * me,
 	GstBuffer *v4l2buf_out, gboolean* is_eos)
 {
 	GstFlowReturn ret = GST_FLOW_OK;
@@ -2777,8 +2777,8 @@ gst_rto_h264_dec_handle_out_frame(GstRtoH264Dec * me,
 
 #if 0	/* for debug */
 		{
-			GstRtoDmabufMeta *meta = NULL;
-			meta = gst_buffer_get_rto_dmabuf_meta (v4l2buf_out);
+			GstAcmDmabufMeta *meta = NULL;
+			meta = gst_buffer_get_acm_dmabuf_meta (v4l2buf_out);
 			if (meta) {
 				GST_INFO_OBJECT (me, "%p : dmabuf index:%d, fd:%d",
 								 v4l2buf_out, meta->index, meta->fd);
@@ -2791,7 +2791,7 @@ gst_rto_h264_dec_handle_out_frame(GstRtoH264Dec * me,
 
 		/* ディスプレイ表示中のバッファは ref して保持し、次のバッファを表示した後、
 		 * unref してデバイスに queue する。
-		 * ただし、sink が、rtofbdevsink の場合は、sink 側で、ref しているので、
+		 * ただし、sink が、acmfbdevsink の場合は、sink 側で、ref しているので、
 		 * デコーダ側で、表示中バッファを保持する必要はない。
 		 */
 		if (! me->priv->using_fb_dmabuf) {
@@ -2937,17 +2937,17 @@ allocate_outbuf_failed:
 static gboolean
 plugin_init (GstPlugin * plugin)
 {
-	GST_DEBUG_CATEGORY_INIT (rtoh264dec_debug, "rtoh264dec", 0, "H264 decoding");
+	GST_DEBUG_CATEGORY_INIT (acmh264dec_debug, "acmh264dec", 0, "H264 decoding");
 
-	return gst_element_register (plugin, "rtoh264dec",
-								 GST_RANK_PRIMARY, GST_TYPE_RTOH264DEC);
+	return gst_element_register (plugin, "acmh264dec",
+								 GST_RANK_PRIMARY, GST_TYPE_ACMH264DEC);
 }
 
 GST_PLUGIN_DEFINE (
 	GST_VERSION_MAJOR,
     GST_VERSION_MINOR,
-    rtoh264dec,
-    "RTO H264 Decoder",
+    acmh264dec,
+    "ACM H264 Decoder",
 	plugin_init,
 	VERSION,
 	"GPL",

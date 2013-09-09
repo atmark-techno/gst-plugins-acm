@@ -17,8 +17,8 @@
  * Boston, MA 02111-1307, USA.
  */
 
-#ifndef __GST_RTO_DMABUF_META_H__
-#define __GST_RTO_DMABUF_META_H__
+#ifndef __GST_ACM_DMABUF_META_H__
+#define __GST_ACM_DMABUF_META_H__
 
 #include <gst/gst.h>
 
@@ -27,36 +27,36 @@ G_BEGIN_DECLS
 /* DMABUF の個数		*/
 #define NUM_FB_DMABUF			4
 
-typedef struct _GstRtoDmabufMeta GstRtoDmabufMeta;
+typedef struct _GstAcmDmabufMeta GstAcmDmabufMeta;
 
 /**
- * GstRtoDmabufMeta:
+ * GstAcmDmabufMeta:
  *
  * Buffer metadata for DMABUF.
  */
-struct _GstRtoDmabufMeta {
+struct _GstAcmDmabufMeta {
 	GstMeta meta;
 
 	int fd;
 	int index;
 };
 
-GType gst_rto_dmabuf_meta_api_get_type (void);
-#define GST_RTO_DMABUF_META_API_TYPE (gst_rto_dmabuf_meta_api_get_type())
+GType gst_acm_dmabuf_meta_api_get_type (void);
+#define GST_ACM_DMABUF_META_API_TYPE (gst_acm_dmabuf_meta_api_get_type())
 
-#define gst_buffer_get_rto_dmabuf_meta(b) \
-  ((GstRtoDmabufMeta*)gst_buffer_get_meta((b),GST_RTO_DMABUF_META_API_TYPE))
+#define gst_buffer_get_acm_dmabuf_meta(b) \
+  ((GstAcmDmabufMeta*)gst_buffer_get_meta((b),GST_ACM_DMABUF_META_API_TYPE))
 
 /* implementation */
-const GstMetaInfo *gst_rto_dmabuf_meta_get_info (void);
-#define GST_RTO_DMABUF_META_INFO (gst_rto_dmabuf_meta_get_info())
+const GstMetaInfo *gst_acm_dmabuf_meta_get_info (void);
+#define GST_ACM_DMABUF_META_INFO (gst_acm_dmabuf_meta_get_info())
 
-GstRtoDmabufMeta * gst_buffer_add_rto_dmabuf_meta (
+GstAcmDmabufMeta * gst_buffer_add_acm_dmabuf_meta (
 			GstBuffer *buffer, int fd, int index);
 
 G_END_DECLS
 
-#endif /* __GST_RTO_DMABUF_META_H__ */
+#endif /* __GST_ACM_DMABUF_META_H__ */
 
 /*
  * End of file

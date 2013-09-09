@@ -1,5 +1,5 @@
 .deps
-rtoaacdec
-rtofbdevsink
-rtoh264dec
+acmaacdec
+acmfbdevsink
+acmh264dec
 *.o

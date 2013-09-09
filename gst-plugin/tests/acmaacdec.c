@@ -1,6 +1,6 @@
 /* GStreamer
  *
- * unit test for rtoaacdec
+ * unit test for acmaacdec
  *
  * Copyright (C) 2013 Kazunari Ohtsuka <<user@hostname.org>>
  *
@@ -92,43 +92,43 @@ get_data(char *file, size_t *size, void **p)
 }
 
 static GstElement *
-setup_rtoaacdec (void)
+setup_acmaacdec (void)
 {
-	GstElement *rtoaacdec;
+	GstElement *acmaacdec;
 	
-	g_print ("setup_rtoaacdec\n");
-	rtoaacdec = gst_check_setup_element ("rtoaacdec");
-	g_object_set (rtoaacdec,
+	g_print ("setup_acmaacdec\n");
+	acmaacdec = gst_check_setup_element ("acmaacdec");
+	g_object_set (acmaacdec,
 				  "device", M2M_DEVICE,
 				  NULL);
 	g_print ("pass : gst_check_setup_element()\n");
-	mysrcpad = gst_check_setup_src_pad (rtoaacdec, &srctemplate);
+	mysrcpad = gst_check_setup_src_pad (acmaacdec, &srctemplate);
 	g_print ("pass : gst_check_setup_src_pad()\n");
-	mysinkpad = gst_check_setup_sink_pad (rtoaacdec, &sinktemplate);
+	mysinkpad = gst_check_setup_sink_pad (acmaacdec, &sinktemplate);
 	g_print ("pass : gst_check_setup_sink_pad()\n");
 
 	gst_pad_set_active (mysrcpad, TRUE);
 	gst_pad_set_active (mysinkpad, TRUE);
 	
-	return rtoaacdec;
+	return acmaacdec;
 }
 
 static void
-cleanup_rtoaacdec (GstElement * rtoaacdec)
+cleanup_acmaacdec (GstElement * acmaacdec)
 {
-	g_print ("cleanup_rtoaacdec\n");
-	gst_element_set_state (rtoaacdec, GST_STATE_NULL);
+	g_print ("cleanup_acmaacdec\n");
+	gst_element_set_state (acmaacdec, GST_STATE_NULL);
 	
 	gst_pad_set_active (mysrcpad, FALSE);
 	gst_pad_set_active (mysinkpad, FALSE);
-	gst_check_teardown_src_pad (rtoaacdec);
-	gst_check_teardown_sink_pad (rtoaacdec);
-	gst_check_teardown_element (rtoaacdec);
+	gst_check_teardown_src_pad (acmaacdec);
+	gst_check_teardown_sink_pad (acmaacdec);
+	gst_check_teardown_element (acmaacdec);
 }
 
 GST_START_TEST (test_properties)
 {
-	GstElement *rtoaacdec;
+	GstElement *acmaacdec;
 	gchar *device;
 	gboolean allow_mixdown;
 	gint	mixdown_mode;
@@ -138,9 +138,9 @@ GST_START_TEST (test_properties)
 	guint 	max_channel;
 #endif
 
-	rtoaacdec = setup_rtoaacdec ();
+	acmaacdec = setup_acmaacdec ();
 	
-	g_object_set (rtoaacdec,
+	g_object_set (acmaacdec,
 				  "device", 			"/dev/video1",
 				  "allow-mixdown", 		TRUE,
 				  "mixdown-mode", 		1,
@@ -150,7 +150,7 @@ GST_START_TEST (test_properties)
 				  "max-channel", 		1,
 #endif
 				  NULL);
-	g_object_get (rtoaacdec,
+	g_object_get (acmaacdec,
 				  "device", 			&device,
 				  "allow-mixdown", 		&allow_mixdown,
 				  "mixdown-mode", 		&mixdown_mode,
@@ -172,7 +172,7 @@ GST_START_TEST (test_properties)
 	device = NULL;
 	
 	/* new properties */
-	g_object_set (rtoaacdec,
+	g_object_set (acmaacdec,
 				  "device", 			"/dev/video2",
 				  "allow-mixdown", 		FALSE,
 				  "mixdown-mode", 		0,
@@ -182,7 +182,7 @@ GST_START_TEST (test_properties)
 				  "max-channel", 		2,
 #endif
 				  NULL);
-	g_object_get (rtoaacdec,
+	g_object_get (acmaacdec,
 				  "device", 			&device,
 				  "allow-mixdown", 		&allow_mixdown,
 				  "mixdown-mode", 		&mixdown_mode,
@@ -201,7 +201,7 @@ GST_START_TEST (test_properties)
 	fail_unless_equals_int (max_channel, 2);
 #endif
 
-	cleanup_rtoaacdec (rtoaacdec);
+	cleanup_acmaacdec (acmaacdec);
 }
 GST_END_TEST;
 
@@ -251,7 +251,7 @@ GST_START_TEST (test_decode_adts)
 {
 	GstCaps *caps;
 	
-	GstElement *rtoaacdec;
+	GstElement *acmaacdec;
 	size_t size;
 	void *p;
 	char file[PATH_MAX];
@@ -262,8 +262,8 @@ GST_START_TEST (test_decode_adts)
 	gst_caps_set_simple (caps, "stream-format", G_TYPE_STRING, "adts",
 						 NULL);
 	
-	rtoaacdec = setup_rtoaacdec ();
-	fail_unless (gst_element_set_state (rtoaacdec, GST_STATE_PLAYING)
+	acmaacdec = setup_acmaacdec ();
+	fail_unless (gst_element_set_state (acmaacdec, GST_STATE_PLAYING)
 				 == GST_STATE_CHANGE_SUCCESS, "could not set to playing");
 
 	gst_pad_set_caps (mysrcpad, caps);
@@ -302,7 +302,7 @@ GST_START_TEST (test_decode_adts)
 
 	/* クリーンアップ	*/
 	g_print("cleanup...\n");
-	cleanup_rtoaacdec (rtoaacdec);
+	cleanup_acmaacdec (acmaacdec);
 	g_list_free (buffers);
 	buffers = NULL;
 
@@ -356,7 +356,7 @@ GST_START_TEST (test_decode_raw)
 {
 	GstCaps *caps;
 	
-	GstElement *rtoaacdec;
+	GstElement *acmaacdec;
 	size_t size;
 	void *p;
 	char file[PATH_MAX];
@@ -376,8 +376,8 @@ GST_START_TEST (test_decode_raw)
 						 NULL);
 	gst_buffer_unref (codec_buf);
 
-	rtoaacdec = setup_rtoaacdec ();
-	fail_unless (gst_element_set_state (rtoaacdec, GST_STATE_PLAYING)
+	acmaacdec = setup_acmaacdec ();
+	fail_unless (gst_element_set_state (acmaacdec, GST_STATE_PLAYING)
 				 == GST_STATE_CHANGE_SUCCESS, "could not set to playing");
 	
 	gst_pad_set_caps (mysrcpad, caps);
@@ -416,7 +416,7 @@ GST_START_TEST (test_decode_raw)
 	
 	/* クリーンアップ	*/
 	g_print("cleanup...\n");
-	cleanup_rtoaacdec (rtoaacdec);
+	cleanup_acmaacdec (acmaacdec);
 	g_list_free (buffers);
 	buffers = NULL;
 	
@@ -425,9 +425,9 @@ GST_START_TEST (test_decode_raw)
 GST_END_TEST;
 
 static Suite *
-rtoaacdec_suite (void)
+acmaacdec_suite (void)
 {
-	Suite *s = suite_create ("rtoaacdec");
+	Suite *s = suite_create ("acmaacdec");
 	TCase *tc_chain = tcase_create ("general");
 
 	tcase_set_timeout (tc_chain, 0);
@@ -445,7 +445,7 @@ main (int argc, char **argv)
 {
 	int nf;
 	
-	Suite *s = rtoaacdec_suite ();
+	Suite *s = acmaacdec_suite ();
 	SRunner *sr = srunner_create (s);
 	
 	gst_check_init (&argc, &argv);

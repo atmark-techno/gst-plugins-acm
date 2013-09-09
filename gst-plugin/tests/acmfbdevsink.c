@@ -1,6 +1,6 @@
 /* GStreamer
  *
- * unit test for rtofbdevsink
+ * unit test for acmfbdevsink
  *
  * Copyright (C) 2013 Kazunari Ohtsuka <<user@hostname.org>>
  *
@@ -34,10 +34,10 @@ static GstPad *srcpad;
 static GstElement *sink;
 
 static GstElement *
-setup_rtofbdevsink (void)
+setup_acmfbdevsink (void)
 {
-	GST_DEBUG ("setup_rtofbdevsink");
-	sink = gst_check_setup_element ("rtofbdevsink");
+	GST_DEBUG ("setup_acmfbdevsink");
+	sink = gst_check_setup_element ("acmfbdevsink");
 	srcpad = gst_check_setup_src_pad (sink, &srctemplate);
 	gst_pad_set_active (srcpad, TRUE);
 
@@ -45,9 +45,9 @@ setup_rtofbdevsink (void)
 }
 
 static void
-cleanup_rtofbdevsink (GstElement * sink)
+cleanup_acmfbdevsink (GstElement * sink)
 {
-	GST_DEBUG ("cleanup_rtofbdevsink");
+	GST_DEBUG ("cleanup_acmfbdevsink");
 
 	gst_check_teardown_src_pad (sink);
 	gst_check_teardown_element (sink);
@@ -61,7 +61,7 @@ GST_START_TEST (test_properties)
 	gboolean use_dmabuf;
 	gboolean enable_vsync;
 
-	sink = setup_rtofbdevsink ();
+	sink = setup_acmfbdevsink ();
 
 	g_object_set (G_OBJECT (sink),
 				  "device", "/dev/fb7",
@@ -95,14 +95,14 @@ GST_START_TEST (test_properties)
 	g_object_get (sink, "enable-vsync", &enable_vsync, NULL);
 	fail_unless_equals_int (enable_vsync, 0);
 
-	cleanup_rtofbdevsink (sink);
+	cleanup_acmfbdevsink (sink);
 }
 GST_END_TEST;
 
 static Suite *
-rtofbdevsink_suite (void)
+acmfbdevsink_suite (void)
 {
-	Suite *s = suite_create ("rtofbdevsink");
+	Suite *s = suite_create ("acmfbdevsink");
 	TCase *tc_chain = tcase_create ("general");
 	
 	tcase_set_timeout (tc_chain, 0);
@@ -119,7 +119,7 @@ main (int argc, char **argv)
 {
 	int nf;
 	
-	Suite *s = rtofbdevsink_suite ();
+	Suite *s = acmfbdevsink_suite ();
 	SRunner *sr = srunner_create (s);
 	
 	gst_check_init (&argc, &argv);

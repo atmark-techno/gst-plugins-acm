@@ -18,18 +18,18 @@
  */
 
 /**
- * SECTION:gstrtodmabufmeta
+ * SECTION:gstacmdmabufmeta
  * @short_description: DMABUF address metadata
  */
 
 #include <string.h>
 
-#include "gstrtodmabufmeta.h"
+#include "gstacmdmabufmeta.h"
 
 static gboolean
-rto_dmabuf_meta_init (GstMeta * meta, gpointer params, GstBuffer * buffer)
+acm_dmabuf_meta_init (GstMeta * meta, gpointer params, GstBuffer * buffer)
 {
-	GstRtoDmabufMeta *me = (GstRtoDmabufMeta *) meta;
+	GstAcmDmabufMeta *me = (GstAcmDmabufMeta *) meta;
 	
 	me->fd = -1;
 	me->index = -1;
@@ -38,65 +38,65 @@ rto_dmabuf_meta_init (GstMeta * meta, gpointer params, GstBuffer * buffer)
 }
 
 static gboolean
-rto_dmabuf_meta_transform (GstBuffer * transbuf, GstMeta * meta,
+acm_dmabuf_meta_transform (GstBuffer * transbuf, GstMeta * meta,
     GstBuffer * buffer, GQuark type, gpointer data)
 {
-	GstRtoDmabufMeta *me = (GstRtoDmabufMeta *) meta;
+	GstAcmDmabufMeta *me = (GstAcmDmabufMeta *) meta;
 	
 	/* we always copy no matter what transform */
-	gst_buffer_add_rto_dmabuf_meta (transbuf, me->fd, me->index);
+	gst_buffer_add_acm_dmabuf_meta (transbuf, me->fd, me->index);
 	
 	return TRUE;
 }
 
 static void
-rto_dmabuf_meta_free (GstMeta * meta, GstBuffer * buffer)
+acm_dmabuf_meta_free (GstMeta * meta, GstBuffer * buffer)
 {
-	GstRtoDmabufMeta *me = (GstRtoDmabufMeta *) meta;
+	GstAcmDmabufMeta *me = (GstAcmDmabufMeta *) meta;
 	
 	me->fd = -1;
 	me->index = -1;
 }
 
 GType
-gst_rto_dmabuf_meta_api_get_type (void)
+gst_acm_dmabuf_meta_api_get_type (void)
 {
 	static volatile GType type;
 	static const gchar *tags[] = { "origin", NULL };
 	
 	if (g_once_init_enter (&type)) {
-		GType _type = gst_meta_api_type_register ("GstRtoDmabufMetaAPI", tags);
+		GType _type = gst_meta_api_type_register ("GstAcmDmabufMetaAPI", tags);
 		g_once_init_leave (&type, _type);
 	}
 	return type;
 }
 
 const GstMetaInfo *
-gst_rto_dmabuf_meta_get_info (void)
+gst_acm_dmabuf_meta_get_info (void)
 {
 	static const GstMetaInfo *meta_info = NULL;
 	
 	if (g_once_init_enter (&meta_info)) {
 		const GstMetaInfo *mi = gst_meta_register (
-			GST_RTO_DMABUF_META_API_TYPE, "GstRtoDmabufMeta",
-			sizeof (GstRtoDmabufMeta),
-			rto_dmabuf_meta_init,
-			rto_dmabuf_meta_free,
-			rto_dmabuf_meta_transform);
+			GST_ACM_DMABUF_META_API_TYPE, "GstAcmDmabufMeta",
+			sizeof (GstAcmDmabufMeta),
+			acm_dmabuf_meta_init,
+			acm_dmabuf_meta_free,
+			acm_dmabuf_meta_transform);
 		g_once_init_leave (&meta_info, mi);
 	}
 	return meta_info;
 }
 
-GstRtoDmabufMeta *
-gst_buffer_add_rto_dmabuf_meta (GstBuffer * buffer, int fd, int index)
+GstAcmDmabufMeta *
+gst_buffer_add_acm_dmabuf_meta (GstBuffer * buffer, int fd, int index)
 {
-	GstRtoDmabufMeta *meta;
+	GstAcmDmabufMeta *meta;
 	
 	g_return_val_if_fail (GST_IS_BUFFER (buffer), NULL);
 	
-	meta = (GstRtoDmabufMeta *) gst_buffer_add_meta (buffer,
-									GST_RTO_DMABUF_META_INFO, NULL);
+	meta = (GstAcmDmabufMeta *) gst_buffer_add_meta (buffer,
+									GST_ACM_DMABUF_META_INFO, NULL);
 	
 	meta->fd = fd;
 	meta->index = index;

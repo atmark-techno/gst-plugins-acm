@@ -46,7 +46,7 @@
     プロパティ名1 = 設定値1
     プロパティ名2 = 設定値2
 
-    [rtofbdevsink]
+    [acmfbdevsink]
     device = "/dev/fb0"
     use-dmabuf = TRUE
 

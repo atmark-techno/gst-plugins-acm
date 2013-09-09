@@ -1,4 +1,4 @@
-/* GStreamer RTO H264 Decoder plugin
+/* GStreamer ACM H264 Decoder plugin
  * Copyright (C) 2013 Kazunari Ohtsuka <<user@hostname.org>>
  *
  * This library is free software; you can redistribute it and/or
@@ -18,8 +18,8 @@
  */
 
 
-#ifndef __GST_RTOH264DEC_H__
-#define __GST_RTOH264DEC_H__
+#ifndef __GST_ACMH264DEC_H__
+#define __GST_ACMH264DEC_H__
 
 #include <semaphore.h>
 #include <linux/videodev2.h>
@@ -31,57 +31,57 @@
 
 G_BEGIN_DECLS
 
-#define GST_TYPE_RTOH264DEC \
-  (gst_rto_h264_dec_get_type())
-#define GST_RTOH264DEC(obj) \
-  (G_TYPE_CHECK_INSTANCE_CAST((obj),GST_TYPE_RTOH264DEC,GstRtoH264Dec))
-#define GST_RTOH264DEC_CLASS(klass) \
-  (G_TYPE_CHECK_CLASS_CAST((klass),GST_TYPE_RTOH264DEC,GstRtoH264DecClass))
-#define GST_IS_RTOH264DEC(obj) \
-  (G_TYPE_CHECK_INSTANCE_TYPE((obj),GST_TYPE_RTOH264DEC))
-#define GST_IS_RTOH264DEC_CLASS(klass) \
-  (G_TYPE_CHECK_CLASS_TYPE((klass),GST_TYPE_RTOH264DEC))
+#define GST_TYPE_ACMH264DEC \
+  (gst_acm_h264_dec_get_type())
+#define GST_ACMH264DEC(obj) \
+  (G_TYPE_CHECK_INSTANCE_CAST((obj),GST_TYPE_ACMH264DEC,GstAcmH264Dec))
+#define GST_ACMH264DEC_CLASS(klass) \
+  (G_TYPE_CHECK_CLASS_CAST((klass),GST_TYPE_ACMH264DEC,GstAcmH264DecClass))
+#define GST_IS_ACMH264DEC(obj) \
+  (G_TYPE_CHECK_INSTANCE_TYPE((obj),GST_TYPE_ACMH264DEC))
+#define GST_IS_ACMH264DEC_CLASS(klass) \
+  (G_TYPE_CHECK_CLASS_TYPE((klass),GST_TYPE_ACMH264DEC))
 
 
 /* 入力フォーマット	*/
-#define GST_RTOH264DEC_IN_FMT_UNKNOWN	0xFFFFFFFF
+#define GST_ACMH264DEC_IN_FMT_UNKNOWN	0xFFFFFFFF
 	/* ES (with NAL start code)	*/
-#define GST_RTOH264DEC_IN_FMT_ES		V4L2_PIX_FMT_H264
+#define GST_ACMH264DEC_IN_FMT_ES		V4L2_PIX_FMT_H264
 	/* MP4 (without start code) */
-#define GST_RTOH264DEC_IN_FMT_MP4		V4L2_PIX_FMT_H264_NO_SC	
+#define GST_ACMH264DEC_IN_FMT_MP4		V4L2_PIX_FMT_H264_NO_SC	
 
 /* 参照フレーム数		*/
-#define GST_RTOH264DEC_FMEM_NUM_MIN		1
-#define GST_RTOH264DEC_FMEM_NUM_MAX		32
+#define GST_ACMH264DEC_FMEM_NUM_MIN		1
+#define GST_ACMH264DEC_FMEM_NUM_MAX		32
 
 /* 中間バッファのピクチャ数	*/
-#define GST_RTOH264DEC_BUF_PIC_CNT_MIN	2
-#define GST_RTOH264DEC_BUF_PIC_CNT_MAX	145
+#define GST_ACMH264DEC_BUF_PIC_CNT_MIN	2
+#define GST_ACMH264DEC_BUF_PIC_CNT_MAX	145
 
 /* 入出力画素数	*/
-#define GST_RTOH264DEC_WIDTH_MIN		0	/* 80 */
-#define GST_RTOH264DEC_WIDTH_MAX		1920
-#define GST_RTOH264DEC_HEIGHT_MIN		0	/* 80 */
-#define GST_RTOH264DEC_HEIGHT_MAX		1080
-#define GST_RTOH264DEC_STRIDE_MIN		0	/* 2 */
-#define GST_RTOH264DEC_STRIDE_MAX		65535
-#define GST_RTOH264DEC_X_OFFSET_MIN		0
-#define GST_RTOH264DEC_X_OFFSET_MAX		65535
-#define GST_RTOH264DEC_Y_OFFSET_MIN		0
-#define GST_RTOH264DEC_Y_OFFSET_MAX		65535
+#define GST_ACMH264DEC_WIDTH_MIN		0	/* 80 */
+#define GST_ACMH264DEC_WIDTH_MAX		1920
+#define GST_ACMH264DEC_HEIGHT_MIN		0	/* 80 */
+#define GST_ACMH264DEC_HEIGHT_MAX		1080
+#define GST_ACMH264DEC_STRIDE_MIN		0	/* 2 */
+#define GST_ACMH264DEC_STRIDE_MAX		65535
+#define GST_ACMH264DEC_X_OFFSET_MIN		0
+#define GST_ACMH264DEC_X_OFFSET_MAX		65535
+#define GST_ACMH264DEC_Y_OFFSET_MIN		0
+#define GST_ACMH264DEC_Y_OFFSET_MAX		65535
 
 /* 出力フォーマット	*/
-#define GST_RTOH264DEC_OUT_FMT_UNKNOWN	0xFFFFFFFF
-#define GST_RTOH264DEC_OUT_FMT_YUV420	V4L2_PIX_FMT_YUV420
-#define GST_RTOH264DEC_OUT_FMT_RGB32	V4L2_PIX_FMT_RGB32
-#define GST_RTOH264DEC_OUT_FMT_RGB24	V4L2_PIX_FMT_RGB24
+#define GST_ACMH264DEC_OUT_FMT_UNKNOWN	0xFFFFFFFF
+#define GST_ACMH264DEC_OUT_FMT_YUV420	V4L2_PIX_FMT_YUV420
+#define GST_ACMH264DEC_OUT_FMT_RGB32	V4L2_PIX_FMT_RGB32
+#define GST_ACMH264DEC_OUT_FMT_RGB24	V4L2_PIX_FMT_RGB24
 
 #define MAX_SIZE_SPSPPS		1024
 
 /* クラス定義		*/
-typedef struct _GstRtoH264DecPrivate GstRtoH264DecPrivate;
+typedef struct _GstAcmH264DecPrivate GstAcmH264DecPrivate;
 
-typedef struct _GstRtoH264Dec {
+typedef struct _GstAcmH264Dec {
 	GstVideoDecoder element;
 
 	/* input video caps */
@@ -101,7 +101,7 @@ typedef struct _GstRtoH264Dec {
 	char *out_video_fmt_str;
 	GstVideoFormat out_video_fmt;
 
-	/* RTO common */
+	/* ACM common */
 	/* the video device */
 	char *videodev;
 	gint video_fd;
@@ -114,7 +114,7 @@ typedef struct _GstRtoH264Dec {
 	/* 初回デコード済みデータ取得済みフラグ	*/
 	gboolean is_got_decoded_1stframe;
 
-	/* RTO h264dec */
+	/* ACM h264dec */
 	/* 参照フレーム数
 	 * 1 ~ 32
 	 */
@@ -130,15 +130,15 @@ typedef struct _GstRtoH264Dec {
 	guint32 frame_rate;
 
 	/* 入力フォーマット
-	 * GST_RTOH264DEC_IN_FMT_ES: NALスタートモード
-	 * GST_RTOH264DEC_IN_FMT_MP4：sps,pps付加、サイズ情報モード
+	 * GST_ACMH264DEC_IN_FMT_ES: NALスタートモード
+	 * GST_ACMH264DEC_IN_FMT_MP4：sps,pps付加、サイズ情報モード
 	 */
 	guint32 input_format;
 
 	/* 出力フォーマット
-	 * GST_RTOH264DEC_OUT_FMT_YUV420
-	 * GST_RTOH264DEC_OUT_FMT_RGB32
-	 * GST_RTOH264DEC_OUT_FMT_RGB24
+	 * GST_ACMH264DEC_OUT_FMT_YUV420
+	 * GST_ACMH264DEC_OUT_FMT_RGB32
+	 * GST_ACMH264DEC_OUT_FMT_RGB24
 	 */
 	guint32 output_format;
 	
@@ -160,18 +160,18 @@ typedef struct _GstRtoH264Dec {
 	guint32 frame_y_offset;
 
 	/*< private >*/
-	GstRtoH264DecPrivate *priv;
-} GstRtoH264Dec;
+	GstAcmH264DecPrivate *priv;
+} GstAcmH264Dec;
 
-typedef struct _GstRtoH264DecClass {
+typedef struct _GstAcmH264DecClass {
 	GstVideoDecoderClass parent_class;
-} GstRtoH264DecClass;
+} GstAcmH264DecClass;
 
-GType gst_rto_h264_dec_get_type(void);
+GType gst_acm_h264_dec_get_type(void);
 
 G_END_DECLS
 
-#endif /* __GST_RTOH264DEC_H__ */
+#endif /* __GST_ACMH264DEC_H__ */
 
 
 /*

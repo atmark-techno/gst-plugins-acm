@@ -1,4 +1,4 @@
-[rtoaacdec]
+[acmaacdec]
 device = "/dev/video1"
 
 [acmalsasink]
@@ -12,10 +12,10 @@ caps = "audio/x-raw, rate=48000, channels=2"
 [audioresample]
 quality=0
 
-[rtoh264dec]
+[acmh264dec]
 device = "/dev/video2"
 width=1920
 height=1080
 
-[rtofbdevsink]
+[acmfbdevsink]
 device = "/dev/fb0"

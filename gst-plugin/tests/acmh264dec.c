@@ -1,6 +1,6 @@
 /* GStreamer
  *
- * unit test for rtoh264dec
+ * unit test for acmh264dec
  *
  * Copyright (C) 2013 Kazunari Ohtsuka <<user@hostname.org>>
  *
@@ -100,43 +100,43 @@ get_data(char *file, size_t *size, void **p)
 }
 
 static GstElement *
-setup_rtoh264dec ()
+setup_acmh264dec ()
 {
-	GstElement *rtoh264dec;
+	GstElement *acmh264dec;
 	
-	g_print ("setup_rtoh264dec\n");
-	rtoh264dec = gst_check_setup_element ("rtoh264dec");
-	g_object_set (rtoh264dec,
+	g_print ("setup_acmh264dec\n");
+	acmh264dec = gst_check_setup_element ("acmh264dec");
+	g_object_set (acmh264dec,
 				  "device", M2M_DEVICE,
 				  NULL);
 	g_print ("pass : gst_check_setup_element()\n");
-	mysrcpad = gst_check_setup_src_pad (rtoh264dec, &srctemplate);
+	mysrcpad = gst_check_setup_src_pad (acmh264dec, &srctemplate);
 	g_print ("pass : gst_check_setup_src_pad()\n");
-	mysinkpad = gst_check_setup_sink_pad (rtoh264dec, &sinktemplate);
+	mysinkpad = gst_check_setup_sink_pad (acmh264dec, &sinktemplate);
 	g_print ("pass : gst_check_setup_sink_pad()\n");
 
 	gst_pad_set_active (mysrcpad, TRUE);
 	gst_pad_set_active (mysinkpad, TRUE);
 	
-	return rtoh264dec;
+	return acmh264dec;
 }
 
 static void
-cleanup_rtoh264dec (GstElement * rtoh264dec)
+cleanup_acmh264dec (GstElement * acmh264dec)
 {
-	g_print ("cleanup_rtoh264dec\n");
-	gst_element_set_state (rtoh264dec, GST_STATE_NULL);
+	g_print ("cleanup_acmh264dec\n");
+	gst_element_set_state (acmh264dec, GST_STATE_NULL);
 	
 	gst_pad_set_active (mysrcpad, FALSE);
 	gst_pad_set_active (mysinkpad, FALSE);
-	gst_check_teardown_src_pad (rtoh264dec);
-	gst_check_teardown_sink_pad (rtoh264dec);
-	gst_check_teardown_element (rtoh264dec);
+	gst_check_teardown_src_pad (acmh264dec);
+	gst_check_teardown_sink_pad (acmh264dec);
+	gst_check_teardown_element (acmh264dec);
 }
 
 GST_START_TEST (test_properties)
 {
-	GstElement *rtoh264dec;
+	GstElement *acmh264dec;
 	gchar *device;
 	gint	width;
 	gint 	height;
@@ -148,9 +148,9 @@ GST_START_TEST (test_properties)
 	gint 	x_offset;
 	gint 	y_offset;
 
-	rtoh264dec = setup_rtoh264dec (AVC_AU);
+	acmh264dec = setup_acmh264dec (AVC_AU);
 	
-	g_object_set (rtoh264dec,
+	g_object_set (acmh264dec,
 				  "device", 		"/dev/video1",
 				  "width", 			1024,
 				  "height", 		768,
@@ -162,7 +162,7 @@ GST_START_TEST (test_properties)
 				  "x-offset",		20,
 				  "y-offset",		30,
 				  NULL);
-	g_object_get (rtoh264dec,
+	g_object_get (acmh264dec,
 				  "device", 		&device,
 				  "width", 			&width,
 				  "height", 		&height,
@@ -190,7 +190,7 @@ GST_START_TEST (test_properties)
 	format = NULL;
 
 	/* new properties */
-	g_object_set (rtoh264dec,
+	g_object_set (acmh264dec,
 				  "device", 		"/dev/video2",
 				  "width", 			1920,
 				  "height", 		1080,
@@ -202,7 +202,7 @@ GST_START_TEST (test_properties)
 				  "x-offset",		100,
 				  "y-offset",		200,
 				  NULL);
-	g_object_get (rtoh264dec,
+	g_object_get (acmh264dec,
 				  "device", 		&device,
 				  "width", 			&width,
 				  "height", 		&height,
@@ -229,7 +229,7 @@ GST_START_TEST (test_properties)
 	g_free (format);
 	format = NULL;
 
-	cleanup_rtoh264dec (rtoh264dec);
+	cleanup_acmh264dec (acmh264dec);
 }
 GST_END_TEST;
 
@@ -280,7 +280,7 @@ GST_START_TEST (test_decode_mp4)
 {
 	GstCaps *caps;
 	
-	GstElement *rtoh264dec;
+	GstElement *acmh264dec;
 	size_t size;
 	void *p;
 	char file[PATH_MAX];
@@ -299,8 +299,8 @@ GST_START_TEST (test_decode_mp4)
 						 NULL);
 	gst_buffer_unref (codec_buf);
 
-	rtoh264dec = setup_rtoh264dec ();
-	fail_unless (gst_element_set_state (rtoh264dec, GST_STATE_PLAYING)
+	acmh264dec = setup_acmh264dec ();
+	fail_unless (gst_element_set_state (acmh264dec, GST_STATE_PLAYING)
 				 == GST_STATE_CHANGE_SUCCESS, "could not set to playing");
 	
 	gst_pad_set_caps (mysrcpad, caps);
@@ -342,7 +342,7 @@ GST_START_TEST (test_decode_mp4)
 
 	/* クリーンアップ	*/
 	g_print("cleanup...\n");
-	cleanup_rtoh264dec (rtoh264dec);
+	cleanup_acmh264dec (acmh264dec);
 	g_list_free (buffers);
 	buffers = NULL;
 	
@@ -397,7 +397,7 @@ GST_START_TEST (test_decode_ts)
 {
 	GstCaps *caps;
 	
-	GstElement *rtoh264dec;
+	GstElement *acmh264dec;
 	size_t size;
 	void *p;
 	char file[PATH_MAX];
@@ -416,8 +416,8 @@ GST_START_TEST (test_decode_ts)
 						 NULL);
 	gst_buffer_unref (codec_buf);
 	
-	rtoh264dec = setup_rtoh264dec ();
-	fail_unless (gst_element_set_state (rtoh264dec, GST_STATE_PLAYING)
+	acmh264dec = setup_acmh264dec ();
+	fail_unless (gst_element_set_state (acmh264dec, GST_STATE_PLAYING)
 				 == GST_STATE_CHANGE_SUCCESS, "could not set to playing");
 	
 	gst_pad_set_caps (mysrcpad, caps);
@@ -459,7 +459,7 @@ GST_START_TEST (test_decode_ts)
 	
 	/* クリーンアップ	*/
 	g_print("cleanup...\n");
-	cleanup_rtoh264dec (rtoh264dec);
+	cleanup_acmh264dec (acmh264dec);
 	g_list_free (buffers);
 	buffers = NULL;
 	
@@ -468,9 +468,9 @@ GST_START_TEST (test_decode_ts)
 GST_END_TEST;
 
 static Suite *
-rtoh264dec_suite (void)
+acmh264dec_suite (void)
 {
-	Suite *s = suite_create ("rtoh264dec");
+	Suite *s = suite_create ("acmh264dec");
 	TCase *tc_chain = tcase_create ("general");
 
 	tcase_set_timeout (tc_chain, 0);
@@ -488,7 +488,7 @@ main (int argc, char **argv)
 {
 	int nf;
 	
-	Suite *s = rtoh264dec_suite ();
+	Suite *s = acmh264dec_suite ();
 	SRunner *sr = srunner_create (s);
 	
 	gst_check_init (&argc, &argv);

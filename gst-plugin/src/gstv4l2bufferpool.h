@@ -28,7 +28,7 @@
 
 #include <gst/gst.h>
 #include <linux/videodev2.h>
-#include "gstrtodmabufmeta.h"
+#include "gstacmdmabufmeta.h"
 
 typedef struct _GstV4l2BufferPool GstV4l2BufferPool;
 typedef struct _GstV4l2BufferPoolClass GstV4l2BufferPoolClass;

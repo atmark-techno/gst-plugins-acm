@@ -35,8 +35,8 @@
 
 #include <gst/video/video.h>
 
-#include "gstrtofbdevsink.h"
-#include "gstrtodmabufmeta.h"
+#include "gstacmfbdevsink.h"
+#include "gstacmdmabufmeta.h"
 
 
 /* デコーダ初期化パラメータのデフォルト値	*/
@@ -64,7 +64,7 @@ gettimeofday_sec()
 	return (double)t.tv_sec + (double)t.tv_usec * 1e-6;
 }
 
-struct _GstRtoFBDevSinkPrivate
+struct _GstAcmFBDevSinkPrivate
 {
 	struct fb_dmabuf_export fb_dmabuf_exp[NUM_FB_DMABUF];
 	
@@ -97,12 +97,12 @@ struct _GstRtoFBDevSinkPrivate
 	GstPadChainFunction base_chain;
 };
 
-GST_DEBUG_CATEGORY_STATIC (rtofbdevsink_debug);
-#define GST_CAT_DEFAULT rtofbdevsink_debug
+GST_DEBUG_CATEGORY_STATIC (acmfbdevsink_debug);
+#define GST_CAT_DEFAULT acmfbdevsink_debug
 
-#define GST_RTOFBDEVSINK_GET_PRIVATE(obj)  \
-	(G_TYPE_INSTANCE_GET_PRIVATE ((obj), GST_TYPE_RTOFBDEVSINK, \
-		GstRtoFBDevSinkPrivate))
+#define GST_ACMFBDEVSINK_GET_PRIVATE(obj)  \
+	(G_TYPE_INSTANCE_GET_PRIVATE ((obj), GST_TYPE_ACMFBDEVSINK, \
+		GstAcmFBDevSinkPrivate))
 
 enum
 {
@@ -141,7 +141,7 @@ swapendian (uint32_t val)
 }
 
 static guint32
-get_disp_refresh_rate(GstRtoFBDevSink *me, struct fb_var_screeninfo * var)
+get_disp_refresh_rate(GstAcmFBDevSink *me, struct fb_var_screeninfo * var)
 {
 	guint32 pixclock, hfreq, htotal, vtotal;
 	guint32 refresh;
@@ -184,38 +184,38 @@ get_disp_refresh_rate(GstRtoFBDevSink *me, struct fb_var_screeninfo * var)
 	return refresh;
 }
 
-static void gst_rto_fbdevsink_get_times (GstBaseSink * basesink,
+static void gst_acm_fbdevsink_get_times (GstBaseSink * basesink,
     GstBuffer * buffer, GstClockTime * start, GstClockTime * end);
 
-static GstCaps *gst_rto_fbdevsink_getcaps (GstBaseSink * bsink, GstCaps *filter);
-static gboolean gst_rto_fbdevsink_setcaps (GstBaseSink * bsink, GstCaps * caps);
+static GstCaps *gst_acm_fbdevsink_getcaps (GstBaseSink * bsink, GstCaps *filter);
+static gboolean gst_acm_fbdevsink_setcaps (GstBaseSink * bsink, GstCaps * caps);
 
-static gboolean gst_rto_fbdevsink_start (GstBaseSink * bsink);
-static gboolean gst_rto_fbdevsink_stop (GstBaseSink * bsink);
-static gboolean gst_rto_fbdevsink_query (GstBaseSink * sink, GstQuery * query);
-static GstFlowReturn gst_rto_fbdevsink_chain (GstPad * pad,
+static gboolean gst_acm_fbdevsink_start (GstBaseSink * bsink);
+static gboolean gst_acm_fbdevsink_stop (GstBaseSink * bsink);
+static gboolean gst_acm_fbdevsink_query (GstBaseSink * sink, GstQuery * query);
+static GstFlowReturn gst_acm_fbdevsink_chain (GstPad * pad,
 	GstObject * parent, GstBuffer * buf);
-static GstFlowReturn gst_rto_fbdevsink_preroll (GstBaseSink * bsink,
+static GstFlowReturn gst_acm_fbdevsink_preroll (GstBaseSink * bsink,
 	GstBuffer * buff);
-static GstFlowReturn gst_rto_fbdevsink_render (GstBaseSink * bsink,
+static GstFlowReturn gst_acm_fbdevsink_render (GstBaseSink * bsink,
 	GstBuffer * buff);
 
-static void gst_rto_fbdevsink_set_property (GObject * object,
+static void gst_acm_fbdevsink_set_property (GObject * object,
     guint prop_id, const GValue * value, GParamSpec * pspec);
-static void gst_rto_fbdevsink_get_property (GObject * object,
+static void gst_acm_fbdevsink_get_property (GObject * object,
     guint prop_id, GValue * value, GParamSpec * pspec);
-static void gst_rto_fbdevsink_finalize (GObject * object);
+static void gst_acm_fbdevsink_finalize (GObject * object);
 
-static GstStateChangeReturn gst_rto_fbdevsink_change_state(GstElement * element,
+static GstStateChangeReturn gst_acm_fbdevsink_change_state(GstElement * element,
 	GstStateChange transition);
 
 
 
-#define gst_rto_fbdevsink_parent_class parent_class
-G_DEFINE_TYPE (GstRtoFBDevSink, gst_rto_fbdevsink, GST_TYPE_BASE_SINK);
+#define gst_acm_fbdevsink_parent_class parent_class
+G_DEFINE_TYPE (GstAcmFBDevSink, gst_acm_fbdevsink, GST_TYPE_BASE_SINK);
 
 static gboolean
-change_fb_varinfo_bpp(GstRtoFBDevSink *me, gint new_bpp)
+change_fb_varinfo_bpp(GstAcmFBDevSink *me, gint new_bpp)
 {
 	if (me->varinfo.bits_per_pixel != new_bpp) {
 		GST_INFO_OBJECT (me, "varinfo.bits_per_pixel(%d) != %d, forcing...",
@@ -259,7 +259,7 @@ fbioget_failed:
 }
 
 static gboolean
-do_blank_screen(GstRtoFBDevSink *me)
+do_blank_screen(GstAcmFBDevSink *me)
 {
 	gboolean ret = TRUE;
 	int vsyncArg = 0;
@@ -350,26 +350,26 @@ fbio_waitforvsync_failed:
 }
 
 static void
-gst_rto_fbdevsink_class_init (GstRtoFBDevSinkClass * klass)
+gst_acm_fbdevsink_class_init (GstAcmFBDevSinkClass * klass)
 {
 	GObjectClass *gobject_class;
 	GstElementClass *gstelement_class;
 	GstBaseSinkClass *gstvs_class;
 	
-//    GST_INFO ("RTOFBDEVSINK CLASS INIT");
+//    GST_INFO ("ACMFBDEVSINK CLASS INIT");
 
 	gobject_class = (GObjectClass *) klass;
 	gstelement_class = (GstElementClass *) klass;
 	gstvs_class = (GstBaseSinkClass *) klass;
 
-	g_type_class_add_private (klass, sizeof (GstRtoFBDevSinkPrivate));
+	g_type_class_add_private (klass, sizeof (GstAcmFBDevSinkPrivate));
 
-	gobject_class->set_property = gst_rto_fbdevsink_set_property;
-	gobject_class->get_property = gst_rto_fbdevsink_get_property;
-	gobject_class->finalize = gst_rto_fbdevsink_finalize;
+	gobject_class->set_property = gst_acm_fbdevsink_set_property;
+	gobject_class->get_property = gst_acm_fbdevsink_get_property;
+	gobject_class->finalize = gst_acm_fbdevsink_finalize;
 
 	gstelement_class->change_state =
-		GST_DEBUG_FUNCPTR (gst_rto_fbdevsink_change_state);
+		GST_DEBUG_FUNCPTR (gst_acm_fbdevsink_change_state);
 
 	g_object_class_install_property (G_OBJECT_CLASS (klass), PROP_DEVICE,
 		g_param_spec_string ("device", "device",
@@ -386,28 +386,28 @@ gst_rto_fbdevsink_class_init (GstRtoFBDevSinkClass * klass)
 			DEFAULT_ENABLE_VSYNC, G_PARAM_READWRITE));
 
 	gst_element_class_set_details_simple (gstelement_class,
-		"RTO fbdev video sink", "Sink/Video",
+		"ACM fbdev video sink", "Sink/Video",
 		"A linux framebuffer videosink", "atmark techno");
 
 	gst_element_class_add_pad_template (gstelement_class,
 		gst_static_pad_template_get (&sink_template));
 
-	gstvs_class->set_caps = GST_DEBUG_FUNCPTR (gst_rto_fbdevsink_setcaps);
-	gstvs_class->get_caps = GST_DEBUG_FUNCPTR (gst_rto_fbdevsink_getcaps);
-	gstvs_class->get_times = GST_DEBUG_FUNCPTR (gst_rto_fbdevsink_get_times);
-	gstvs_class->preroll = GST_DEBUG_FUNCPTR (gst_rto_fbdevsink_preroll);
-	gstvs_class->render = GST_DEBUG_FUNCPTR (gst_rto_fbdevsink_render);
-	gstvs_class->start = GST_DEBUG_FUNCPTR (gst_rto_fbdevsink_start);
-	gstvs_class->stop = GST_DEBUG_FUNCPTR (gst_rto_fbdevsink_stop);
-	gstvs_class->query = GST_DEBUG_FUNCPTR (gst_rto_fbdevsink_query);
+	gstvs_class->set_caps = GST_DEBUG_FUNCPTR (gst_acm_fbdevsink_setcaps);
+	gstvs_class->get_caps = GST_DEBUG_FUNCPTR (gst_acm_fbdevsink_getcaps);
+	gstvs_class->get_times = GST_DEBUG_FUNCPTR (gst_acm_fbdevsink_get_times);
+	gstvs_class->preroll = GST_DEBUG_FUNCPTR (gst_acm_fbdevsink_preroll);
+	gstvs_class->render = GST_DEBUG_FUNCPTR (gst_acm_fbdevsink_render);
+	gstvs_class->start = GST_DEBUG_FUNCPTR (gst_acm_fbdevsink_start);
+	gstvs_class->stop = GST_DEBUG_FUNCPTR (gst_acm_fbdevsink_stop);
+	gstvs_class->query = GST_DEBUG_FUNCPTR (gst_acm_fbdevsink_query);
 }
 
 static void
-gst_rto_fbdevsink_init (GstRtoFBDevSink * me)
+gst_acm_fbdevsink_init (GstAcmFBDevSink * me)
 {
-//	GST_INFO_OBJECT (me, "RTOFBDEVSINK INIT");
+//	GST_INFO_OBJECT (me, "ACMFBDEVSINK INIT");
 
-	me->priv = GST_RTOFBDEVSINK_GET_PRIVATE (me);
+	me->priv = GST_ACMFBDEVSINK_GET_PRIVATE (me);
 
 	me->fd = -1;
 	me->framebuffer = NULL;
@@ -453,15 +453,15 @@ gst_rto_fbdevsink_init (GstRtoFBDevSink * me)
 	/* retrieve and intercept base class chain. */
 	me->priv->base_chain = GST_PAD_CHAINFUNC (GST_BASE_SINK_PAD (me));
 	gst_pad_set_chain_function (GST_BASE_SINK_PAD (me),
-								GST_DEBUG_FUNCPTR (gst_rto_fbdevsink_chain));
+								GST_DEBUG_FUNCPTR (gst_acm_fbdevsink_chain));
 }
 
 static void
-gst_rto_fbdevsink_finalize (GObject * object)
+gst_acm_fbdevsink_finalize (GObject * object)
 {
-	GstRtoFBDevSink *me = GST_RTOFBDEVSINK (object);
+	GstAcmFBDevSink *me = GST_ACMFBDEVSINK (object);
 
-    GST_INFO_OBJECT (me, "RTOFBDEVSINK FINALIZE");
+    GST_INFO_OBJECT (me, "ACMFBDEVSINK FINALIZE");
 
 	if (me->device) {
 		g_free (me->device);
@@ -472,20 +472,20 @@ gst_rto_fbdevsink_finalize (GObject * object)
 }
 
 static gboolean
-gst_rto_fbdevsink_start (GstBaseSink * bsink)
+gst_acm_fbdevsink_start (GstBaseSink * bsink)
 {
-	GstRtoFBDevSink *me;
+	GstAcmFBDevSink *me;
 	gboolean ret = TRUE;
 	gint i = 0;
 
-	me = GST_RTOFBDEVSINK (bsink);
+	me = GST_ACMFBDEVSINK (bsink);
 
 	/* プロパティとしてセットされていなければ、デフォルト値を設定		*/
 	if (! me->device) {
 		me->device = g_strdup (DEFAULT_FB_DEVICE);
 	}
 
-	GST_INFO_OBJECT (me, "RTOFBDEVSINK START. (%s)", me->device);
+	GST_INFO_OBJECT (me, "ACMFBDEVSINK START. (%s)", me->device);
 
 	/* open device */
 	if (-1 == me->fd) {
@@ -592,15 +592,15 @@ fbioget_dmabuf_failed:
 }
 
 static gboolean
-gst_rto_fbdevsink_stop (GstBaseSink * bsink)
+gst_acm_fbdevsink_stop (GstBaseSink * bsink)
 {
-	GstRtoFBDevSink *me;
+	GstAcmFBDevSink *me;
 	gboolean ret = TRUE;
 	int r = 0;
 
-	me = GST_RTOFBDEVSINK (bsink);
+	me = GST_ACMFBDEVSINK (bsink);
 
-	GST_INFO_OBJECT (me, "RTOFBDEVSINK STOP. (%s)", me->device);
+	GST_INFO_OBJECT (me, "ACMFBDEVSINK STOP. (%s)", me->device);
 
 	/* clear screen	*/
 	do_blank_screen(me);
@@ -643,7 +643,7 @@ gst_rto_fbdevsink_stop (GstBaseSink * bsink)
 	}
 
 out:
-	GST_INFO_OBJECT (me, "RTOFBDEVSINK STOPPED");
+	GST_INFO_OBJECT (me, "ACMFBDEVSINK STOPPED");
 	return ret;
 
 munmap_failed:
@@ -671,12 +671,12 @@ fbioput_failed:
 
 /* get the start and end times for syncing on this buffer */
 static void
-gst_rto_fbdevsink_get_times (GstBaseSink * basesink, GstBuffer * buffer,
+gst_acm_fbdevsink_get_times (GstBaseSink * basesink, GstBuffer * buffer,
     GstClockTime * start, GstClockTime * end)
 {
-	GstRtoFBDevSink *me;
+	GstAcmFBDevSink *me;
 
-	me = GST_RTOFBDEVSINK (basesink);
+	me = GST_ACMFBDEVSINK (basesink);
 
 #if 0	/* for debug	*/
 	GST_INFO_OBJECT (me, "DTS: %" GST_TIME_FORMAT
@@ -708,12 +708,12 @@ gst_rto_fbdevsink_get_times (GstBaseSink * basesink, GstBuffer * buffer,
 }
 
 static gboolean
-gst_rto_fbdevsink_query (GstBaseSink * sink, GstQuery * query)
+gst_acm_fbdevsink_query (GstBaseSink * sink, GstQuery * query)
 {
-	GstRtoFBDevSink *me;
+	GstAcmFBDevSink *me;
 	gboolean ret = TRUE;
 
-	me = GST_RTOFBDEVSINK (sink);
+	me = GST_ACMFBDEVSINK (sink);
 
 	GST_INFO_OBJECT (me, "query:%" GST_PTR_FORMAT, query);
 
@@ -774,13 +774,13 @@ gst_rto_fbdevsink_query (GstBaseSink * sink, GstQuery * query)
 		structure = gst_query_writable_structure (query);
 		GST_INFO_OBJECT (me, "GST_QUERY_CUSTOM %" GST_PTR_FORMAT, structure);
 
-		if (gst_structure_has_name (structure, "GstRtoFBDevScreenInfoQuery")) {
+		if (gst_structure_has_name (structure, "GstAcmFBDevScreenInfoQuery")) {
 			gst_structure_set (structure, "screen_width", G_TYPE_INT,
 							   me->varinfo.xres, NULL);
 			gst_structure_set (structure, "screen_height", G_TYPE_INT,
 							   me->varinfo.yres, NULL);
 		}
-		else if (gst_structure_has_name (structure, "GstRtoFBDevDmaBufQuery")) {
+		else if (gst_structure_has_name (structure, "GstAcmFBDevDmaBufQuery")) {
 			if (! me->use_dmabuf) {
 				/* 無効値を返す */
 				gst_structure_set (structure, "fd", G_TYPE_INT, -1, NULL);
@@ -823,9 +823,9 @@ get_index_failed:
 
 /* get caps from subclass */
 static GstCaps *
-gst_rto_fbdevsink_getcaps (GstBaseSink * bsink, GstCaps *filter)
+gst_acm_fbdevsink_getcaps (GstBaseSink * bsink, GstCaps *filter)
 {
-	GstRtoFBDevSink *me;
+	GstAcmFBDevSink *me;
 	GstCaps *caps;
 	uint32_t rmask;
 	uint32_t gmask;
@@ -835,7 +835,7 @@ gst_rto_fbdevsink_getcaps (GstBaseSink * bsink, GstCaps *filter)
 
 	GST_INFO_OBJECT (bsink, "getcaps - filter:%" GST_PTR_FORMAT, filter);
 
-	me = GST_RTOFBDEVSINK (bsink);
+	me = GST_ACMFBDEVSINK (bsink);
 
 	if (-1 == me->fd) {
 		return gst_caps_from_string (GST_FBDEV_TEMPLATE_CAPS);
@@ -936,13 +936,13 @@ gst_rto_fbdevsink_getcaps (GstBaseSink * bsink, GstCaps *filter)
 
 /* notify subclass of new caps */
 static gboolean
-gst_rto_fbdevsink_setcaps (GstBaseSink * bsink, GstCaps * vscapslist)
+gst_acm_fbdevsink_setcaps (GstBaseSink * bsink, GstCaps * vscapslist)
 {
-	GstRtoFBDevSink *me;
+	GstAcmFBDevSink *me;
 	GstStructure *structure;
 	const GValue *fps;
 
-	me = GST_RTOFBDEVSINK (bsink);
+	me = GST_ACMFBDEVSINK (bsink);
 
 	GST_INFO_OBJECT (me, "receive caps: %" GST_PTR_FORMAT, vscapslist);
 
@@ -997,19 +997,19 @@ gst_rto_fbdevsink_setcaps (GstBaseSink * bsink, GstCaps * vscapslist)
 }
 
 static GstFlowReturn
-gst_rto_fbdevsink_preroll (GstBaseSink * bsink, GstBuffer * buf)
+gst_acm_fbdevsink_preroll (GstBaseSink * bsink, GstBuffer * buf)
 {
-	GstRtoFBDevSink *me;
+	GstAcmFBDevSink *me;
 	int vsyncArg = 0;
 	int r;
 #if DBG_MEASURE_PERF_RENDER
 	double time_start = 0, time_end = 0;
 #endif
 
-	me = GST_RTOFBDEVSINK (bsink);
+	me = GST_ACMFBDEVSINK (bsink);
 
 #if DBG_LOG_RENDER
-	GST_INFO_OBJECT (me, "RTOFBDEVSINK PREROLL : %p", buf);
+	GST_INFO_OBJECT (me, "ACMFBDEVSINK PREROLL : %p", buf);
 #endif
 
 #if DBG_MEASURE_PERF_RENDER
@@ -1041,9 +1041,9 @@ fbio_waitforvsync_failed:
 }
 
 static GstFlowReturn
-gst_rto_fbdevsink_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
+gst_acm_fbdevsink_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
 {
-	GstRtoFBDevSink *me = GST_RTOFBDEVSINK (parent);
+	GstAcmFBDevSink *me = GST_ACMFBDEVSINK (parent);
 #if DBG_MEASURE_PERF_RENDER
 	static double interval_time_start = 0, interval_time_end = 0;
 #endif
@@ -1072,9 +1072,9 @@ gst_rto_fbdevsink_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
 }
 
 static GstFlowReturn
-gst_rto_fbdevsink_render (GstBaseSink * bsink, GstBuffer * buf)
+gst_acm_fbdevsink_render (GstBaseSink * bsink, GstBuffer * buf)
 {
-	GstRtoFBDevSink *me;
+	GstAcmFBDevSink *me;
 	GstMapInfo map;
 	int r;
 #if DBG_MEASURE_PERF_RENDER
@@ -1082,9 +1082,9 @@ gst_rto_fbdevsink_render (GstBaseSink * bsink, GstBuffer * buf)
 	double time_start = 0, time_end = 0;
 #endif
 
-	me = GST_RTOFBDEVSINK (bsink);
+	me = GST_ACMFBDEVSINK (bsink);
 
-//	GST_INFO_OBJECT (me, "RTOFBDEVSINK RENDER BEGIN : %p", buf);
+//	GST_INFO_OBJECT (me, "ACMFBDEVSINK RENDER BEGIN : %p", buf);
 
 	if (! me->use_dmabuf) {
 		/* optimization could remove this memcpy by allocating the buffer
@@ -1131,11 +1131,11 @@ gst_rto_fbdevsink_render (GstBaseSink * bsink, GstBuffer * buf)
 		gst_buffer_unmap (buf, &map);
 	}
 	else {
-		GstRtoDmabufMeta *meta = NULL;
+		GstAcmDmabufMeta *meta = NULL;
 		gboolean isFrameSkipped = FALSE;
 
 		/* バッファからDMABUF index取得	*/
-		meta = gst_buffer_get_rto_dmabuf_meta (buf);
+		meta = gst_buffer_get_acm_dmabuf_meta (buf);
 		if (meta) {
 			int vsyncArg = 0;
 			
@@ -1260,7 +1260,7 @@ gst_rto_fbdevsink_render (GstBaseSink * bsink, GstBuffer * buf)
 		}
 	}
 
-//	GST_INFO_OBJECT (me, "RTOFBDEVSINK RENDER END");
+//	GST_INFO_OBJECT (me, "ACMFBDEVSINK RENDER END");
 
 	return GST_FLOW_OK;
 
@@ -1286,12 +1286,12 @@ fbio_waitforvsync_failed:
 }
 
 static void
-gst_rto_fbdevsink_set_property (GObject * object, guint prop_id,
+gst_acm_fbdevsink_set_property (GObject * object, guint prop_id,
     const GValue * value, GParamSpec * pspec)
 {
-	GstRtoFBDevSink *me;
+	GstAcmFBDevSink *me;
 
-	me = GST_RTOFBDEVSINK (object);
+	me = GST_ACMFBDEVSINK (object);
 
 	switch (prop_id) {
 	case PROP_DEVICE:
@@ -1313,12 +1313,12 @@ gst_rto_fbdevsink_set_property (GObject * object, guint prop_id,
 }
 
 static void
-gst_rto_fbdevsink_get_property (GObject * object, guint prop_id, GValue * value,
+gst_acm_fbdevsink_get_property (GObject * object, guint prop_id, GValue * value,
     GParamSpec * pspec)
 {
-	GstRtoFBDevSink *me;
+	GstAcmFBDevSink *me;
 
-	me = GST_RTOFBDEVSINK (object);
+	me = GST_ACMFBDEVSINK (object);
 
 	switch (prop_id) {
 	case PROP_DEVICE:
@@ -1337,14 +1337,14 @@ gst_rto_fbdevsink_get_property (GObject * object, guint prop_id, GValue * value,
 }
 
 static GstStateChangeReturn
-gst_rto_fbdevsink_change_state (GstElement * element, GstStateChange transition)
+gst_acm_fbdevsink_change_state (GstElement * element, GstStateChange transition)
 {
 	GstStateChangeReturn ret = GST_STATE_CHANGE_SUCCESS;
-	GstRtoFBDevSink *me;
+	GstAcmFBDevSink *me;
 	
-	me = GST_RTOFBDEVSINK (element);
+	me = GST_ACMFBDEVSINK (element);
 
-	g_return_val_if_fail (GST_IS_RTOFBDEVSINK (element), GST_STATE_CHANGE_FAILURE);
+	g_return_val_if_fail (GST_IS_ACMFBDEVSINK (element), GST_STATE_CHANGE_FAILURE);
 
 	ret = GST_ELEMENT_CLASS (parent_class)->change_state (element, transition);
 
@@ -1364,18 +1364,18 @@ gst_rto_fbdevsink_change_state (GstElement * element, GstStateChange transition)
 static gboolean
 plugin_init (GstPlugin * plugin)
 {
-	GST_DEBUG_CATEGORY_INIT (rtofbdevsink_debug, "rtofbdevsink",
-							 0, "RTO fbdev sink");
+	GST_DEBUG_CATEGORY_INIT (acmfbdevsink_debug, "acmfbdevsink",
+							 0, "ACM fbdev sink");
 
-	return gst_element_register (plugin, "rtofbdevsink", GST_RANK_PRIMARY,
-								 GST_TYPE_RTOFBDEVSINK);
+	return gst_element_register (plugin, "acmfbdevsink", GST_RANK_PRIMARY,
+								 GST_TYPE_ACMFBDEVSINK);
 }
 
 GST_PLUGIN_DEFINE (
 	GST_VERSION_MAJOR,
     GST_VERSION_MINOR,
-    rtofbdevsink,
-    "RTO linux framebuffer video sink",
+    acmfbdevsink,
+    "ACM linux framebuffer video sink",
     plugin_init,
 	VERSION,
 	"GPL",

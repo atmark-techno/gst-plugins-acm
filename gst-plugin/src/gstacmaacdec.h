@@ -1,4 +1,4 @@
-/* GStreamer RTO AAC Decoder plugin
+/* GStreamer ACM AAC Decoder plugin
  * Copyright (C) 2013 Kazunari Ohtsuka <<user@hostname.org>>
  *
  * This library is free software; you can redistribute it and/or
@@ -17,8 +17,8 @@
  * Boston, MA 02111-1307, USA.
  */
 
-#ifndef __GST_RTOAACDEC_H__
-#define __GST_RTOAACDEC_H__
+#ifndef __GST_ACMAACDEC_H__
+#define __GST_ACMAACDEC_H__
 
 #include <semaphore.h>
 #include <gst/gst.h>
@@ -27,50 +27,50 @@
 
 G_BEGIN_DECLS
 
-#define GST_TYPE_RTOAACDEC \
-  (gst_rto_aac_dec_get_type ())
-#define GST_RTOAACDEC(obj) \
-  (G_TYPE_CHECK_INSTANCE_CAST ((obj), GST_TYPE_RTOAACDEC, GstRtoAacDec))
-#define GST_RTOAACDEC_CLASS(klass) \
-  (G_TYPE_CHECK_CLASS_CAST ((klass), GST_TYPE_RTOAACDEC, GstRtoAacDecClass))
-#define GST_IS_RTOAACDEC(obj) \
-  (G_TYPE_CHECK_INSTANCE_TYPE ((obj), GST_TYPE_RTOAACDEC))
-#define GST_IS_RTOAACDEC_CLASS(klass) \
-  (G_TYPE_CHECK_CLASS_TYPE ((klass), GST_TYPE_RTOAACDEC))
+#define GST_TYPE_ACMAACDEC \
+  (gst_acm_aac_dec_get_type ())
+#define GST_ACMAACDEC(obj) \
+  (G_TYPE_CHECK_INSTANCE_CAST ((obj), GST_TYPE_ACMAACDEC, GstAcmAacDec))
+#define GST_ACMAACDEC_CLASS(klass) \
+  (G_TYPE_CHECK_CLASS_CAST ((klass), GST_TYPE_ACMAACDEC, GstAcmAacDecClass))
+#define GST_IS_ACMAACDEC(obj) \
+  (G_TYPE_CHECK_INSTANCE_TYPE ((obj), GST_TYPE_ACMAACDEC))
+#define GST_IS_ACMAACDEC_CLASS(klass) \
+  (G_TYPE_CHECK_CLASS_TYPE ((klass), GST_TYPE_ACMAACDEC))
 
 
 /* 入力フォーマット : R-MobileA1マルチメディアミドル 機能仕様書		*/
 typedef enum {
-	GST_RTOAACDEC_IN_FMT_UNKNOWN	= -1,
-	GST_RTOAACDEC_IN_FMT_ADIF    	= 1,	/* ADIF 未サポート	*/
-	GST_RTOAACDEC_IN_FMT_ADTS    	= 2,	/* ADTS形式			*/
-	GST_RTOAACDEC_IN_FMT_RAW     	= 3,	/* Raw形式			*/
-} GstRtoAacDecInFmt;
+	GST_ACMAACDEC_IN_FMT_UNKNOWN	= -1,
+	GST_ACMAACDEC_IN_FMT_ADIF    	= 1,	/* ADIF 未サポート	*/
+	GST_ACMAACDEC_IN_FMT_ADTS    	= 2,	/* ADTS形式			*/
+	GST_ACMAACDEC_IN_FMT_RAW     	= 3,	/* Raw形式			*/
+} GstAcmAacDecInFmt;
 
 /* ミックスダウンの可否	 : R-MobileA1マルチメディアミドル 機能仕様書	*/
-#define GST_RTOAACDEC_NOT_ALLOW_MIXDOWN			0
-#define GST_RTOAACDEC_ALLOW_MIXDOWN				1
+#define GST_ACMAACDEC_NOT_ALLOW_MIXDOWN			0
+#define GST_ACMAACDEC_ALLOW_MIXDOWN				1
 
 /* ミックスダウンモード	 : R-MobileA1マルチメディアミドル 機能仕様書	*/
-#define GST_RTOAACDEC_MIXDOWN_MODE_STEREO		0
-#define GST_RTOAACDEC_MIXDOWN_MODE_MONO			1
+#define GST_ACMAACDEC_MIXDOWN_MODE_STEREO		0
+#define GST_ACMAACDEC_MIXDOWN_MODE_MONO			1
 
 /* ミックスダウン時の準拠規格 : R-MobileA1マルチメディアミドル 機能仕様書	*/
-#define GST_RTOAACDEC_MIXDOWN_COMPLIANT_ISO		0
-#define GST_RTOAACDEC_MIXDOWN_COMPLIANT_ARIB	1
+#define GST_ACMAACDEC_MIXDOWN_COMPLIANT_ISO		0
+#define GST_ACMAACDEC_MIXDOWN_COMPLIANT_ARIB	1
 
 /* PCM出力フォーマット : R-MobileA1マルチメディアミドル 機能仕様書		*/
-#define GST_RTOAACDEC_PCM_FMT_INTERLEAVED		0
-#define GST_RTOAACDEC_PCM_FMT_NON_INTERLEAVED	1
+#define GST_ACMAACDEC_PCM_FMT_INTERLEAVED		0
+#define GST_ACMAACDEC_PCM_FMT_NON_INTERLEAVED	1
 
 /* 最大チャンネル数		*/
-#define GST_RTOAACDEC_MAX_CHANNEL_MIN			1
-#define GST_RTOAACDEC_MAX_CHANNEL_MAX			6
+#define GST_ACMAACDEC_MAX_CHANNEL_MIN			1
+#define GST_ACMAACDEC_MAX_CHANNEL_MAX			6
 
 /* クラス定義		*/
-typedef struct _GstRtoAacDecPrivate GstRtoAacDecPrivate;
+typedef struct _GstAcmAacDecPrivate GstAcmAacDecPrivate;
 
-typedef struct _GstRtoAacDec {
+typedef struct _GstAcmAacDec {
 	GstAudioDecoder element;
 	
 	/* input audio caps */
@@ -84,7 +84,7 @@ typedef struct _GstRtoAacDec {
 	guint	out_samplerate;
 	guint	out_channels;
 
-	/* RTO common */
+	/* ACM common */
 	/* the video device */
 	char *videodev;
 	gint video_fd;
@@ -96,11 +96,11 @@ typedef struct _GstRtoAacDec {
 	/* QBUF(V4L2_BUF_TYPE_VIDEO_OUTPUT) 用カウンタ	*/
 	gint num_inbuf_acquired;
 	
-	/* RTO aacdec */
+	/* ACM aacdec */
 	/* 入力フォーマット
 	 * ADTS or RAW
 	 */
-	GstRtoAacDecInFmt input_format;
+	GstAcmAacDecInFmt input_format;
 	
 	/* ミックスダウンの可否
 	 * 0：ミックスダウンを行わない
@@ -127,18 +127,18 @@ typedef struct _GstRtoAacDec {
 	gint 	pcm_format;
 
 	/*< private >*/
-	GstRtoAacDecPrivate *priv;
-} GstRtoAacDec;
+	GstAcmAacDecPrivate *priv;
+} GstAcmAacDec;
 
-typedef struct _GstRtoAacDecClass {
+typedef struct _GstAcmAacDecClass {
 	GstAudioDecoderClass parent_class;
-} GstRtoAacDecClass;
+} GstAcmAacDecClass;
 
-GType gst_rto_aac_dec_get_type(void);
+GType gst_acm_aac_dec_get_type(void);
 
 G_END_DECLS
 
-#endif /* __GST_RTOAACDEC_H__ */
+#endif /* __GST_ACMAACDEC_H__ */
 
 /*
  * End of file
