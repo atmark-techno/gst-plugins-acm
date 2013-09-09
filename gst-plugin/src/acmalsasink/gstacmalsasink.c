@@ -740,7 +740,7 @@ GST_PLUGIN_DEFINE (
    VERSION,
    "MIT/X11",
    "GStreamer ACM Plugins",
-   "http://gstreamer.net/"
+   "http://armadillo.atmark-techno.com/"
 );
 
 /*
