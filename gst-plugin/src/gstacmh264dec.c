@@ -544,7 +544,7 @@ gst_acm_h264_dec_class_init (GstAcmH264DecClass * klass)
 
 	gst_element_class_set_static_metadata (element_class,
 			"ACM H264 video decoder", "Codec/Decoder/Video",
-			"ACM H.264/AVC decoder", "atmark techno");
+			"ACM H.264/AVC decoder", "Atmark Techno, Inc.");
 
 	video_decoder_class->open = GST_DEBUG_FUNCPTR (gst_acm_h264_dec_open);
 	video_decoder_class->close = GST_DEBUG_FUNCPTR (gst_acm_h264_dec_close);

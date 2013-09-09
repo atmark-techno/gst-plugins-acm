@@ -409,7 +409,7 @@ gst_acm_aac_dec_class_init (GstAcmAacDecClass * klass)
 	
 	gst_element_class_set_static_metadata (element_class,
 			"ACM AAC audio decoder", "Codec/Decoder/Audio",
-			"ACM MPEG-4 AAC decoder", "atmark techno");
+			"ACM MPEG-4 AAC decoder", "Atmark Techno, Inc.");
 	
 	base_class->open = GST_DEBUG_FUNCPTR (gst_acm_aac_dec_open);
 	base_class->close = GST_DEBUG_FUNCPTR (gst_acm_aac_dec_close);

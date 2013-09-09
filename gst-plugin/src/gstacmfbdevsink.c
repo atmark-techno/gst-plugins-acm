@@ -387,7 +387,7 @@ gst_acm_fbdevsink_class_init (GstAcmFBDevSinkClass * klass)
 
 	gst_element_class_set_details_simple (gstelement_class,
 		"ACM fbdev video sink", "Sink/Video",
-		"A linux framebuffer videosink", "atmark techno");
+		"A linux framebuffer videosink", "Atmark Techno, Inc.");
 
 	gst_element_class_add_pad_template (gstelement_class,
 		gst_static_pad_template_get (&sink_template));

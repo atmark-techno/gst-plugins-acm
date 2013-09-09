@@ -669,7 +669,7 @@ gst_acmalsasink_class_init (GstAcmAlsaSinkClass * klass)
 
 	gst_element_class_set_static_metadata (gstelement_class,
       "ACM Audio sink (ALSA)", "Sink/Audio",
-      "Output to a sound card via ALSA", "atmark techno");
+      "Output to a sound card via ALSA", "Atmark Techno, Inc.");
 }
 
 static void
