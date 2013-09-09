@@ -1378,7 +1378,7 @@ GST_PLUGIN_DEFINE (
     "ACM linux framebuffer video sink",
     plugin_init,
 	VERSION,
-	"GPL",
+	"MIT/X11",
 	"GStreamer",
 	"http://gstreamer.net/"
 );

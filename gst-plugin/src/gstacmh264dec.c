@@ -2950,7 +2950,7 @@ GST_PLUGIN_DEFINE (
     "ACM H264 Decoder",
 	plugin_init,
 	VERSION,
-	"GPL",
+	"MIT/X11",
 	"GStreamer",
 	"http://gstreamer.net/"
 );

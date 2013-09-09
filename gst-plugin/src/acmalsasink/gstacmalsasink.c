@@ -738,7 +738,7 @@ GST_PLUGIN_DEFINE (
    "ALSA plugin library",
    plugin_init,
    VERSION,
-   "LGPL",
+   "MIT/X11",
    "GStreamer",
    "http://gstreamer.net/"
 );

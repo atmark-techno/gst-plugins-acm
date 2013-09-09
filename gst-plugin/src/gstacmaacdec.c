@@ -2280,7 +2280,7 @@ GST_PLUGIN_DEFINE (
     "ACM AAC Decoder",
     plugin_init,
 	VERSION,
-	"GPL",
+	"MIT/X11",
 	"GStreamer",
 	"http://gstreamer.net/"
 );
