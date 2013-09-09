@@ -1379,7 +1379,7 @@ GST_PLUGIN_DEFINE (
     plugin_init,
 	VERSION,
 	"MIT/X11",
-	"GStreamer",
+	"GStreamer ACM Plugins",
 	"http://gstreamer.net/"
 );
 
