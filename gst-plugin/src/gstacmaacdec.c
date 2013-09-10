@@ -162,9 +162,10 @@ static GstStaticPadTemplate sink_template = GST_STATIC_PAD_TEMPLATE ("sink",
     GST_PAD_SINK,
     GST_PAD_ALWAYS,
     GST_STATIC_CAPS ("audio/mpeg, "
-		"mpegversion = (int) 2; "
-        "audio/mpeg, "
-		"mpegversion = (int) 4, stream-format = (string) { raw, adts }")
+		"mpegversion = (int) { 2, 4 }, "
+		"stream-format = (string) { raw, adts }, "
+		"rate = (int) [ 8000, 96000 ], "
+		"channels = (int) { 1, 2, 4, 5, 6 }")
     );
 
 /* 16-bit per channel (interleaved or non interleaved). */
@@ -174,7 +175,7 @@ static GstStaticPadTemplate src_template = GST_STATIC_PAD_TEMPLATE ("src",
 	GST_STATIC_CAPS ("audio/x-raw, "
 		"format = (string) " GST_AUDIO_NE(S16) ", "
 		"rate = (int) [ 8000, 96000 ], "
-		"channels = (int) [ 1, 8 ]")
+		"channels = (int) { 1, 2 }")
     );
 
 static int AACSamplingFrequency[16] = {
