@@ -50,10 +50,6 @@ G_BEGIN_DECLS
 	/* MP4 (without start code) */
 #define GST_ACMH264DEC_IN_FMT_MP4		V4L2_PIX_FMT_H264_NO_SC	
 
-/* 参照フレーム数		*/
-#define GST_ACMH264DEC_FMEM_NUM_MIN		1
-#define GST_ACMH264DEC_FMEM_NUM_MAX		32
-
 /* 中間バッファのピクチャ数	*/
 #define GST_ACMH264DEC_BUF_PIC_CNT_MIN	2
 #define GST_ACMH264DEC_BUF_PIC_CNT_MAX	145
@@ -113,12 +109,6 @@ typedef struct _GstAcmH264Dec {
 	gint num_inbuf_acquired;
 	/* 初回デコード済みデータ取得済みフラグ	*/
 	gboolean is_got_decoded_1stframe;
-
-	/* ACM h264dec */
-	/* 参照フレーム数
-	 * 1 ~ 32
-	 */
-	guint32 fmem_num;
 
 	/* 中間バッファのピクチャ数
 	 * 2 ~ 145

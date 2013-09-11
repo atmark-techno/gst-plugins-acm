@@ -60,8 +60,6 @@
 #define SUPPORT_CODED_FIELD			1
 
 /* defined at acm-driver/include/acm-h264dec.h	*/
-	/* fmem_num */
-#define V4L2_CID_NR_REFERENCE_FRAMES	(V4L2_CID_PRIVATE_BASE + 0)
 	/* buffering_pic_cnt */
 #define V4L2_CID_NR_BUFFERING_PICS		(V4L2_CID_PRIVATE_BASE + 1)
 	/* VIO6の有効無効フラグ */
@@ -78,7 +76,6 @@
 #define DEFAULT_VIDEO_DEVICE			"/dev/video0"
 #define DEFAULT_OUT_WIDTH				0
 #define DEFAULT_OUT_HEIGHT				0
-#define DEFAULT_FMEM_NUM				17
 #define DEFAULT_BUF_PIC_CNT				17
 #define DEFAULT_OUT_FORMAT				GST_ACMH264DEC_OUT_FMT_RGB24
 #define DEFAULT_OUT_VIDEO_FORMAT_STR	"RGB"
@@ -195,7 +192,6 @@ enum
 	PROP_FRAME_STRIDE,
 	PROP_FRAME_X_OFFSET,
 	PROP_FRAME_Y_OFFSET,
-	PROP_FMEM_NUM,
 	PROP_BUF_PIC_CNT,
 	PROP_OUT_FORMAT,
 	PROP_ENABLE_VIO6,
@@ -379,9 +375,6 @@ gst_acm_h264_dec_set_property (GObject * object, guint prop_id,
 	case PROP_OUT_HEIGHT:
 		me->out_height = g_value_get_uint (value);
 		break;
-	case PROP_FMEM_NUM:
-		me->fmem_num = g_value_get_uint (value);
-		break;
 	case PROP_BUF_PIC_CNT:
 		me->buffering_pic_cnt = g_value_get_uint (value);
 		break;
@@ -439,9 +432,6 @@ gst_acm_h264_dec_get_property (GObject * object, guint prop_id,
 		break;
 	case PROP_OUT_HEIGHT:
 		g_value_set_uint (value, me->out_height);
-		break;
-	case PROP_FMEM_NUM:
-		g_value_set_uint (value, me->fmem_num);
 		break;
 	case PROP_BUF_PIC_CNT:
 		g_value_set_uint (value, me->buffering_pic_cnt);
@@ -515,12 +505,6 @@ gst_acm_h264_dec_class_init (GstAcmH264DecClass * klass)
 		GST_ACMH264DEC_Y_OFFSET_MIN, GST_ACMH264DEC_Y_OFFSET_MAX,
 		DEFAULT_FRAME_Y_OFFSET, G_PARAM_READWRITE));
 
-	g_object_class_install_property (gobject_class, PROP_FMEM_NUM,
-		g_param_spec_uint ("fmem-num", "Fmem Num",
-			"Number of reference frame",
-			GST_ACMH264DEC_FMEM_NUM_MIN, GST_ACMH264DEC_FMEM_NUM_MAX,
-			DEFAULT_FMEM_NUM, G_PARAM_READWRITE));
-
 	g_object_class_install_property (gobject_class, PROP_BUF_PIC_CNT,
 		g_param_spec_uint ("buf-pic-cnt", "Buffering Pic Cnt",
 			"Number of buffering picture",
@@ -586,7 +570,6 @@ gst_acm_h264_dec_init (GstAcmH264Dec * me)
 
 	/* property	*/
 	me->videodev = NULL;
-	me->fmem_num = DEFAULT_FMEM_NUM;
 	me->buffering_pic_cnt = DEFAULT_BUF_PIC_CNT;
 	me->input_format = GST_ACMH264DEC_IN_FMT_UNKNOWN;
 	me->output_format = GST_ACMH264DEC_OUT_FMT_UNKNOWN;
@@ -2196,7 +2179,6 @@ gst_acm_h264_dec_init_decoder (GstAcmH264Dec * me)
 
 	/* デコード初期化パラメータセット		*/
 	GST_INFO_OBJECT (me, "H264DEC INIT PARAM:");
-	GST_INFO_OBJECT (me, " fmem_num:%u", me->fmem_num);
 	GST_INFO_OBJECT (me, " buffering_pic_cnt:%u", me->buffering_pic_cnt);
 	GST_INFO_OBJECT (me, " enable_vio6:%u", me->enable_vio6);
 	GST_INFO_OBJECT (me, " frame_rate:%u", me->frame_rate);
@@ -2213,13 +2195,6 @@ gst_acm_h264_dec_init_decoder (GstAcmH264Dec * me)
 					 GST_FOURCC_ARGS (me->input_format));
 	GST_INFO_OBJECT (me, " output_format:%" GST_FOURCC_FORMAT,
 					 GST_FOURCC_ARGS (me->output_format));
-	/* fmem_num */
-	ctrl.id = V4L2_CID_NR_REFERENCE_FRAMES;
-	ctrl.value = me->fmem_num;
-	r = v4l2_ioctl(me->video_fd, VIDIOC_S_CTRL, &ctrl);
-	if (r < 0) {
-		goto set_init_param_failed;
-	}
 	/* buffering_pic_cnt */
 	ctrl.id = V4L2_CID_NR_BUFFERING_PICS;
 	ctrl.value = me->buffering_pic_cnt;

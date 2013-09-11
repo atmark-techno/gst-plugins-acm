@@ -37,8 +37,6 @@
 /* v4l2 mem2mem デバイスファイル	*/
 #define M2M_DEVICE	"/dev/video2"
 
-#define DEFAULT_FMEM_NUM				17
-
 /* 入力データの種類	*/
 enum {
 	AVC_AU,
@@ -141,7 +139,6 @@ GST_START_TEST (test_properties)
 	gint	width;
 	gint 	height;
 	gchar 	*format;
-	gint 	fmem_num;
 	gint 	buf_pic_cnt;
 	gboolean enable_vio6;
 	gint 	stride;
@@ -154,7 +151,6 @@ GST_START_TEST (test_properties)
 				  "device", 		"/dev/video1",
 				  "width", 			1024,
 				  "height", 		768,
-				  "fmem-num", 		2,
 				  "buf-pic-cnt", 	5, 
 				  "format", 		"RGB",
 				  "enable-vio6", 	TRUE,
@@ -166,7 +162,6 @@ GST_START_TEST (test_properties)
 				  "device", 		&device,
 				  "width", 			&width,
 				  "height", 		&height,
-				  "fmem-num", 		&fmem_num,
 				  "buf-pic-cnt", 	&buf_pic_cnt,
 				  "format", 		&format,
 				  "enable-vio6", 	&enable_vio6,
@@ -177,7 +172,6 @@ GST_START_TEST (test_properties)
 	fail_unless (g_str_equal (device, "/dev/video1"));
 	fail_unless_equals_int (width, 1024);
 	fail_unless_equals_int (height, 768);
-	fail_unless_equals_int (fmem_num, 2);
 	fail_unless_equals_int (buf_pic_cnt, 5);
 	fail_unless (g_str_equal (format, "RGB"));
 	fail_unless (enable_vio6 == TRUE);
@@ -194,7 +188,6 @@ GST_START_TEST (test_properties)
 				  "device", 		"/dev/video2",
 				  "width", 			1920,
 				  "height", 		1080,
-				  "fmem-num", 		4,
 				  "buf-pic-cnt", 	8,
 				  "format", 		"RGBx",
 				  "enable-vio6", 	FALSE,
@@ -206,7 +199,6 @@ GST_START_TEST (test_properties)
 				  "device", 		&device,
 				  "width", 			&width,
 				  "height", 		&height,
-				  "fmem-num", 		&fmem_num,
 				  "buf-pic-cnt", 	&buf_pic_cnt,
 				  "format", 		&format,
 				  "enable-vio6", 	&enable_vio6,
@@ -217,7 +209,6 @@ GST_START_TEST (test_properties)
 	fail_unless (g_str_equal (device, "/dev/video2"));
 	fail_unless_equals_int (width, 1920);
 	fail_unless_equals_int (height, 1080);
-	fail_unless_equals_int (fmem_num, 4);
 	fail_unless_equals_int (buf_pic_cnt, 8);
 	fail_unless (g_str_equal (format, "RGBx"));
 	fail_unless (enable_vio6 == FALSE);
