@@ -914,6 +914,7 @@ gst_acm_h264_dec_set_format (GstVideoDecoder * dec, GstVideoCodecState * state)
 	const gchar *alignment = NULL;
 	gint screen_width = 0;
 	gint screen_height = 0;
+	GstCaps *peercaps;
 
 	vinfo = &(state->info);
 
@@ -943,6 +944,42 @@ gst_acm_h264_dec_set_format (GstVideoDecoder * dec, GstVideoCodecState * state)
 	}
 	else {
 		me->input_format = GST_ACMH264DEC_IN_FMT_MP4;
+	}
+
+	peercaps = gst_pad_get_allowed_caps (GST_VIDEO_DECODER_SRC_PAD (me));
+	GST_INFO_OBJECT (me, "H264DEC SET FORMAT - allowed caps: %" GST_PTR_FORMAT, peercaps);
+	if (peercaps && gst_caps_get_size (peercaps) > 0) {
+		GstStructure *capsStructure = gst_caps_get_structure (peercaps, 0);
+		const gchar *s;
+		gint i;
+
+		if (gst_structure_get_int (capsStructure, "width", &i)) {
+			GST_INFO_OBJECT (me, "H264DEC SET FORMAT - output width: %d", i);
+			me->out_width = i;
+		}
+
+		if (gst_structure_get_int (capsStructure, "height", &i)) {
+			GST_INFO_OBJECT (me, "H264DEC SET FORMAT - output height: %d", i);
+			me->out_height = i;
+		}
+
+		if ((s = gst_structure_get_string (capsStructure, "format"))) {
+			GST_INFO_OBJECT (me, "H264DEC SET FORMAT - output format: %s", s);
+			me->out_video_fmt_str = g_strdup (s);
+
+			if (g_str_equal (s, "NV12")) {
+				me->out_video_fmt = GST_VIDEO_FORMAT_NV12;
+				me->output_format = GST_ACMH264DEC_OUT_FMT_YUV420;
+			}
+			else if (g_str_equal (s, "RGBx")) {
+				me->out_video_fmt = GST_VIDEO_FORMAT_RGBx;
+				me->output_format = GST_ACMH264DEC_OUT_FMT_RGB32;
+			}
+			else if (g_str_equal (s, "RGB")) {
+				me->out_video_fmt = GST_VIDEO_FORMAT_RGB;
+				me->output_format = GST_ACMH264DEC_OUT_FMT_RGB24;
+			}
+		}
 	}
 
 	me->width = vinfo->width;
