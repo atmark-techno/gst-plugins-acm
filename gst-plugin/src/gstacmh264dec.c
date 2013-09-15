@@ -84,6 +84,9 @@
 #define DEFAULT_FRAME_X_OFFSET			0
 #define DEFAULT_FRAME_Y_OFFSET			0
 
+/* デコーダv4l2デバイスのドライバ名 */
+#define DRIVER_NAME			"acm-h264dec"
+
 /* select() の timeout */
 #define SELECT_TIMEOUT_MSEC			1000
 
@@ -614,9 +617,9 @@ gst_acm_h264_dec_open (GstVideoDecoder * dec)
 {
 	GstAcmH264Dec *me = GST_ACMH264DEC (dec);
 
-	/* プロパティとしてセットされていなければ、デフォルト値を設定		*/
+	/* プロパティとしてセットされていなければ、デバイスを検索		*/
 	if (NULL == me->videodev) {
-		me->videodev = g_strdup (DEFAULT_VIDEO_DEVICE);
+		me->videodev = gst_v4l2_getdev(DRIVER_NAME);
 	}
 
 	GST_INFO_OBJECT (me, "H264DEC OPEN ACM DECODER. (%s)", me->videodev);

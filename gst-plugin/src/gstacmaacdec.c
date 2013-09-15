@@ -88,6 +88,9 @@ struct acm_aacdec_private_format {
 #define DEFAULT_PCM_FORMAT			GST_ACMAACDEC_PCM_FMT_INTERLEAVED
 #define DEFAULT_MAX_CHANNEL			6
 
+/* デコーダv4l2デバイスのドライバ名 */
+#define DRIVER_NAME			"acm-aacdec"
+
 /* select() の timeout */
 #define SELECT_TIMEOUT_MSEC			1000
 
@@ -476,9 +479,9 @@ gst_acm_aac_dec_open (GstAudioDecoder * dec)
 {
 	GstAcmAacDec *me = GST_ACMAACDEC (dec);
 	
-	/* プロパティとしてセットされていなければ、デフォルト値を設定		*/
+	/* プロパティとしてセットされていなければ、デバイスを検索		*/
 	if (NULL == me->videodev) {
-		me->videodev = g_strdup (DEFAULT_VIDEO_DEVICE);
+		me->videodev = gst_v4l2_getdev(DRIVER_NAME);
 	}
 
 	GST_INFO_OBJECT (me, "AACDEC OPEN ACM DECODER. (%s)", me->videodev);

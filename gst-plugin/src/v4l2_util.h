@@ -40,6 +40,8 @@ gboolean	gst_v4l2_close			(char *dev, gint fd);
 
 gint gst_v4l2_ioctl(int fd, int request, void* arg);
 
+gchar *gst_v4l2_getdev(gchar *driver);
+
 #define LOG_CAPS(obj, caps) GST_DEBUG_OBJECT (obj, "%s: %" GST_PTR_FORMAT, #caps, caps)
 
 #endif /* __V4L2_UTIL_H__ */

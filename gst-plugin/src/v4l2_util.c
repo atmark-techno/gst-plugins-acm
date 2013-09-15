@@ -32,6 +32,7 @@
 #include <string.h>
 #include <errno.h>
 #include <unistd.h>
+#include <dirent.h>
 
 #include "v4l2_util.h"
 
@@ -70,6 +71,11 @@ cap_failed:
 				   "It isn't a v4l2 driver. Check if it is a v4l1 driver.");
 		return FALSE;
 	}
+}
+
+static gboolean is_video_dev(const gchar *dev)
+{
+	return g_str_has_prefix(dev, "video");
 }
 
 /*
@@ -192,6 +198,42 @@ gst_v4l2_ioctl(int fd, int request, void* arg)
 	} while (-1 == e && EINTR == errno);
 	
 	return e;
+}
+
+gchar*
+gst_v4l2_getdev (gchar *driver)
+{
+	gchar *video_dev = NULL;
+	gint fd;
+	gboolean ret;
+	DIR *dp;
+	struct dirent *ep;
+	struct v4l2_capability vcap;
+
+	dp = opendir("/dev");
+	if (dp == NULL) {
+		GST_ERROR ("Could not open directory '/dev'");
+		return NULL;
+	}
+
+	while ((ep = readdir(dp))) {
+		if (is_video_dev(ep->d_name)) {
+			g_free(video_dev);
+			video_dev = g_strdup_printf ("/dev/%s", ep->d_name);
+
+			if (!gst_v4l2_open (video_dev, &fd, TRUE))
+				continue;
+			ret = gst_v4l2_get_capabilities (fd, &vcap);
+			gst_v4l2_close(video_dev, fd);
+			if (!ret)
+				continue;
+			if (!g_strcmp0 (vcap.driver, driver))
+				return video_dev;
+		}
+	}
+
+	g_free(video_dev);
+	return NULL;
 }
 
 /*
