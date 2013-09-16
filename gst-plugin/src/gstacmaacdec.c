@@ -576,7 +576,7 @@ gst_acm_aac_dec_stop (GstAudioDecoder * dec)
 }
 
 static gboolean
-gst_acm_aac_dec_analize_codecdata(GstAcmAacDec *me, GstBuffer * codec_data)
+gst_acm_aac_dec_analyze_codecdata(GstAcmAacDec *me, GstBuffer * codec_data)
 {
 	gboolean ret = TRUE;
 	GstMapInfo map;
@@ -982,7 +982,7 @@ gst_acm_aac_dec_set_format (GstAudioDecoder * dec, GstCaps * caps)
 		GST_INFO_OBJECT (me, "samplerate : %d", me->samplerate);
 	}
 	
-	/* analize codec_data */
+	/* analyze codec_data */
 	if ((value = gst_structure_get_value (structure, "codec_data"))) {
 		/* We have codec data, means packetised stream */
 		me->packetised = TRUE;
@@ -990,7 +990,7 @@ gst_acm_aac_dec_set_format (GstAudioDecoder * dec, GstCaps * caps)
 		buf = gst_value_get_buffer (value);
 		g_return_val_if_fail (buf != NULL, FALSE);
 		
-		if (! gst_acm_aac_dec_analize_codecdata(me, buf)) {
+		if (! gst_acm_aac_dec_analyze_codecdata(me, buf)) {
 			goto wrong_codec_data;
 		}
 	}

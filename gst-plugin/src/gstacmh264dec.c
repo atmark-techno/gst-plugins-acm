@@ -744,7 +744,7 @@ gst_acm_h264_dec_stop (GstVideoDecoder * dec)
 }
 
 static gboolean
-gst_acm_h264_dec_analize_codecdata(GstAcmH264Dec *me, GstBuffer * codec_data)
+gst_acm_h264_dec_analyze_codecdata(GstAcmH264Dec *me, GstBuffer * codec_data)
 {
 	unsigned int sps_size, pps_size;
 	unsigned int spses_size = 0, ppses_size = 0;
@@ -1004,9 +1004,9 @@ gst_acm_h264_dec_set_format (GstVideoDecoder * dec, GstVideoCodecState * state)
 	}
 #endif
 
-	/* analize codecdata */
+	/* analyze codecdata */
 	if (state->codec_data) {
-		gst_acm_h264_dec_analize_codecdata(me, state->codec_data);
+		gst_acm_h264_dec_analyze_codecdata(me, state->codec_data);
 
 #if 0	/* for debug	*/
 		{
