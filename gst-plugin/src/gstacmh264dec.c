@@ -190,13 +190,10 @@ enum
 {
 	PROP_0,
 	PROP_DEVICE,
-	PROP_OUT_WIDTH,
-	PROP_OUT_HEIGHT,
 	PROP_FRAME_STRIDE,
 	PROP_FRAME_X_OFFSET,
 	PROP_FRAME_Y_OFFSET,
 	PROP_BUF_PIC_CNT,
-	PROP_OUT_FORMAT,
 	PROP_ENABLE_VIO6,
 };
 
@@ -372,35 +369,8 @@ gst_acm_h264_dec_set_property (GObject * object, guint prop_id,
 		}
 		me->videodev = g_value_dup_string (value);
 		break;
-	case PROP_OUT_WIDTH:
-		me->out_width = g_value_get_uint (value);
-		break;
-	case PROP_OUT_HEIGHT:
-		me->out_height = g_value_get_uint (value);
-		break;
 	case PROP_BUF_PIC_CNT:
 		me->buffering_pic_cnt = g_value_get_uint (value);
-		break;
-	case PROP_OUT_FORMAT:
-		if (me->out_video_fmt_str) {
-			g_free (me->out_video_fmt_str);
-		}
-		me->out_video_fmt_str = g_value_dup_string (value);
-		if (g_str_equal (me->out_video_fmt_str, "NV12")) {
-			me->out_video_fmt = GST_VIDEO_FORMAT_NV12;
-			me->output_format = GST_ACMH264DEC_OUT_FMT_YUV420;
-		}
-		else if (g_str_equal (me->out_video_fmt_str, "RGBx")) {
-			me->out_video_fmt = GST_VIDEO_FORMAT_RGBx;
-			me->output_format = GST_ACMH264DEC_OUT_FMT_RGB32;
-		}
-		else if (g_str_equal (me->out_video_fmt_str, "RGB")) {
-			me->out_video_fmt = GST_VIDEO_FORMAT_RGB;
-			me->output_format = GST_ACMH264DEC_OUT_FMT_RGB24;
-		}
-		else {
-			G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
-		}
 		break;
 	case PROP_ENABLE_VIO6:
 		me->enable_vio6 = g_value_get_boolean (value);
@@ -430,17 +400,8 @@ gst_acm_h264_dec_get_property (GObject * object, guint prop_id,
 	case PROP_DEVICE:
 		g_value_set_string (value, me->videodev);
 		break;
-	case PROP_OUT_WIDTH:
-		g_value_set_uint (value, me->out_width);
-		break;
-	case PROP_OUT_HEIGHT:
-		g_value_set_uint (value, me->out_height);
-		break;
 	case PROP_BUF_PIC_CNT:
 		g_value_set_uint (value, me->buffering_pic_cnt);
-		break;
-	case PROP_OUT_FORMAT:
-		g_value_set_string (value, me->out_video_fmt_str);
 		break;
 	case PROP_ENABLE_VIO6:
 		g_value_set_boolean (value, me->enable_vio6);
@@ -478,18 +439,6 @@ gst_acm_h264_dec_class_init (GstAcmH264DecClass * klass)
 			"The video device eg: /dev/video0",
 			NULL, G_PARAM_READWRITE));
 
-	g_object_class_install_property (gobject_class, PROP_OUT_WIDTH,
-		g_param_spec_uint ("width", "Width",
-			"Width of output video. (0 is unspecified)",
-		GST_ACMH264DEC_WIDTH_MIN, GST_ACMH264DEC_WIDTH_MAX,
-		DEFAULT_OUT_WIDTH, G_PARAM_READWRITE));
-
-	g_object_class_install_property (gobject_class, PROP_OUT_HEIGHT,
-		g_param_spec_uint ("height", "Height",
-			"Height of output video. (0 is unspecified)",
-		GST_ACMH264DEC_HEIGHT_MIN, GST_ACMH264DEC_HEIGHT_MAX,
-		DEFAULT_OUT_HEIGHT, G_PARAM_READWRITE));
-
 	g_object_class_install_property (gobject_class, PROP_FRAME_STRIDE,
 		g_param_spec_uint ("stride", "Stride",
 			"Stride of output video. (0 is unspecified)",
@@ -513,11 +462,6 @@ gst_acm_h264_dec_class_init (GstAcmH264DecClass * klass)
 			"Number of buffering picture",
 			GST_ACMH264DEC_BUF_PIC_CNT_MIN, GST_ACMH264DEC_BUF_PIC_CNT_MAX,
 			DEFAULT_BUF_PIC_CNT, G_PARAM_READWRITE));
-
-	g_object_class_install_property (gobject_class, PROP_OUT_FORMAT,
-		g_param_spec_string ("format", "Output Format",
-			"RGB, NV12, RGBx",
-			"RGB", G_PARAM_READWRITE));
 
 	g_object_class_install_property (gobject_class, PROP_ENABLE_VIO6,
 		g_param_spec_boolean ("enable-vio6", "Enable VIO6",
