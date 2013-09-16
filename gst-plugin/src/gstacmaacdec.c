@@ -1790,7 +1790,7 @@ gst_acm_aac_dec_init_decoder (GstAcmAacDec * me)
 	else {
 		pfmt->max_channel = me->channels;
 	}
-	if (me->allow_mixdown) {
+	if (me->allow_mixdown && (me->out_channels < me->channels)) {
 		pfmt->down_mix = GST_ACMAACDEC_ALLOW_MIXDOWN;
 	}
 	else {
