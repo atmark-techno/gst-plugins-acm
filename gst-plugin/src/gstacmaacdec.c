@@ -2284,7 +2284,7 @@ GST_PLUGIN_DEFINE (
     "ACM AAC Decoder",
     plugin_init,
 	VERSION,
-	"MIT/X11",
+	"LGPL",
 	"GStreamer ACM Plugins",
 	"http://armadillo.atmark-techno.com/"
 );

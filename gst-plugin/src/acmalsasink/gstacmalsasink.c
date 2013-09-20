@@ -738,7 +738,7 @@ GST_PLUGIN_DEFINE (
    "ALSA plugin library",
    plugin_init,
    VERSION,
-   "MIT/X11",
+   "LGPL",
    "GStreamer ACM Plugins",
    "http://armadillo.atmark-techno.com/"
 );
