@@ -1,6 +1,6 @@
 /* GStreamer
  *
- * Copyright (C) 2013 Kazunari Ohtsuka <<user@hostname.org>>
+ * Copyright (C) 2013 Kazunari Ohtsuka <<kaz@stprec.co.jp>>
  *
  * v4l2_util.c - generic V4L2 calls handling
  *
