@@ -1,5 +1,6 @@
 /* GStreamer
  * Copyright (C)  2005 Wim Taymans <wim@fluendo.com>
+ * Copyright (C) 2013 Atmark Techno, Inc.
  *
  * gstalsasink.h: 
  *

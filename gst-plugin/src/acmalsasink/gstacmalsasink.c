@@ -1,6 +1,7 @@
 /* GStreamer
  * Copyright (C) 2005 Wim Taymans <wim@fluendo.com>
  * Copyright (C) 2006 Tim-Philipp Müller <tim centricular net>
+ * Copyright (C) 2013 Atmark Techno, Inc.
  *
  * gstacmalsasink.c:
  *
