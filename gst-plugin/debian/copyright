@@ -1,0 +1,66 @@
+Format: http://www.debian.org/doc/packaging-manuals/copyright-format/1.0/
+Upstream-Name: gst-plugins-at-acm
+Source: http://armadillo.atmark-techno.com
+
+Files: src/gstacmaacdec.h
+       src/gstacmaacdec.c
+       src/gstacmdmabufmeta.h
+       src/gstacmdmabufmeta.c
+       src/gstacmh264dec.h
+       src/gstacmh264dec.c
+       src/v4l2_util.h
+       src/v4l2_util.c
+
+Copyright:  2013 Kazunari Ohtsuka <kaz@stprec.co.jp>
+            2013 Atmark Techno, Inc.
+
+Files: src/gstacmfbdevsink.c
+       src/gstacmfbdevsink.h
+
+Copyright:  2007 Sean D'Epagnier <sean@depagnier.com>
+            2013 Kazunari Ohtsuka <kaz@stprec.co.jp>
+            2013 Atmark Techno, Inc.
+
+Files: src/gstv4l2bufferpool.c
+       src/gstv4l2bufferpool.h
+
+Copyright:  2001-2002 Ronald Bultje <rbultje@ronald.bitfreak.net>
+            2006 Edgard Lima <edgard.lima@indt.org.br>
+            2009 Texas Instruments, Inc - http://www.ti.com/
+            2013 Kazunari Ohtsuka <kaz@stprec.co.jp>
+            2013 Atmark Techno, Inc.
+
+Files: src/acmalsasink/gstalsadeviceprobe.c
+       src/acmalsasink/gstalsa.c
+       src/acmalsasink/gstalsasink.c
+       src/acmalsasink/gstalsadeviceprobe.h
+       src/acmalsasink/gstalsasink.h
+       src/acmalsasink/gstacmalsasink.h
+       src/acmalsasink/gstalsa.h
+       src/acmalsasink/gstacmalsasink.c
+
+Copyright:  2005 Wim Taymans <wim@fluendo.com>
+            2006 Tim-Philipp Müller <tim centricular net>
+            2001 CodeFactory AB
+            2001 Thomas Nyberg <thomas@codefactory.se>
+            2001-2002 Andy Wingo <apwingo@eos.ncsu.edu>
+            2003 Benjamin Otte <in7y118@public.uni-hamburg.de>
+            2001 CodeFactory AB
+            2013 Atmark Techno, Inc.
+
+License: LGPL2
+
+This library is free software; you can redistribute it and/or
+modify it under the terms of the GNU Library General Public
+License as published by the Free Software Foundation; either
+version 2 of the License, or (at your option) any later version.
+
+This library is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+Library General Public License for more details.
+
+You should have received a copy of the GNU Library General Public
+License along with this library; if not, write to the
+Free Software Foundation, Inc., 59 Temple Place - Suite 330,
+Boston, MA 02111-1307, USA.

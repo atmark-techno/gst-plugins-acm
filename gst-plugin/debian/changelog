@@ -1,0 +1,5 @@
+gst-plugins-at-acm (0.9.0) UNRELEASED; urgency=low
+
+  * Initial release
+
+ -- Hiroaki OHSAWA <ohswa@atmark-techno.com>  Fri, 13 Sep 2013 09:22:10 +0900
