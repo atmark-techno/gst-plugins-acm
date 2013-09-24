@@ -1,5 +1,4 @@
 /* GStreamer ACM AAC Decoder plugin
- * Copyright (C) 2013 Kazunari Ohtsuka <<kaz@stprec.co.jp>>
  * Copyright (C) 2013 Atmark Techno, Inc.
  *
  * This library is free software; you can redistribute it and/or

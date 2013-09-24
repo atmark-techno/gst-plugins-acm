@@ -3,7 +3,6 @@
  * Copyright (C) 2001-2002 Ronald Bultje <rbultje@ronald.bitfreak.net>
  *               2006 Edgard Lima <edgard.lima@indt.org.br>
  *               2009 Texas Instruments, Inc - http://www.ti.com/
- *               2013 Kazunari Ohtsuka <<kaz@stprec.co.jp>>
  *               2013 Atmark Techno, Inc.
  *
  * gstv4l2bufferpool.h V4L2 buffer pool class

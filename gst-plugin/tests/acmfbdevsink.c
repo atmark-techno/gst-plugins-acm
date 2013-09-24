@@ -2,7 +2,7 @@
  *
  * unit test for acmfbdevsink
  *
- * Copyright (C) 2013 Kazunari Ohtsuka <<kaz@stprec.co.jp>>
+ * Copyright (C) 2013 Atmark Techno, Inc.
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Library General Public
