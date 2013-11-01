@@ -1,3 +1,48 @@
+
+* 2013-11-01	kaz
+- AAC ENC : 1st release
+ - ビルド方法
+   $ autoreconf -vfi; \
+     ./configure CFLAGS=-I/path/to/linux-3.4-at/include; \
+     make
+
+ - 以下のパイプラインで動作確認済み
+   1) WAV -> MP4 / AAC
+    - リニアPCMのWAV作成
+     gst-launch-1.0 filesrc location=mp4_h264_aac.mp4 \
+     ! qtdemux name=demux demux. ! queue ! faad ! audioconvert \
+     ! wavenc ! filesink location=audio_pcm.wav
+
+    - AACエンコード（raw aac : MP4コンテナ）
+     gst-launch-1.0 filesrc location=audio_pcm.wav \
+     ! wavparse ! queue ! audioconvert ! acmaacenc \
+     ! qtmux ! filesink location=audio_wav_to_aac.mp4
+
+    - AACエンコード（ADTS）
+     gst-launch-1.0 filesrc location=audio_pcm.wav \
+     ! wavparse ! queue ! audioconvert ! acmaacenc \
+     ! audio/mpeg, stream-format=adts \
+     ! filesink location=audio_wav_to_adts.aac
+
+   2) MP4 -> MP4 / AAC
+    - リニアPCMのMP4コンテナファイル作成(sowt)
+     gst-launch-1.0 filesrc location=mp4_h264_aac.mp4 \
+     ! qtdemux name=demux demux. ! queue ! faad \
+     ! qtmux ! filesink location=audio_pcm.mp4
+
+    - AACエンコード（raw aac : MP4コンテナ）
+     gst-launch-1.0 filesrc location=audio_pcm.mp4 \
+     ! qtdemux name=demux demux. ! queue ! audioconvert ! acmaacenc \
+     ! qtmux ! filesink location=audio_mp4_to_aac.mp4
+
+    - AACエンコード（ADTS）
+     gst-launch-1.0 filesrc location=audio_pcm.mp4 \
+     ! qtdemux name=demux demux. ! queue ! audioconvert ! acmaacenc \
+     ! audio/mpeg, stream-format=adts \
+     ! filesink location=audio_mp4_to_adts.aac
+
+
+
 2008-11-04  Stefan Kost  <ensonic@users.sf.net>
 
 	* src/Makefile.am:

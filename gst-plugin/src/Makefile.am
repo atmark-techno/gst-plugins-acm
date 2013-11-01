@@ -8,7 +8,8 @@ plugin_LTLIBRARIES = \
 	libgstacmaacdec.la \
 	libgstacmh264dec.la \
 	libgstacmfbdevsink.la \
-	libgstacmalsasink.la
+	libgstacmalsasink.la \
+	libgstacmaacenc.la
 	
 
 ##############################################################################
@@ -104,6 +105,26 @@ noinst_HEADERS += \
 	acmalsasink/gstalsadeviceprobe.h \
 	acmalsasink/gstalsasink.h \
 	acmalsasink/gstacmalsasink.h
+
+
+#
+# acmaacenc
+#
+# sources used to compile this plug-in
+libgstacmaacenc_la_SOURCES = \
+	gstacmaacenc.h gstacmaacenc.c \
+	gstacm_util.h gstacm_util.c \
+	gstacm_debug.h gstacm_debug.c
+
+# compiler and linker flags used to compile this plugin, set in configure.ac
+libgstacmaacenc_la_CFLAGS = $(GST_CFLAGS)
+libgstacmaacenc_la_LIBADD = $(GST_LIBS)
+libgstacmaacenc_la_LDFLAGS = $(GST_PLUGIN_LDFLAGS) -lgstaudio-1.0 -lgstacmv4l2
+libgstacmaacenc_la_LIBTOOLFLAGS = --tag=disable-static
+
+# headers we need but don't want installed
+noinst_HEADERS += \
+	gstacmaacenc.h gstacm_util.h gstacm_debug.h
 
 
 CPPFLAGS=-I ../include
