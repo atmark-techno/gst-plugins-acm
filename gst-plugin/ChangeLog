@@ -1,4 +1,15 @@
 
+* 2013-11-08	kaz
+- AAC ENC : fix Issue #2
+ - デュアルモノラルをプロパティとして設定可能に修正
+ - パイプライン例
+   gst-launch-1.0 filesrc location=audio_pcm_dual_mono.wav \
+   ! wavparse ! queue ! audioconvert \
+   ! acmaacenc dual-monaural=TRUE \
+   ! audio/mpeg, stream-format=adts \
+   ! filesink location=audio_wav_to_adts_dualmono.aac
+
+
 * 2013-11-01	kaz
 - AAC ENC : 1st release
  - ビルド方法

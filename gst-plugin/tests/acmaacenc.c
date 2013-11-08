@@ -213,6 +213,7 @@ GST_START_TEST (test_properties)
 	gchar *device;
 	gint bit_rate;
 	gint enable_cbr;
+	gboolean dual_monaural;
 
 	/* setup */
 	acmaacenc = setup_acmaacenc (IN_CH_1, FMT_RAW);
@@ -222,15 +223,18 @@ GST_START_TEST (test_properties)
 				  "device", 		"/dev/video1",
 				  "bitrate", 		16000,
 				  "enable-cbr", 	1,
+				  "dual-monaural", 	TRUE,
 				  NULL);
 	g_object_get (acmaacenc,
 				  "device", 		&device,
 				  "bitrate", 		&bit_rate,
 				  "enable-cbr", 	&enable_cbr,
+				  "dual-monaural", 	&dual_monaural,
 				  NULL);
 	fail_unless (g_str_equal (device, "/dev/video1"));
 	fail_unless_equals_int (bit_rate, 16000);
 	fail_unless_equals_int (enable_cbr, 1);
+	fail_unless (TRUE == dual_monaural);
 	g_free (device);
 	device = NULL;
 	
@@ -239,15 +243,18 @@ GST_START_TEST (test_properties)
 				  "device", 		"/dev/video2",
 				  "bitrate", 		288000,
 				  "enable-cbr", 	0,
+				  "dual-monaural", 	FALSE,
 				  NULL);
 	g_object_get (acmaacenc,
 				  "device", 		&device,
 				  "bitrate", 		&bit_rate,
 				  "enable-cbr", 	&enable_cbr,
+				  "dual-monaural", 	&dual_monaural,
 				  NULL);
 	fail_unless (g_str_equal (device, "/dev/video2"));
 	fail_unless_equals_int (bit_rate, 288000);
 	fail_unless_equals_int (enable_cbr, 0);
+	fail_unless (FALSE == dual_monaural);
 	g_free (device);
 	device = NULL;
 
@@ -808,6 +815,128 @@ GST_START_TEST (test_encode_prop13)
 GST_END_TEST;
 #endif
 
+GST_START_TEST (test_encode_prop21)
+{
+	GstElement *acmaacenc;
+	GstCaps *srccaps;
+	
+	/* encode test 21
+	 * 2 channel input
+	 * dual monaural
+	 * ADTS format
+	 */
+	
+	/* setup */
+	acmaacenc = setup_acmaacenc (IN_CH_2, FMT_ADTS);
+	g_object_set (acmaacenc,
+				  "dual-monaural", TRUE,
+				  NULL);
+	fail_unless (gst_element_set_state (acmaacenc, GST_STATE_PLAYING)
+				 == GST_STATE_CHANGE_SUCCESS, "could not set to playing");
+	
+	g_sink_base_chain = GST_PAD_CHAINFUNC (mysinkpad);
+	gst_pad_set_chain_function (mysinkpad,
+								GST_DEBUG_FUNCPTR (test_encode_sink_chain));
+	
+	strcpy(g_output_data_file_path, "data/aac_enc/propset21/aac_%03d.data");
+	
+	/* set src caps */
+	srccaps = gst_caps_from_string (AUDIO_2CH_CAPS_STRING);
+	gst_pad_set_caps (mysrcpad, srccaps);
+	
+	/* input buffers */
+	input_buffers(PUSH_BUFFERS, "data/aac_enc/input02/pcm_%03d.data");
+	
+	/* cleanup */
+	cleanup_acmaacenc (acmaacenc);
+	g_list_free (buffers);
+	buffers = NULL;
+	gst_caps_unref (srccaps);
+}
+GST_END_TEST;
+
+GST_START_TEST (test_encode_prop22)
+{
+	GstElement *acmaacenc;
+	GstCaps *srccaps;
+	
+	/* encode test 22
+	 * 2 channel input
+	 * dual monaural
+	 * RAW format
+	 */
+	
+	/* setup */
+	acmaacenc = setup_acmaacenc (IN_CH_2, FMT_RAW);
+	g_object_set (acmaacenc,
+				  "dual-monaural", TRUE,
+				  NULL);
+	fail_unless (gst_element_set_state (acmaacenc, GST_STATE_PLAYING)
+				 == GST_STATE_CHANGE_SUCCESS, "could not set to playing");
+	
+	g_sink_base_chain = GST_PAD_CHAINFUNC (mysinkpad);
+	gst_pad_set_chain_function (mysinkpad,
+								GST_DEBUG_FUNCPTR (test_encode_sink_chain));
+	
+	strcpy(g_output_data_file_path, "data/aac_enc/propset22/aac_%03d.data");
+	
+	/* set src caps */
+	srccaps = gst_caps_from_string (AUDIO_2CH_CAPS_STRING);
+	gst_pad_set_caps (mysrcpad, srccaps);
+	
+	/* input buffers */
+	input_buffers(PUSH_BUFFERS, "data/aac_enc/input02/pcm_%03d.data");
+	
+	/* cleanup */
+	cleanup_acmaacenc (acmaacenc);
+	g_list_free (buffers);
+	buffers = NULL;
+	gst_caps_unref (srccaps);
+}
+GST_END_TEST;
+
+#if SUPPORT_OUTPUT_FMT_ADIF
+GST_START_TEST (test_encode_prop23)
+{
+	GstElement *acmaacenc;
+	GstCaps *srccaps;
+	
+	/* encode test 23
+	 * 2 channel input
+	 * dual monaural
+	 * ADIF format
+	 */
+	
+	/* setup */
+	acmaacenc = setup_acmaacenc (IN_CH_2, FMT_ADIF);
+	g_object_set (acmaacenc,
+				  "dual-monaural", TRUE,
+				  NULL);
+	fail_unless (gst_element_set_state (acmaacenc, GST_STATE_PLAYING)
+				 == GST_STATE_CHANGE_SUCCESS, "could not set to playing");
+	
+	g_sink_base_chain = GST_PAD_CHAINFUNC (mysinkpad);
+	gst_pad_set_chain_function (mysinkpad,
+								GST_DEBUG_FUNCPTR (test_encode_sink_chain));
+	
+	strcpy(g_output_data_file_path, "data/aac_enc/propset23/aac_%03d.data");
+	
+	/* set src caps */
+	srccaps = gst_caps_from_string (AUDIO_2CH_CAPS_STRING);
+	gst_pad_set_caps (mysrcpad, srccaps);
+	
+	/* input buffers */
+	input_buffers(PUSH_BUFFERS, "data/aac_enc/input02/pcm_%03d.data");
+	
+	/* cleanup */
+	cleanup_acmaacenc (acmaacenc);
+	g_list_free (buffers);
+	buffers = NULL;
+	gst_caps_unref (srccaps);
+}
+GST_END_TEST;
+#endif
+
 static Suite *
 acmaacenc_suite (void)
 {
@@ -833,6 +962,12 @@ acmaacenc_suite (void)
 	tcase_add_test (tc_chain, test_encode_prop12);
 #if SUPPORT_OUTPUT_FMT_ADIF
 	tcase_add_test (tc_chain, test_encode_prop13);
+#endif
+
+	tcase_add_test (tc_chain, test_encode_prop21);
+	tcase_add_test (tc_chain, test_encode_prop22);
+#if SUPPORT_OUTPUT_FMT_ADIF
+	tcase_add_test (tc_chain, test_encode_prop23);
 #endif
 
 	return s;

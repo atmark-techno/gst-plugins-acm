@@ -74,6 +74,7 @@ typedef struct _GstAcmAacEnc {
 	gint output_bit_rate;			/* property */
 	gint output_format;				/* non property */
 	gint enable_cbr;				/* property */
+	gboolean dual_monaural;			/* property */
 
 	/*< private >*/
 	GstAcmAacEncPrivate *priv;

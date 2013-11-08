@@ -71,6 +71,7 @@
 #define DEFAULT_BITRATE					64000
 #define DEFAULT_OUT_FORMAT				ACM_AAC_BS_FORMAT_ADTS
 #define DEFAULT_ENABLE_CBR				GST_ACMAACENC_ENABLE_CBR_FALSE /* VBR */
+#define DEFAULT_DUAL_MONAURAL			FALSE
 
 /* select() の timeout 時間 */
 #define SELECT_TIMEOUT_MSEC				1000
@@ -151,6 +152,7 @@ enum
 	PROP_DEVICE,
 	PROP_BITRATE,
 	PROP_ENABLE_CBR,
+	PROP_DUAL_MONAURAL,
 };
 
 /* pad template caps for source and sink pads.	*/
@@ -311,12 +313,18 @@ pcm_sample_rate_idx (gint rate)
 
 /*  チャンネル数とチャンネルモードの対応 : acm-aacenc	*/
 static gint
-pcm_channel_mode (gint ch)
+pcm_channel_mode (gint ch, gboolean is_dual_monaural)
 {
 	if (1 == ch)
 		return ACM_AAC_CHANNEL_MODE_MONAURAL;
-	else if (2 == ch)
-		return ACM_AAC_CHANNEL_MODE_STEREO;
+	else if (2 == ch) {
+		if (is_dual_monaural) {
+			return ACM_AAC_CHANNEL_MODE_DUALMONAURAL;
+		}
+		else {
+			return ACM_AAC_CHANNEL_MODE_STEREO;
+		}
+	}
 	else
 		return -1;	// error
 }
@@ -443,6 +451,9 @@ gst_acm_aac_enc_set_property (GObject * object, guint prop_id,
 	case PROP_ENABLE_CBR:
 		me->enable_cbr = g_value_get_int (value);
 		break;
+	case PROP_DUAL_MONAURAL:
+		me->dual_monaural = g_value_get_boolean (value);
+		break;
 	default:
 		G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
 		break;
@@ -464,6 +475,9 @@ gst_acm_aac_enc_get_property (GObject * object, guint prop_id,
 		break;
 	case PROP_ENABLE_CBR:
 		g_value_set_int (value, me->enable_cbr);
+		break;
+	case PROP_DUAL_MONAURAL:
+		g_value_set_boolean (value, me->dual_monaural);
 		break;
 	default:
 		G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
@@ -502,6 +516,11 @@ gst_acm_aac_enc_class_init (GstAcmAacEncClass * klass)
 			"0: VBR, 1:CBR",
 			GST_ACMAACENC_ENABLE_CBR_FALSE, GST_ACMAACENC_ENABLE_CBR_TRUE,
 			DEFAULT_ENABLE_CBR, G_PARAM_READWRITE));
+
+	g_object_class_install_property (gobject_class, PROP_DUAL_MONAURAL,
+		g_param_spec_boolean ("dual-monaural", "Dual Monaural",
+			"FALSE: monaural or stereo, TRUE: dual monaural when channels is 2",
+			DEFAULT_DUAL_MONAURAL, G_PARAM_READWRITE));
 
 	gst_element_class_add_pad_template (element_class,
 			gst_static_pad_template_get (&src_template));
@@ -551,6 +570,7 @@ gst_acm_aac_enc_init (GstAcmAacEnc * me)
 	me->output_bit_rate = -1; /* not DEFAULT_BITRATE */
 	me->output_format = -1; /* not DEFAULT_OUT_FORMAT */
 	me->enable_cbr = -1; /* not DEFAULT_ENABLE_CBR */
+	me->dual_monaural = DEFAULT_DUAL_MONAURAL;
 }
 
 static void
@@ -1229,9 +1249,10 @@ gst_acm_aac_enc_init_encoder (GstAcmAacEnc * me)
 
 	/* setup encode parameter		*/
 	GST_INFO_OBJECT (me,
-		"AACENC INIT PARAM : channels=%d (%d ch), "
+		"AACENC INIT PARAM : channels=%d (%d ch, dual_mono=%d), "
 		"sample_rate=%d (%d Hz), bit_rate=%d, output_format=%d, enable_cbr=%d",
-		pcm_channel_mode(me->channels), me->channels,
+		pcm_channel_mode(me->channels, me->dual_monaural),
+		me->channels, me->dual_monaural,
 		pcm_sample_rate_idx(me->sample_rate), me->sample_rate,
 		me->output_bit_rate, me->output_format, me->enable_cbr);
 
@@ -1246,7 +1267,7 @@ gst_acm_aac_enc_init_encoder (GstAcmAacEnc * me)
 	}
 	/* channel_mode */
 	ctrl.id = V4L2_CID_CHANNEL_MODE;
-	ctrl.value = pcm_channel_mode(me->channels);
+	ctrl.value = pcm_channel_mode(me->channels, me->dual_monaural);
 	r = v4l2_ioctl(me->video_fd, VIDIOC_S_CTRL, &ctrl);
 	if (r < 0) {
 		GST_ERROR_OBJECT(me, "failed ioctl - V4L2_CID_CHANNEL_MODE");
