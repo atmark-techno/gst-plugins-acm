@@ -1,5 +1,5 @@
 # name of your binary
-bin_PROGRAMS = acmaacdec acmh264dec acmfbdevsink acmaacenc
+bin_PROGRAMS = acmaacdec acmh264dec acmfbdevsink acmaacenc acmh264enc
 
 
 
@@ -56,4 +56,18 @@ noinst_HEADERS += utest_util.h
 # make sure you prefix these with the name of your binary
 acmaacenc_CFLAGS = $(GST_CFLAGS)
 acmaacenc_LDFLAGS = $(GST_LIBS) -lgstcheck-1.0 -lm -lgstapp-1.0
+
+
+
+# list of source files
+# the prefix is the name of the binary
+acmh264enc_SOURCES = acmh264enc.c utest_util.c
+
+# list of headers we're not going to install
+noinst_HEADERS += 
+
+# our CFLAGS and LDFLAGS used for compiling and linking
+# make sure you prefix these with the name of your binary
+acmh264enc_CFLAGS = $(GST_CFLAGS)
+acmh264enc_LDFLAGS = $(GST_LIBS) -lgstcheck-1.0 -lm -lgstapp-1.0
 

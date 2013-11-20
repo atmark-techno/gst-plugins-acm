@@ -1,4 +1,27 @@
 
+* 2013-11-xx	kaz
+- H264 ENC : 1st release
+ - 以下のパイプラインで動作確認済み
+    - YUV422(2vuy)のMP4コンテナ作成
+     gst-launch-1.0 filesrc location=mp4_h264_aac.mp4 \
+     ! qtdemux name=demux demux. ! queue ! avdec_h264 \
+     ! videoconvert ! qtmux ! filesink location=video_yuv.mp4
+
+    - H264エンコード（MP4コンテナ）
+	 - 全て I ピクチャ
+     gst-launch-1.0 filesrc location=video_yuv.mp4 \
+     ! qtdemux name=demux demux. ! queue ! videoconvert \
+     ! acmh264enc b-pic-mode=0 max-gop-length=1 \
+     ! queue ! qtmux ! filesink location=video_yuv422_to_h264.mp4
+
+    - H264エンコード（TSコンテナ）
+	 - 全て I ピクチャ
+     gst-launch-1.0 filesrc location=video_yuv.mp4 \
+     ! qtdemux name=demux demux. ! queue ! videoconvert \
+     ! acmh264enc b-pic-mode=0 max-gop-length=1 \
+     ! queue ! mpegtsmux ! filesink location=video_yuv422_to_h264.ts
+
+
 * 2013-11-08	kaz
 - AAC ENC : fix Issue #2
  - デュアルモノラルをプロパティとして設定可能に修正

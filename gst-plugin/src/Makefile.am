@@ -9,7 +9,8 @@ plugin_LTLIBRARIES = \
 	libgstacmh264dec.la \
 	libgstacmfbdevsink.la \
 	libgstacmalsasink.la \
-	libgstacmaacenc.la
+	libgstacmaacenc.la \
+	libgstacmh264enc.la
 	
 
 ##############################################################################
@@ -125,6 +126,26 @@ libgstacmaacenc_la_LIBTOOLFLAGS = --tag=disable-static
 # headers we need but don't want installed
 noinst_HEADERS += \
 	gstacmaacenc.h gstacm_util.h gstacm_debug.h
+
+
+#
+# acmh264enc
+#
+# sources used to compile this plug-in
+libgstacmh264enc_la_SOURCES = \
+	gstacmh264enc.h gstacmh264enc.c \
+	gstacm_util.h gstacm_util.c \
+	gstacm_debug.h gstacm_debug.c
+
+# compiler and linker flags used to compile this plugin, set in configure.ac
+libgstacmh264enc_la_CFLAGS = $(GST_CFLAGS)
+libgstacmh264enc_la_LIBADD = $(GST_LIBS)
+libgstacmh264enc_la_LDFLAGS = $(GST_PLUGIN_LDFLAGS) -lgstvideo-1.0 -lgstacmv4l2 -lgstpbutils-1.0
+libgstacmh264enc_la_LIBTOOLFLAGS = --tag=disable-static
+
+# headers we need but don't want installed
+noinst_HEADERS += \
+	gstacmh264enc.h
 
 
 CPPFLAGS=-I ../include
