@@ -279,6 +279,8 @@ static gboolean gst_acm_h264_enc_open (GstVideoEncoder * enc);
 static gboolean gst_acm_h264_enc_close (GstVideoEncoder * enc);
 static gboolean gst_acm_h264_enc_start (GstVideoEncoder * enc);
 static gboolean gst_acm_h264_enc_stop (GstVideoEncoder * enc);
+static GstCaps *gst_acm_h264_enc_getcaps (GstVideoEncoder * encoder,
+	GstCaps * filter);
 static gboolean gst_acm_h264_enc_set_format (GstVideoEncoder * enc,
     GstVideoCodecState * state);
 static gboolean gst_acm_h264_enc_reset (GstVideoEncoder * enc, gboolean hard);
@@ -477,6 +479,7 @@ gst_acm_h264_enc_class_init (GstAcmH264EncClass * klass)
 	video_encoder_class->start = GST_DEBUG_FUNCPTR (gst_acm_h264_enc_start);
 	video_encoder_class->stop = GST_DEBUG_FUNCPTR (gst_acm_h264_enc_stop);
 	video_encoder_class->reset = GST_DEBUG_FUNCPTR (gst_acm_h264_enc_reset);
+	video_encoder_class->getcaps = GST_DEBUG_FUNCPTR (gst_acm_h264_enc_getcaps);
 	video_encoder_class->set_format =
 		GST_DEBUG_FUNCPTR (gst_acm_h264_enc_set_format);
 	video_encoder_class->handle_frame =
@@ -784,6 +787,29 @@ failed_get_spspps:
 	}
 }
 
+static GstCaps *
+gst_acm_h264_enc_getcaps (GstVideoEncoder * encoder, GstCaps * filter)
+{
+	GstCaps *caps;
+#if 0
+	GstCaps *ret;
+#endif
+
+	caps = gst_caps_from_string ("video/x-raw, "
+								 "format = (string) { NV12 }, "
+								 "framerate = (fraction) [0, MAX], "
+								 "width = (int) [ 80, 1920 ], "
+								 "height = (int) [ 80, 1080 ]");
+#if 0	/* 出力サイズを入力サイズと異なったものを指定した場合、リンクできなくなる */
+	ret = gst_video_encoder_proxy_getcaps (encoder, caps, filter);
+	gst_caps_unref (caps);
+	
+	return ret;
+#else
+	return caps;
+#endif
+}
+
 static gboolean
 gst_acm_h264_enc_set_format (GstVideoEncoder * enc, GstVideoCodecState * state)
 {
@@ -853,12 +879,12 @@ gst_acm_h264_enc_set_format (GstVideoEncoder * enc, GstVideoCodecState * state)
 		
 		goto not_support_video_size;
 	}
-	if (0 != (me->input_width % 2)) {
+	if (0 != (me->input_width & 0x01)) {
 		GST_ERROR_OBJECT (me, "not support image width.");
 		
 		goto not_support_video_size;
 	}
-	if (0 != (me->input_height % 2)) {
+	if (0 != (me->input_height & 0x01)) {
 		GST_ERROR_OBJECT (me, "not support image height.");
 		
 		goto not_support_video_size;
@@ -1080,7 +1106,6 @@ gst_acm_h264_enc_set_format (GstVideoEncoder * enc, GstVideoCodecState * state)
 	output_state = gst_video_encoder_set_output_state (enc, outcaps, state);
 	GST_VIDEO_INFO_WIDTH (vinfo) = me->input_width;
 	GST_VIDEO_INFO_HEIGHT (vinfo) = me->input_height;
-	output_state->codec_data = cdataBuf;
 
 	if (! gst_video_encoder_negotiate (enc)) {
 		goto negotiate_faile;
@@ -1467,9 +1492,9 @@ gst_acm_h264_enc_init_encoder (GstAcmH264Enc * me)
 	GST_INFO_OBJECT (me, " frame_rate_tick:%d", me->frame_rate_tick);
 	GST_INFO_OBJECT (me, " max_GOP_length:%d", me->max_GOP_length);
 	GST_INFO_OBJECT (me, " B_pic_mode:%d", me->B_pic_mode);
-	GST_INFO_OBJECT (me, " x_offset:%u", me->x_offset);
-	GST_INFO_OBJECT (me, " y_offset:%u", me->y_offset);
-	GST_INFO_OBJECT (me, " offset:%u", offset);
+	GST_INFO_OBJECT (me, " x_offset:%d", me->x_offset);
+	GST_INFO_OBJECT (me, " y_offset:%d", me->y_offset);
+	GST_INFO_OBJECT (me, " offset:%d", offset);
 
 	/* Set format for output (encoder input) */
 	memset(&fmt, 0, sizeof(struct v4l2_format));
@@ -2230,7 +2255,7 @@ gst_acm_h264_enc_handle_out_frame(GstAcmH264Enc * me,
 	}
 	gst_video_codec_frame_unref(frame);
 
-	// ピクチャスキップ対応
+	/* ピクチャスキップ対応		*/
 	if (0 == encodedSize) {
 		/* ピクチャスキップが発生したときに、出力側のバッファサイズが0になることがある */
 		GST_WARNING_OBJECT (me, "skipping frame %" GST_TIME_FORMAT,

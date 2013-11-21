@@ -48,18 +48,41 @@ static GstPad *mysrcpad, *mysinkpad;
 	"height = (int) 240, " \
 	"framerate = (fraction) 30/1"
 
-#define MP4_CAPS_STRING "video/x-h264, " \
-	"width = (int) 320, " \
-	"height = (int) 240, " \
+/* MP4 */
+#define AVC_CAPS_STRING "video/x-h264, " \
+	"width = (int) [ 80, 1920 ], " \
+	"height = (int) [ 80, 1080 ], " \
 	"framerate = (fraction) 30/1, " \
 	"stream-format = (string) avc, " \
 	"alignment = (string) au"
+/* TS */
+#define BS_CAPS_STRING "video/x-h264, " \
+	"width = (int) [ 80, 1920 ], " \
+	"height = (int) [ 80, 1080 ], " \
+	"framerate = (fraction) 30/1, " \
+	"stream-format = (string) byte-stream "
+/* for use offset */
+#define STRIDE_CAPS_STRING "video/x-h264, " \
+	"width = (int) 160, " \
+	"height = (int) 120, " \
+	"framerate = (fraction) 30/1, " \
+	"stream-format = (string) byte-stream "
 
 /* output */
-static GstStaticPadTemplate sinktemplate = GST_STATIC_PAD_TEMPLATE ("sink",
+static GstStaticPadTemplate sinktemplate_avc = GST_STATIC_PAD_TEMPLATE ("sink",
 	GST_PAD_SINK,
 	GST_PAD_ALWAYS,
-	GST_STATIC_CAPS (MP4_CAPS_STRING));
+	GST_STATIC_CAPS (AVC_CAPS_STRING));
+
+static GstStaticPadTemplate sinktemplate_bs = GST_STATIC_PAD_TEMPLATE ("sink",
+	GST_PAD_SINK,
+	GST_PAD_ALWAYS,
+	GST_STATIC_CAPS (BS_CAPS_STRING));
+
+static GstStaticPadTemplate sinktemplate_stride = GST_STATIC_PAD_TEMPLATE ("sink",
+	GST_PAD_SINK,
+	GST_PAD_ALWAYS,
+	GST_STATIC_CAPS (STRIDE_CAPS_STRING));
 
 /* input */
 static GstStaticPadTemplate srctemplate = GST_STATIC_PAD_TEMPLATE ("src",
@@ -79,7 +102,7 @@ static char g_output_data_file_path[PATH_MAX];
 
 /* setup */
 static GstElement *
-setup_acmh264enc ()
+setup_acmh264enc (GstStaticPadTemplate *sinktempl)
 {
 	GstElement *acmh264enc;
 	
@@ -88,7 +111,7 @@ setup_acmh264enc ()
 	g_print ("pass : gst_check_setup_element()\n");
 	mysrcpad = gst_check_setup_src_pad (acmh264enc, &srctemplate);
 	g_print ("pass : gst_check_setup_src_pad()\n");
-	mysinkpad = gst_check_setup_sink_pad (acmh264enc, &sinktemplate);
+	mysinkpad = gst_check_setup_sink_pad (acmh264enc, sinktempl);
 	g_print ("pass : gst_check_setup_sink_pad()\n");
 
 	gst_pad_set_active (mysrcpad, TRUE);
@@ -134,7 +157,7 @@ GST_START_TEST (test_properties)
 	gint y_offset;
 
 	/* setup */
-	acmh264enc = setup_acmh264enc ();
+	acmh264enc = setup_acmh264enc (&sinktemplate_avc);
 	
 	/* set and check properties */
 	g_object_set (acmh264enc,
@@ -225,16 +248,15 @@ GST_END_TEST;
 
 /* Combination of a property */
 static void
-check_property_combination(gint max_GOP_length, gint B_pic_mode, GstFlowReturn result)
+check_property_comb_gop(gint max_GOP_length, gint B_pic_mode, GstFlowReturn result)
 {
 	GstElement *acmh264enc;
 	GstBuffer *buffer;
 	GstCaps *caps;
 	GstBuffer *outbuffer;
-	gint i;
 	
 	/* setup */
-	acmh264enc = setup_acmh264enc ();
+	acmh264enc = setup_acmh264enc (&sinktemplate_avc);
 	g_object_set (acmh264enc,
 				  "max-gop-length",			max_GOP_length,
 				  "b-pic-mode",				B_pic_mode,
@@ -245,14 +267,90 @@ check_property_combination(gint max_GOP_length, gint B_pic_mode, GstFlowReturn r
 	caps = gst_caps_from_string (VIDEO_CAPS_STRING);	
 	fail_unless (gst_pad_set_caps (mysrcpad, caps));
 
-	/* pre encode max is 3 */
-	for (i = 0; i < 4; i++) {
-		/* create buffer */
-		fail_unless ((buffer = create_video_buffer (caps)) != NULL);
+	/* create buffer */
+	fail_unless ((buffer = create_video_buffer (caps)) != NULL);
+	
+	/* push buffer */
+	fail_unless (gst_pad_push (mysrcpad, buffer) == result);
+
+	/* release encoded data */
+	if (g_list_length (buffers) > 0) {
+		g_print ("num_buffers : %d\n", g_list_length (buffers));
+		outbuffer = GST_BUFFER (buffers->data);
+		buffers = g_list_remove (buffers, outbuffer);
 		
-		/* push buffer */
-		fail_unless (gst_pad_push (mysrcpad, buffer) == result);
+		ASSERT_BUFFER_REFCOUNT (outbuffer, "outbuffer", 1);
+		gst_buffer_unref (outbuffer);
+		outbuffer = NULL;
 	}
+	
+	/* cleanup */
+	gst_caps_unref (caps);
+	gst_element_set_state (acmh264enc, GST_STATE_NULL);
+	cleanup_acmh264enc (acmh264enc);
+}
+
+GST_START_TEST (test_property_comb_gop)
+{
+	/* max_GOP_length:0, B_pic_mode:0 の場合を除いて、
+	 * max_GOP_length は、B_pic_mode より大きくなくてはならない
+	 */
+	check_property_comb_gop(0, 0, GST_FLOW_OK);
+	check_property_comb_gop(0, 1, GST_FLOW_NOT_NEGOTIATED);
+	check_property_comb_gop(0, 2, GST_FLOW_NOT_NEGOTIATED);
+	check_property_comb_gop(0, 3, GST_FLOW_NOT_NEGOTIATED);
+
+	check_property_comb_gop(1, 0, GST_FLOW_OK);
+	check_property_comb_gop(1, 1, GST_FLOW_NOT_NEGOTIATED);
+	check_property_comb_gop(1, 2, GST_FLOW_NOT_NEGOTIATED);
+	check_property_comb_gop(1, 3, GST_FLOW_NOT_NEGOTIATED);
+
+	check_property_comb_gop(2, 0, GST_FLOW_OK);
+	check_property_comb_gop(2, 1, GST_FLOW_OK);
+	check_property_comb_gop(2, 2, GST_FLOW_NOT_NEGOTIATED);
+	check_property_comb_gop(2, 3, GST_FLOW_NOT_NEGOTIATED);
+
+	check_property_comb_gop(3, 0, GST_FLOW_OK);
+	check_property_comb_gop(3, 1, GST_FLOW_OK);
+	check_property_comb_gop(3, 2, GST_FLOW_OK);
+	check_property_comb_gop(3, 3, GST_FLOW_NOT_NEGOTIATED);
+
+	check_property_comb_gop(15, 0, GST_FLOW_OK);
+	check_property_comb_gop(15, 1, GST_FLOW_OK);
+	check_property_comb_gop(15, 2, GST_FLOW_OK);
+	check_property_comb_gop(15, 3, GST_FLOW_OK);
+}
+GST_END_TEST;
+
+static void
+check_property_comb_input_size(gint width, gint height, GstFlowReturn result)
+{
+	GstElement *acmh264enc;
+	GstBuffer *buffer;
+	GstCaps *caps;
+	GstBuffer *outbuffer;
+	
+	/* setup */
+	acmh264enc = setup_acmh264enc (&sinktemplate_avc);
+	g_object_set (acmh264enc,
+				  "max-gop-length",			1,
+				  "b-pic-mode",				0,
+				  NULL);
+	gst_element_set_state (acmh264enc, GST_STATE_PLAYING);
+	
+	/* make caps */
+	caps = gst_caps_from_string (VIDEO_CAPS_STRING);
+	gst_caps_set_simple (caps,
+						 "width", G_TYPE_INT, width,
+						 "height", G_TYPE_INT, height,
+						 NULL);
+	fail_unless (gst_pad_set_caps (mysrcpad, caps));
+	
+	/* create buffer */
+	fail_unless ((buffer = create_video_buffer (caps)) != NULL);
+	
+	/* push buffer */
+	fail_unless (gst_pad_push (mysrcpad, buffer) == result);
 	
 	/* release encoded data */
 	if (g_list_length (buffers) > 0) {
@@ -267,38 +365,77 @@ check_property_combination(gint max_GOP_length, gint B_pic_mode, GstFlowReturn r
 	
 	/* cleanup */
 	gst_caps_unref (caps);
+	gst_element_set_state (acmh264enc, GST_STATE_NULL);
 	cleanup_acmh264enc (acmh264enc);
 }
 
-GST_START_TEST (test_property_combination)
+GST_START_TEST (test_property_comb_input_size)
 {
-	/* max_GOP_length:0, B_pic_mode:0 の場合を除いて、
-	 * max_GOP_length は、B_pic_mode より大きくなくてはならない
+	/* 入力画像幅×入力画像高さは、32の倍数であること
+	 * 入力画像幅と入力画像高さはそれぞれ2の倍数であること
 	 */
-	check_property_combination(0, 0, GST_FLOW_OK);
-	check_property_combination(0, 1, GST_FLOW_NOT_NEGOTIATED);
-	check_property_combination(0, 2, GST_FLOW_NOT_NEGOTIATED);
-	check_property_combination(0, 3, GST_FLOW_NOT_NEGOTIATED);
+	check_property_comb_input_size(320, 240, GST_FLOW_OK);
+	check_property_comb_input_size(330, 100, GST_FLOW_NOT_NEGOTIATED);
+	check_property_comb_input_size(321, 240, GST_FLOW_NOT_NEGOTIATED);
+	check_property_comb_input_size(320, 241, GST_FLOW_NOT_NEGOTIATED);
+}
+GST_END_TEST;
 
-	check_property_combination(1, 0, GST_FLOW_OK);
-	check_property_combination(1, 1, GST_FLOW_NOT_NEGOTIATED);
-	check_property_combination(1, 2, GST_FLOW_NOT_NEGOTIATED);
-	check_property_combination(1, 3, GST_FLOW_NOT_NEGOTIATED);
+static void
+check_property_comb_offset(gint x_offset, gint y_offset,
+	GstStaticPadTemplate *sinktempl, GstFlowReturn result)
+{
+	GstElement *acmh264enc;
+	GstBuffer *buffer;
+	GstCaps *caps;
+	GstBuffer *outbuffer;
 
-	check_property_combination(2, 0, GST_FLOW_OK);
-	check_property_combination(2, 1, GST_FLOW_OK);
-	check_property_combination(2, 2, GST_FLOW_NOT_NEGOTIATED);
-	check_property_combination(2, 3, GST_FLOW_NOT_NEGOTIATED);
+	/* setup */
+	acmh264enc = setup_acmh264enc (sinktempl);
+	g_object_set (acmh264enc,
+				  "max-gop-length",			1,
+				  "b-pic-mode",				0,
+				  "x-offset",				x_offset,
+				  "y-offset",				y_offset,
+				  NULL);
+	gst_element_set_state (acmh264enc, GST_STATE_PLAYING);
 
-	check_property_combination(3, 0, GST_FLOW_OK);
-	check_property_combination(3, 1, GST_FLOW_OK);
-	check_property_combination(3, 2, GST_FLOW_OK);
-	check_property_combination(3, 3, GST_FLOW_NOT_NEGOTIATED);
+	/* make caps */
+	caps = gst_caps_from_string (VIDEO_CAPS_STRING);
+	fail_unless (gst_pad_set_caps (mysrcpad, caps));
 
-	check_property_combination(15, 0, GST_FLOW_OK);
-	check_property_combination(15, 1, GST_FLOW_OK);
-	check_property_combination(15, 2, GST_FLOW_OK);
-	check_property_combination(15, 3, GST_FLOW_OK);
+	/* create buffer */
+	fail_unless ((buffer = create_video_buffer (caps)) != NULL);
+
+	/* push buffer */
+	fail_unless (gst_pad_push (mysrcpad, buffer) == result);
+
+	/* release encoded data */
+	if (g_list_length (buffers) > 0) {
+		g_print ("num_buffers : %d\n", g_list_length (buffers));
+		outbuffer = GST_BUFFER (buffers->data);
+		buffers = g_list_remove (buffers, outbuffer);
+		
+		ASSERT_BUFFER_REFCOUNT (outbuffer, "outbuffer", 1);
+		gst_buffer_unref (outbuffer);
+		outbuffer = NULL;
+	}
+	
+	/* cleanup */
+	gst_caps_unref (caps);
+	gst_element_set_state (acmh264enc, GST_STATE_NULL);
+	cleanup_acmh264enc (acmh264enc);
+}
+
+GST_START_TEST (test_property_comb_offset)
+{
+	/* 入力オフセットは32の倍数であること。
+	 * src.width * y_offset / 2 + x_offsetも同様に32の倍数であること
+	 */
+	check_property_comb_offset(0, 0, &sinktemplate_avc, GST_FLOW_OK);
+	check_property_comb_offset(160, 120, &sinktemplate_stride, GST_FLOW_OK);
+	check_property_comb_offset(10, 10, &sinktemplate_stride, GST_FLOW_NOT_NEGOTIATED);
+	check_property_comb_offset(15, 35, &sinktemplate_stride, GST_FLOW_NOT_NEGOTIATED);
 }
 GST_END_TEST;
 
@@ -312,7 +449,7 @@ GST_START_TEST (test_check_caps)
 	int i, num_buffers;
 
 	/* setup */
-	acmh264enc = setup_acmh264enc ();
+	acmh264enc = setup_acmh264enc (&sinktemplate_avc);
 	/* all I picture */
 	g_object_set (acmh264enc,
 				  "max-gop-length",			1,
@@ -398,15 +535,13 @@ GST_START_TEST (test_check_caps)
 	/* cleanup */
 	cleanup_acmh264enc (acmh264enc);
 	gst_caps_unref (srccaps);
-// don't need    gst_caps_unref (outcaps);
+	gst_caps_unref (outcaps);
 	if (buffers) {
 		g_list_free (buffers);
 		buffers = NULL;
 	}
 }
 GST_END_TEST;
-
-// TODO : offset property , 画像サイズチェック
 
 /* H264 encode	*/
 static GstFlowReturn
@@ -505,7 +640,7 @@ GST_START_TEST (test_encode_prop01)
 	 */
 
 	/* setup */
-	acmh264enc = setup_acmh264enc ();
+	acmh264enc = setup_acmh264enc (&sinktemplate_avc);
 	g_object_set (acmh264enc,
 				  "max-gop-length",			0,
 				  "b-pic-mode",				0,
@@ -549,7 +684,7 @@ GST_START_TEST (test_encode_prop02)
 	 */
 	
 	/* setup */
-	acmh264enc = setup_acmh264enc ();
+	acmh264enc = setup_acmh264enc (&sinktemplate_avc);
 	g_object_set (acmh264enc,
 				  "max-gop-length",			0,
 				  "b-pic-mode",				1,
@@ -594,7 +729,7 @@ GST_START_TEST (test_encode_prop03)
 	 */
 	
 	/* setup */
-	acmh264enc = setup_acmh264enc ();
+	acmh264enc = setup_acmh264enc (&sinktemplate_avc);
 	g_object_set (acmh264enc,
 				  "max-gop-length",			0,
 				  "b-pic-mode",				2,
@@ -639,7 +774,7 @@ GST_START_TEST (test_encode_prop04)
 	 */
 	
 	/* setup */
-	acmh264enc = setup_acmh264enc ();
+	acmh264enc = setup_acmh264enc (&sinktemplate_avc);
 	g_object_set (acmh264enc,
 				  "max-gop-length",			0,
 				  "b-pic-mode",				3,
@@ -683,7 +818,7 @@ GST_START_TEST (test_encode_prop11)
 	 */
 	
 	/* setup */
-	acmh264enc = setup_acmh264enc ();
+	acmh264enc = setup_acmh264enc (&sinktemplate_avc);
 	g_object_set (acmh264enc,
 				  "max-gop-length",			1,
 				  "b-pic-mode",				0,
@@ -727,7 +862,7 @@ GST_START_TEST (test_encode_prop12)
 	 */
 	
 	/* setup */
-	acmh264enc = setup_acmh264enc ();
+	acmh264enc = setup_acmh264enc (&sinktemplate_avc);
 	g_object_set (acmh264enc,
 				  "max-gop-length",			1,
 				  "b-pic-mode",				1,
@@ -772,7 +907,7 @@ GST_START_TEST (test_encode_prop13)
 	 */
 	
 	/* setup */
-	acmh264enc = setup_acmh264enc ();
+	acmh264enc = setup_acmh264enc (&sinktemplate_avc);
 	g_object_set (acmh264enc,
 				  "max-gop-length",			1,
 				  "b-pic-mode",				2,
@@ -817,7 +952,7 @@ GST_START_TEST (test_encode_prop14)
 	 */
 	
 	/* setup */
-	acmh264enc = setup_acmh264enc ();
+	acmh264enc = setup_acmh264enc (&sinktemplate_avc);
 	g_object_set (acmh264enc,
 				  "max-gop-length",			1,
 				  "b-pic-mode",				3,
@@ -861,7 +996,7 @@ GST_START_TEST (test_encode_prop21)
 	 */
 	
 	/* setup */
-	acmh264enc = setup_acmh264enc ();
+	acmh264enc = setup_acmh264enc (&sinktemplate_avc);
 	g_object_set (acmh264enc,
 				  "max-gop-length",			2,
 				  "b-pic-mode",				0,
@@ -904,7 +1039,7 @@ GST_START_TEST (test_encode_prop22)
 	 */
 	
 	/* setup */
-	acmh264enc = setup_acmh264enc ();
+	acmh264enc = setup_acmh264enc (&sinktemplate_avc);
 	g_object_set (acmh264enc,
 				  "max-gop-length",			2,
 				  "b-pic-mode",				1,
@@ -948,7 +1083,7 @@ GST_START_TEST (test_encode_prop23)
 	 */
 	
 	/* setup */
-	acmh264enc = setup_acmh264enc ();
+	acmh264enc = setup_acmh264enc (&sinktemplate_avc);
 	g_object_set (acmh264enc,
 				  "max-gop-length",			2,
 				  "b-pic-mode",				2,
@@ -993,7 +1128,7 @@ GST_START_TEST (test_encode_prop24)
 	 */
 	
 	/* setup */
-	acmh264enc = setup_acmh264enc ();
+	acmh264enc = setup_acmh264enc (&sinktemplate_avc);
 	g_object_set (acmh264enc,
 				  "max-gop-length",			2,
 				  "b-pic-mode",				3,
@@ -1037,7 +1172,7 @@ GST_START_TEST (test_encode_prop31)
 	 */
 	
 	/* setup */
-	acmh264enc = setup_acmh264enc ();
+	acmh264enc = setup_acmh264enc (&sinktemplate_avc);
 	g_object_set (acmh264enc,
 				  "max-gop-length",			30,
 				  "b-pic-mode",				0,
@@ -1080,7 +1215,7 @@ GST_START_TEST (test_encode_prop32)
 	 */
 	
 	/* setup */
-	acmh264enc = setup_acmh264enc ();
+	acmh264enc = setup_acmh264enc (&sinktemplate_avc);
 	g_object_set (acmh264enc,
 				  "max-gop-length",			30,
 				  "b-pic-mode",				1,
@@ -1123,7 +1258,7 @@ GST_START_TEST (test_encode_prop33)
 	 */
 	
 	/* setup */
-	acmh264enc = setup_acmh264enc ();
+	acmh264enc = setup_acmh264enc (&sinktemplate_avc);
 	g_object_set (acmh264enc,
 				  "max-gop-length",			30,
 				  "b-pic-mode",				2,
@@ -1166,7 +1301,7 @@ GST_START_TEST (test_encode_prop34)
 	 */
 	
 	/* setup */
-	acmh264enc = setup_acmh264enc ();
+	acmh264enc = setup_acmh264enc (&sinktemplate_avc);
 	g_object_set (acmh264enc,
 				  "max-gop-length",			30,
 				  "b-pic-mode",				3,
@@ -1206,9 +1341,9 @@ acmh264enc_suite (void)
 	suite_add_tcase (s, tc_chain);
 
 	tcase_add_test (tc_chain, test_properties);
-#if 0	// TODO : 出力されるバッファのピクチャ種別、キャプチャ順カウンタの問題解決後対応
-	tcase_add_test (tc_chain, test_property_combination);
-#endif
+	tcase_add_test (tc_chain, test_property_comb_gop);
+	tcase_add_test (tc_chain, test_property_comb_input_size);
+	tcase_add_test (tc_chain, test_property_comb_offset);
 
 	tcase_add_test (tc_chain, test_check_caps);
 
