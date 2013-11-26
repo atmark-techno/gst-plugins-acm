@@ -744,7 +744,8 @@ gst_v4l2_buffer_pool_dqbuf_ex (GstV4l2BufferPool * pool, GstBuffer ** buffer,
 
 #if 0	/* for debug	*/
 	if (V4L2_BUF_TYPE_VIDEO_CAPTURE == pool->init_param.type) {
-		GST_INFO_OBJECT (pool, "VIDIOC_DQBUF  : index=%d", vbuffer.index);
+		GST_INFO_OBJECT (pool, "DQBUF  : index=%d, reserved:%d, sequence:%d, bytesused:%d",
+			vbuffer.index, vbuffer.reserved, vbuffer.sequence, vbuffer.bytesused);
 	}
 #endif
 
@@ -758,6 +759,15 @@ gst_v4l2_buffer_pool_dqbuf_ex (GstV4l2BufferPool * pool, GstBuffer ** buffer,
 	outbuf = pool->buffers[vbuffer.index];
 	if (outbuf == NULL) {
 		goto no_buffer;
+	}
+
+	/* copy meta info 	*/
+	if (V4L2_BUF_TYPE_VIDEO_CAPTURE == pool->init_param.type) {
+		GstV4l2Meta *meta;
+		
+		meta = GST_V4L2_META_GET (outbuf);
+		g_assert (NULL != meta);
+		memcpy(&(meta->vbuffer), &vbuffer, sizeof(struct v4l2_buffer));
 	}
 
 	/* mark the buffer outstanding */

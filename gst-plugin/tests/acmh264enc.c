@@ -626,68 +626,17 @@ input_buffers(int num_bufs, char* data_path)
 	}
 }
 
-GST_START_TEST (test_encode_prop01)
+static void
+check_encode_avc(gint B_pic_mode, gint max_GOP_length)
 {
 	GstElement *acmh264enc;
 	GstCaps *srccaps;
 
-	/* encode test 1
-	 * bitrate = 
-	 * max-frame-size =
-	 * rate-control-mode = 
-	 ** max-gop-length = 0
-	 ** b-pic-mode = 0
-	 */
-
 	/* setup */
 	acmh264enc = setup_acmh264enc (&sinktemplate_avc);
 	g_object_set (acmh264enc,
-				  "max-gop-length",			0,
-				  "b-pic-mode",				0,
-				  NULL);
-	fail_unless (gst_element_set_state (acmh264enc, GST_STATE_PLAYING)
-				 == GST_STATE_CHANGE_SUCCESS, "could not set to playing");
-
-	g_sink_base_chain = GST_PAD_CHAINFUNC (mysinkpad);
-	gst_pad_set_chain_function (mysinkpad,
-		GST_DEBUG_FUNCPTR (test_encode_sink_chain));
-
-	strcpy(g_output_data_file_path, "data/h264_enc/propset01/h264_%03d.data");
-
-	/* set src caps */
-	srccaps = gst_caps_from_string (VIDEO_CAPS_STRING);
-	gst_pad_set_caps (mysrcpad, srccaps);
-
-	/* input buffers */
-	input_buffers(PUSH_BUFFERS, "data/h264_enc/input01/rgb_%03d.data");
-
-	/* cleanup */
-	cleanup_acmh264enc (acmh264enc);
-	g_list_free (buffers);
-	buffers = NULL;
-	gst_caps_unref (srccaps);
-}
-GST_END_TEST;
-
-#if 0	/* max-gop-length must be greater than b-pic-mode */
-GST_START_TEST (test_encode_prop02)
-{
-	GstElement *acmh264enc;
-	GstCaps *srccaps;
-	
-	/* encode test 2
-	 * bitrate =
-	 * max-frame-size =
-	 * rate-control-mode =
-	 ** max-gop-length = 0
-	 ** b-pic-mode = 1
-	 */
-	
-	/* setup */
-	acmh264enc = setup_acmh264enc (&sinktemplate_avc);
-	g_object_set (acmh264enc,
-				  "max-gop-length",			0,
-				  "b-pic-mode",				1,
+				  "b-pic-mode",				B_pic_mode,
+				  "max-gop-length",			max_GOP_length,
 				  NULL);
 	fail_unless (gst_element_set_state (acmh264enc, GST_STATE_PLAYING)
 				 == GST_STATE_CHANGE_SUCCESS, "could not set to playing");
@@ -696,14 +645,16 @@ GST_START_TEST (test_encode_prop02)
 	gst_pad_set_chain_function (mysinkpad,
 								GST_DEBUG_FUNCPTR (test_encode_sink_chain));
 	
-	strcpy(g_output_data_file_path, "data/h264_enc/propset02/h264_%03d.data");
+	sprintf(g_output_data_file_path, "data/h264_enc/avc_propset%02d%02d/",
+			B_pic_mode, max_GOP_length);
+	strcat(g_output_data_file_path, "h264_%03d.data");
 	
 	/* set src caps */
 	srccaps = gst_caps_from_string (VIDEO_CAPS_STRING);
 	gst_pad_set_caps (mysrcpad, srccaps);
 	
 	/* input buffers */
-	input_buffers(PUSH_BUFFERS, "data/h264_enc/input01/rgb_%03d.data");
+	input_buffers(PUSH_BUFFERS, "data/h264_enc/input01/yuv_%03d.data");
 	
 	/* cleanup */
 	cleanup_acmh264enc (acmh264enc);
@@ -711,28 +662,18 @@ GST_START_TEST (test_encode_prop02)
 	buffers = NULL;
 	gst_caps_unref (srccaps);
 }
-GST_END_TEST;
-#endif
 
-#if 0	/* max-gop-length must be greater than b-pic-mode */
-GST_START_TEST (test_encode_prop03)
+static void
+check_encode_bs(gint B_pic_mode, gint max_GOP_length)
 {
 	GstElement *acmh264enc;
 	GstCaps *srccaps;
 	
-	/* encode test 3
-	 * bitrate =
-	 * max-frame-size =
-	 * rate-control-mode =
-	 ** max-gop-length = 0
-	 ** b-pic-mode = 2
-	 */
-	
 	/* setup */
-	acmh264enc = setup_acmh264enc (&sinktemplate_avc);
+	acmh264enc = setup_acmh264enc (&sinktemplate_bs);
 	g_object_set (acmh264enc,
-				  "max-gop-length",			0,
-				  "b-pic-mode",				2,
+				  "b-pic-mode",				B_pic_mode,
+				  "max-gop-length",			max_GOP_length,
 				  NULL);
 	fail_unless (gst_element_set_state (acmh264enc, GST_STATE_PLAYING)
 				 == GST_STATE_CHANGE_SUCCESS, "could not set to playing");
@@ -741,14 +682,16 @@ GST_START_TEST (test_encode_prop03)
 	gst_pad_set_chain_function (mysinkpad,
 								GST_DEBUG_FUNCPTR (test_encode_sink_chain));
 	
-	strcpy(g_output_data_file_path, "data/h264_enc/propset03/h264_%03d.data");
+	sprintf(g_output_data_file_path, "data/h264_enc/bs_propset%02d%02d/",
+			B_pic_mode, max_GOP_length);
+	strcat(g_output_data_file_path, "h264_%03d.data");
 	
 	/* set src caps */
 	srccaps = gst_caps_from_string (VIDEO_CAPS_STRING);
 	gst_pad_set_caps (mysrcpad, srccaps);
 	
 	/* input buffers */
-	input_buffers(PUSH_BUFFERS, "data/h264_enc/input01/rgb_%03d.data");
+	input_buffers(PUSH_BUFFERS, "data/h264_enc/input01/yuv_%03d.data");
 	
 	/* cleanup */
 	cleanup_acmh264enc (acmh264enc);
@@ -756,579 +699,53 @@ GST_START_TEST (test_encode_prop03)
 	buffers = NULL;
 	gst_caps_unref (srccaps);
 }
-GST_END_TEST;
-#endif
 
-#if 0	/* max-gop-length must be greater than b-pic-mode */
-GST_START_TEST (test_encode_prop04)
+GST_START_TEST (test_encode_avc)
 {
-	GstElement *acmh264enc;
-	GstCaps *srccaps;
-	
-	/* encode test 4
-	 * bitrate =
-	 * max-frame-size =
-	 * rate-control-mode =
-	 ** max-gop-length = 0
-	 ** b-pic-mode = 3
-	 */
-	
-	/* setup */
-	acmh264enc = setup_acmh264enc (&sinktemplate_avc);
-	g_object_set (acmh264enc,
-				  "max-gop-length",			0,
-				  "b-pic-mode",				3,
-				  NULL);
-	fail_unless (gst_element_set_state (acmh264enc, GST_STATE_PLAYING)
-				 == GST_STATE_CHANGE_SUCCESS, "could not set to playing");
-	
-	g_sink_base_chain = GST_PAD_CHAINFUNC (mysinkpad);
-	gst_pad_set_chain_function (mysinkpad,
-								GST_DEBUG_FUNCPTR (test_encode_sink_chain));
-	
-	strcpy(g_output_data_file_path, "data/h264_enc/propset04/h264_%03d.data");
-	
-	/* set src caps */
-	srccaps = gst_caps_from_string (VIDEO_CAPS_STRING);
-	gst_pad_set_caps (mysrcpad, srccaps);
-	
-	/* input buffers */
-	input_buffers(PUSH_BUFFERS, "data/h264_enc/input01/rgb_%03d.data");
-	
-	/* cleanup */
-	cleanup_acmh264enc (acmh264enc);
-	g_list_free (buffers);
-	buffers = NULL;
-	gst_caps_unref (srccaps);
-}
-GST_END_TEST;
-#endif
+	/* B_pic_mode:0	*/
+	check_encode_avc(0, 0);
+	check_encode_avc(0, 1);
+	check_encode_avc(0, 2);
+	check_encode_avc(0, 3);
+	check_encode_avc(0, 15);
 
-GST_START_TEST (test_encode_prop11)
-{
-	GstElement *acmh264enc;
-	GstCaps *srccaps;
-	
-	/* encode test 11
-	 * bitrate =
-	 * max-frame-size =
-	 * rate-control-mode =
-	 ** max-gop-length = 1
-	 ** b-pic-mode = 0
-	 */
-	
-	/* setup */
-	acmh264enc = setup_acmh264enc (&sinktemplate_avc);
-	g_object_set (acmh264enc,
-				  "max-gop-length",			1,
-				  "b-pic-mode",				0,
-				  NULL);
-	fail_unless (gst_element_set_state (acmh264enc, GST_STATE_PLAYING)
-				 == GST_STATE_CHANGE_SUCCESS, "could not set to playing");
-	
-	g_sink_base_chain = GST_PAD_CHAINFUNC (mysinkpad);
-	gst_pad_set_chain_function (mysinkpad,
-								GST_DEBUG_FUNCPTR (test_encode_sink_chain));
-	
-	strcpy(g_output_data_file_path, "data/h264_enc/propset11/h264_%03d.data");
-	
-	/* set src caps */
-	srccaps = gst_caps_from_string (VIDEO_CAPS_STRING);
-	gst_pad_set_caps (mysrcpad, srccaps);
-	
-	/* input buffers */
-	input_buffers(PUSH_BUFFERS, "data/h264_enc/input01/rgb_%03d.data");
-	
-	/* cleanup */
-	cleanup_acmh264enc (acmh264enc);
-	g_list_free (buffers);
-	buffers = NULL;
-	gst_caps_unref (srccaps);
+	/* B_pic_mode:1	*/
+	check_encode_avc(1, 2);
+	check_encode_avc(1, 3);
+	check_encode_avc(1, 15);
+
+	/* B_pic_mode:2	*/
+	check_encode_avc(2, 3);
+	check_encode_avc(2, 15);
+
+	/* B_pic_mode:3	*/
+	check_encode_avc(3, 15);
 }
 GST_END_TEST;
 
-#if 0	/* max-gop-length must be greater than b-pic-mode */
-GST_START_TEST (test_encode_prop12)
+GST_START_TEST (test_encode_bs)
 {
-	GstElement *acmh264enc;
-	GstCaps *srccaps;
+	/* B_pic_mode:0	*/
+	check_encode_bs(0, 0);
+	check_encode_bs(0, 1);
+	check_encode_bs(0, 2);
+	check_encode_bs(0, 3);
+	check_encode_bs(0, 15);
 	
-	/* encode test 12
-	 * bitrate =
-	 * max-frame-size =
-	 * rate-control-mode =
-	 ** max-gop-length = 1
-	 ** b-pic-mode = 1
-	 */
+	/* B_pic_mode:1	*/
+	check_encode_bs(1, 2);
+	check_encode_bs(1, 3);
+	check_encode_bs(1, 15);
 	
-	/* setup */
-	acmh264enc = setup_acmh264enc (&sinktemplate_avc);
-	g_object_set (acmh264enc,
-				  "max-gop-length",			1,
-				  "b-pic-mode",				1,
-				  NULL);
-	fail_unless (gst_element_set_state (acmh264enc, GST_STATE_PLAYING)
-				 == GST_STATE_CHANGE_SUCCESS, "could not set to playing");
+	/* B_pic_mode:2	*/
+	check_encode_bs(2, 3);
+	check_encode_bs(2, 15);
 	
-	g_sink_base_chain = GST_PAD_CHAINFUNC (mysinkpad);
-	gst_pad_set_chain_function (mysinkpad,
-								GST_DEBUG_FUNCPTR (test_encode_sink_chain));
-	
-	strcpy(g_output_data_file_path, "data/h264_enc/propset12/h264_%03d.data");
-	
-	/* set src caps */
-	srccaps = gst_caps_from_string (VIDEO_CAPS_STRING);
-	gst_pad_set_caps (mysrcpad, srccaps);
-	
-	/* input buffers */
-	input_buffers(PUSH_BUFFERS, "data/h264_enc/input01/rgb_%03d.data");
-	
-	/* cleanup */
-	cleanup_acmh264enc (acmh264enc);
-	g_list_free (buffers);
-	buffers = NULL;
-	gst_caps_unref (srccaps);
-}
-GST_END_TEST;
-#endif
-
-#if 0	/* max-gop-length must be greater than b-pic-mode */
-GST_START_TEST (test_encode_prop13)
-{
-	GstElement *acmh264enc;
-	GstCaps *srccaps;
-	
-	/* encode test 13
-	 * bitrate =
-	 * max-frame-size =
-	 * rate-control-mode =
-	 ** max-gop-length = 1
-	 ** b-pic-mode = 2
-	 */
-	
-	/* setup */
-	acmh264enc = setup_acmh264enc (&sinktemplate_avc);
-	g_object_set (acmh264enc,
-				  "max-gop-length",			1,
-				  "b-pic-mode",				2,
-				  NULL);
-	fail_unless (gst_element_set_state (acmh264enc, GST_STATE_PLAYING)
-				 == GST_STATE_CHANGE_SUCCESS, "could not set to playing");
-	
-	g_sink_base_chain = GST_PAD_CHAINFUNC (mysinkpad);
-	gst_pad_set_chain_function (mysinkpad,
-								GST_DEBUG_FUNCPTR (test_encode_sink_chain));
-	
-	strcpy(g_output_data_file_path, "data/h264_enc/propset13/h264_%03d.data");
-	
-	/* set src caps */
-	srccaps = gst_caps_from_string (VIDEO_CAPS_STRING);
-	gst_pad_set_caps (mysrcpad, srccaps);
-	
-	/* input buffers */
-	input_buffers(PUSH_BUFFERS, "data/h264_enc/input01/rgb_%03d.data");
-	
-	/* cleanup */
-	cleanup_acmh264enc (acmh264enc);
-	g_list_free (buffers);
-	buffers = NULL;
-	gst_caps_unref (srccaps);
-}
-GST_END_TEST;
-#endif
-
-#if 0	/* max-gop-length must be greater than b-pic-mode */
-GST_START_TEST (test_encode_prop14)
-{
-	GstElement *acmh264enc;
-	GstCaps *srccaps;
-	
-	/* encode test 14
-	 * bitrate =
-	 * max-frame-size =
-	 * rate-control-mode =
-	 ** max-gop-length = 1
-	 ** b-pic-mode = 3
-	 */
-	
-	/* setup */
-	acmh264enc = setup_acmh264enc (&sinktemplate_avc);
-	g_object_set (acmh264enc,
-				  "max-gop-length",			1,
-				  "b-pic-mode",				3,
-				  NULL);
-	fail_unless (gst_element_set_state (acmh264enc, GST_STATE_PLAYING)
-				 == GST_STATE_CHANGE_SUCCESS, "could not set to playing");
-	
-	g_sink_base_chain = GST_PAD_CHAINFUNC (mysinkpad);
-	gst_pad_set_chain_function (mysinkpad,
-								GST_DEBUG_FUNCPTR (test_encode_sink_chain));
-	
-	strcpy(g_output_data_file_path, "data/h264_enc/propset14/h264_%03d.data");
-	
-	/* set src caps */
-	srccaps = gst_caps_from_string (VIDEO_CAPS_STRING);
-	gst_pad_set_caps (mysrcpad, srccaps);
-	
-	/* input buffers */
-	input_buffers(PUSH_BUFFERS, "data/h264_enc/input01/rgb_%03d.data");
-	
-	/* cleanup */
-	cleanup_acmh264enc (acmh264enc);
-	g_list_free (buffers);
-	buffers = NULL;
-	gst_caps_unref (srccaps);
-}
-GST_END_TEST;
-#endif
-
-GST_START_TEST (test_encode_prop21)
-{
-	GstElement *acmh264enc;
-	GstCaps *srccaps;
-	
-	/* encode test 21
-	 * bitrate =
-	 * max-frame-size =
-	 * rate-control-mode =
-	 ** max-gop-length = 2
-	 ** b-pic-mode = 0
-	 */
-	
-	/* setup */
-	acmh264enc = setup_acmh264enc (&sinktemplate_avc);
-	g_object_set (acmh264enc,
-				  "max-gop-length",			2,
-				  "b-pic-mode",				0,
-				  NULL);
-	fail_unless (gst_element_set_state (acmh264enc, GST_STATE_PLAYING)
-				 == GST_STATE_CHANGE_SUCCESS, "could not set to playing");
-	
-	g_sink_base_chain = GST_PAD_CHAINFUNC (mysinkpad);
-	gst_pad_set_chain_function (mysinkpad,
-								GST_DEBUG_FUNCPTR (test_encode_sink_chain));
-	
-	strcpy(g_output_data_file_path, "data/h264_enc/propset21/h264_%03d.data");
-	
-	/* set src caps */
-	srccaps = gst_caps_from_string (VIDEO_CAPS_STRING);
-	gst_pad_set_caps (mysrcpad, srccaps);
-	
-	/* input buffers */
-	input_buffers(PUSH_BUFFERS, "data/h264_enc/input01/rgb_%03d.data");
-	
-	/* cleanup */
-	cleanup_acmh264enc (acmh264enc);
-	g_list_free (buffers);
-	buffers = NULL;
-	gst_caps_unref (srccaps);
+	/* B_pic_mode:3	*/
+	check_encode_bs(3, 15);
 }
 GST_END_TEST;
 
-GST_START_TEST (test_encode_prop22)
-{
-	GstElement *acmh264enc;
-	GstCaps *srccaps;
-	
-	/* encode test 22
-	 * bitrate =
-	 * max-frame-size =
-	 * rate-control-mode =
-	 ** max-gop-length = 2
-	 ** b-pic-mode = 1
-	 */
-	
-	/* setup */
-	acmh264enc = setup_acmh264enc (&sinktemplate_avc);
-	g_object_set (acmh264enc,
-				  "max-gop-length",			2,
-				  "b-pic-mode",				1,
-				  NULL);
-	fail_unless (gst_element_set_state (acmh264enc, GST_STATE_PLAYING)
-				 == GST_STATE_CHANGE_SUCCESS, "could not set to playing");
-	
-	g_sink_base_chain = GST_PAD_CHAINFUNC (mysinkpad);
-	gst_pad_set_chain_function (mysinkpad,
-								GST_DEBUG_FUNCPTR (test_encode_sink_chain));
-	
-	strcpy(g_output_data_file_path, "data/h264_enc/propset22/h264_%03d.data");
-	
-	/* set src caps */
-	srccaps = gst_caps_from_string (VIDEO_CAPS_STRING);
-	gst_pad_set_caps (mysrcpad, srccaps);
-	
-	/* input buffers */
-	input_buffers(PUSH_BUFFERS, "data/h264_enc/input01/rgb_%03d.data");
-	
-	/* cleanup */
-	cleanup_acmh264enc (acmh264enc);
-	g_list_free (buffers);
-	buffers = NULL;
-	gst_caps_unref (srccaps);
-}
-GST_END_TEST;
-
-#if 0	/* max-gop-length must be greater than b-pic-mode */
-GST_START_TEST (test_encode_prop23)
-{
-	GstElement *acmh264enc;
-	GstCaps *srccaps;
-	
-	/* encode test 23
-	 * bitrate =
-	 * max-frame-size =
-	 * rate-control-mode =
-	 ** max-gop-length = 2
-	 ** b-pic-mode = 2
-	 */
-	
-	/* setup */
-	acmh264enc = setup_acmh264enc (&sinktemplate_avc);
-	g_object_set (acmh264enc,
-				  "max-gop-length",			2,
-				  "b-pic-mode",				2,
-				  NULL);
-	fail_unless (gst_element_set_state (acmh264enc, GST_STATE_PLAYING)
-				 == GST_STATE_CHANGE_SUCCESS, "could not set to playing");
-	
-	g_sink_base_chain = GST_PAD_CHAINFUNC (mysinkpad);
-	gst_pad_set_chain_function (mysinkpad,
-								GST_DEBUG_FUNCPTR (test_encode_sink_chain));
-	
-	strcpy(g_output_data_file_path, "data/h264_enc/propset23/h264_%03d.data");
-	
-	/* set src caps */
-	srccaps = gst_caps_from_string (VIDEO_CAPS_STRING);
-	gst_pad_set_caps (mysrcpad, srccaps);
-	
-	/* input buffers */
-	input_buffers(PUSH_BUFFERS, "data/h264_enc/input01/rgb_%03d.data");
-	
-	/* cleanup */
-	cleanup_acmh264enc (acmh264enc);
-	g_list_free (buffers);
-	buffers = NULL;
-	gst_caps_unref (srccaps);
-}
-GST_END_TEST;
-#endif
-
-#if 0	/* max-gop-length must be greater than b-pic-mode */
-GST_START_TEST (test_encode_prop24)
-{
-	GstElement *acmh264enc;
-	GstCaps *srccaps;
-	
-	/* encode test 24
-	 * bitrate =
-	 * max-frame-size =
-	 * rate-control-mode =
-	 ** max-gop-length = 2
-	 ** b-pic-mode = 3
-	 */
-	
-	/* setup */
-	acmh264enc = setup_acmh264enc (&sinktemplate_avc);
-	g_object_set (acmh264enc,
-				  "max-gop-length",			2,
-				  "b-pic-mode",				3,
-				  NULL);
-	fail_unless (gst_element_set_state (acmh264enc, GST_STATE_PLAYING)
-				 == GST_STATE_CHANGE_SUCCESS, "could not set to playing");
-	
-	g_sink_base_chain = GST_PAD_CHAINFUNC (mysinkpad);
-	gst_pad_set_chain_function (mysinkpad,
-								GST_DEBUG_FUNCPTR (test_encode_sink_chain));
-	
-	strcpy(g_output_data_file_path, "data/h264_enc/propset24/h264_%03d.data");
-	
-	/* set src caps */
-	srccaps = gst_caps_from_string (VIDEO_CAPS_STRING);
-	gst_pad_set_caps (mysrcpad, srccaps);
-	
-	/* input buffers */
-	input_buffers(PUSH_BUFFERS, "data/h264_enc/input01/rgb_%03d.data");
-	
-	/* cleanup */
-	cleanup_acmh264enc (acmh264enc);
-	g_list_free (buffers);
-	buffers = NULL;
-	gst_caps_unref (srccaps);
-}
-GST_END_TEST;
-#endif
-
-GST_START_TEST (test_encode_prop31)
-{
-	GstElement *acmh264enc;
-	GstCaps *srccaps;
-	
-	/* encode test 31
-	 * bitrate =
-	 * max-frame-size =
-	 * rate-control-mode =
-	 ** max-gop-length = 30
-	 ** b-pic-mode = 0
-	 */
-	
-	/* setup */
-	acmh264enc = setup_acmh264enc (&sinktemplate_avc);
-	g_object_set (acmh264enc,
-				  "max-gop-length",			30,
-				  "b-pic-mode",				0,
-				  NULL);
-	fail_unless (gst_element_set_state (acmh264enc, GST_STATE_PLAYING)
-				 == GST_STATE_CHANGE_SUCCESS, "could not set to playing");
-	
-	g_sink_base_chain = GST_PAD_CHAINFUNC (mysinkpad);
-	gst_pad_set_chain_function (mysinkpad,
-								GST_DEBUG_FUNCPTR (test_encode_sink_chain));
-	
-	strcpy(g_output_data_file_path, "data/h264_enc/propset31/h264_%03d.data");
-	
-	/* set src caps */
-	srccaps = gst_caps_from_string (VIDEO_CAPS_STRING);
-	gst_pad_set_caps (mysrcpad, srccaps);
-	
-	/* input buffers */
-	input_buffers(PUSH_BUFFERS, "data/h264_enc/input01/rgb_%03d.data");
-	
-	/* cleanup */
-	cleanup_acmh264enc (acmh264enc);
-	g_list_free (buffers);
-	buffers = NULL;
-	gst_caps_unref (srccaps);
-}
-GST_END_TEST;
-
-GST_START_TEST (test_encode_prop32)
-{
-	GstElement *acmh264enc;
-	GstCaps *srccaps;
-	
-	/* encode test 32
-	 * bitrate =
-	 * max-frame-size =
-	 * rate-control-mode =
-	 ** max-gop-length = 30
-	 ** b-pic-mode = 1
-	 */
-	
-	/* setup */
-	acmh264enc = setup_acmh264enc (&sinktemplate_avc);
-	g_object_set (acmh264enc,
-				  "max-gop-length",			30,
-				  "b-pic-mode",				1,
-				  NULL);
-	fail_unless (gst_element_set_state (acmh264enc, GST_STATE_PLAYING)
-				 == GST_STATE_CHANGE_SUCCESS, "could not set to playing");
-	
-	g_sink_base_chain = GST_PAD_CHAINFUNC (mysinkpad);
-	gst_pad_set_chain_function (mysinkpad,
-								GST_DEBUG_FUNCPTR (test_encode_sink_chain));
-	
-	strcpy(g_output_data_file_path, "data/h264_enc/propset32/h264_%03d.data");
-	
-	/* set src caps */
-	srccaps = gst_caps_from_string (VIDEO_CAPS_STRING);
-	gst_pad_set_caps (mysrcpad, srccaps);
-	
-	/* input buffers */
-	input_buffers(PUSH_BUFFERS, "data/h264_enc/input01/rgb_%03d.data");
-	
-	/* cleanup */
-	cleanup_acmh264enc (acmh264enc);
-	g_list_free (buffers);
-	buffers = NULL;
-	gst_caps_unref (srccaps);
-}
-GST_END_TEST;
-
-GST_START_TEST (test_encode_prop33)
-{
-	GstElement *acmh264enc;
-	GstCaps *srccaps;
-	
-	/* encode test 33
-	 * bitrate =
-	 * max-frame-size =
-	 * rate-control-mode =
-	 ** max-gop-length = 30
-	 ** b-pic-mode = 2
-	 */
-	
-	/* setup */
-	acmh264enc = setup_acmh264enc (&sinktemplate_avc);
-	g_object_set (acmh264enc,
-				  "max-gop-length",			30,
-				  "b-pic-mode",				2,
-				  NULL);
-	fail_unless (gst_element_set_state (acmh264enc, GST_STATE_PLAYING)
-				 == GST_STATE_CHANGE_SUCCESS, "could not set to playing");
-	
-	g_sink_base_chain = GST_PAD_CHAINFUNC (mysinkpad);
-	gst_pad_set_chain_function (mysinkpad,
-								GST_DEBUG_FUNCPTR (test_encode_sink_chain));
-	
-	strcpy(g_output_data_file_path, "data/h264_enc/propset33/h264_%03d.data");
-	
-	/* set src caps */
-	srccaps = gst_caps_from_string (VIDEO_CAPS_STRING);
-	gst_pad_set_caps (mysrcpad, srccaps);
-	
-	/* input buffers */
-	input_buffers(PUSH_BUFFERS, "data/h264_enc/input01/rgb_%03d.data");
-	
-	/* cleanup */
-	cleanup_acmh264enc (acmh264enc);
-	g_list_free (buffers);
-	buffers = NULL;
-	gst_caps_unref (srccaps);
-}
-GST_END_TEST;
-
-GST_START_TEST (test_encode_prop34)
-{
-	GstElement *acmh264enc;
-	GstCaps *srccaps;
-	
-	/* encode test 34
-	 * bitrate =
-	 * max-frame-size =
-	 * rate-control-mode =
-	 ** max-gop-length = 30
-	 ** b-pic-mode = 3
-	 */
-	
-	/* setup */
-	acmh264enc = setup_acmh264enc (&sinktemplate_avc);
-	g_object_set (acmh264enc,
-				  "max-gop-length",			30,
-				  "b-pic-mode",				3,
-				  NULL);
-	fail_unless (gst_element_set_state (acmh264enc, GST_STATE_PLAYING)
-				 == GST_STATE_CHANGE_SUCCESS, "could not set to playing");
-	
-	g_sink_base_chain = GST_PAD_CHAINFUNC (mysinkpad);
-	gst_pad_set_chain_function (mysinkpad,
-								GST_DEBUG_FUNCPTR (test_encode_sink_chain));
-	
-	strcpy(g_output_data_file_path, "data/h264_enc/propset34/h264_%03d.data");
-	
-	/* set src caps */
-	srccaps = gst_caps_from_string (VIDEO_CAPS_STRING);
-	gst_pad_set_caps (mysrcpad, srccaps);
-	
-	/* input buffers */
-	input_buffers(PUSH_BUFFERS, "data/h264_enc/input01/rgb_%03d.data");
-	
-	/* cleanup */
-	cleanup_acmh264enc (acmh264enc);
-	g_list_free (buffers);
-	buffers = NULL;
-	gst_caps_unref (srccaps);
-}
-GST_END_TEST;
 
 static Suite *
 acmh264enc_suite (void)
@@ -1348,31 +765,8 @@ acmh264enc_suite (void)
 	tcase_add_test (tc_chain, test_check_caps);
 
 #if 0	// TODO : 出力されるバッファのピクチャ種別、キャプチャ順カウンタの問題解決後対応
-	tcase_add_test (tc_chain, test_encode_prop01);
-#if 0	/* max-gop-length must be greater than b-pic-mode */
-	tcase_add_test (tc_chain, test_encode_prop02);
-	tcase_add_test (tc_chain, test_encode_prop03);
-	tcase_add_test (tc_chain, test_encode_prop04);
-#endif
-
-	tcase_add_test (tc_chain, test_encode_prop11);
-#if 0	/* max-gop-length must be greater than b-pic-mode */
-	tcase_add_test (tc_chain, test_encode_prop12);
-	tcase_add_test (tc_chain, test_encode_prop13);
-	tcase_add_test (tc_chain, test_encode_prop14);
-#endif
-
-	tcase_add_test (tc_chain, test_encode_prop21);
-	tcase_add_test (tc_chain, test_encode_prop22);
-#if 0	/* max-gop-length must be greater than b-pic-mode */
-	tcase_add_test (tc_chain, test_encode_prop23);
-	tcase_add_test (tc_chain, test_encode_prop24);
-#endif
-
-	tcase_add_test (tc_chain, test_encode_prop31);
-	tcase_add_test (tc_chain, test_encode_prop32);
-	tcase_add_test (tc_chain, test_encode_prop33);
-	tcase_add_test (tc_chain, test_encode_prop34);
+	tcase_add_test (tc_chain, test_encode_avc);
+	tcase_add_test (tc_chain, test_encode_bs);
 #endif
 
 	return s;

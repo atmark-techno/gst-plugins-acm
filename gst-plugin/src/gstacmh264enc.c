@@ -2295,9 +2295,9 @@ gst_acm_h264_enc_handle_out_frame(GstAcmH264Enc * me,
 	if (GST_ACMH264ENC_B_PIC_MODE_0_B_PIC != me->B_pic_mode) {
 		captCounter = get_capture_counter(me, v4l2buf_out);
 		pts_frame = gst_video_encoder_get_frame(GST_VIDEO_ENCODER (me), captCounter);
-		GST_WARNING_OBJECT (me, "failed get frame by capture counter (0x%x)",
-						  captCounter);
 		if (NULL == pts_frame) {
+			GST_WARNING_OBJECT (me, "failed get frame by capture counter (0x%x)",
+								captCounter);
 			// SH からのキャプチャ順カウンタは、0x7FFFFFFE で折り返す
 			captCounter += 0x7FFFFFFF;
 			pts_frame = gst_video_encoder_get_frame(GST_VIDEO_ENCODER (me), captCounter);
@@ -2309,11 +2309,27 @@ gst_acm_h264_enc_handle_out_frame(GstAcmH264Enc * me,
 			}
 		}
 #if 0	/* for debug	*/
-		GST_INFO_OBJECT (me, "assign PTS: %" GST_TIME_FORMAT " to %" GST_TIME_FORMAT,
-					 GST_TIME_ARGS( frame->pts ), GST_TIME_ARGS( pts_frame->pts ));
+		GST_INFO_OBJECT (me, "Got frame by capt counter (0x%x)",
+						 captCounter);
+		GST_INFO_OBJECT (me, "oldest DTS:%" GST_TIME_FORMAT,
+						 GST_TIME_ARGS( frame->dts ));
+		GST_INFO_OBJECT (me, "oldest DTS:%" GST_TIME_FORMAT,
+						 GST_TIME_ARGS( GST_BUFFER_DTS (frame->input_buffer) ));
+		GST_INFO_OBJECT (me, "oldest PTS:%" GST_TIME_FORMAT,
+						 GST_TIME_ARGS( frame->pts ));
+		GST_INFO_OBJECT (me, "capt   DTS:%" GST_TIME_FORMAT,
+						 GST_TIME_ARGS( pts_frame->dts ));
+		GST_INFO_OBJECT (me, "capt   PTS:%" GST_TIME_FORMAT,
+						 GST_TIME_ARGS( pts_frame->pts ));
 #endif
-		frame->pts = pts_frame->pts;
+		if (GST_CLOCK_TIME_NONE == pts_frame->dts) {
+			pts_frame->dts = GST_BUFFER_DTS (frame->input_buffer);
+		}
+		else {
+			pts_frame->dts = frame->dts;
+		}
 		gst_video_codec_frame_unref(pts_frame);
+		frame = pts_frame;
 		pts_frame = NULL;
 	}
 
