@@ -518,6 +518,7 @@ test_encode_sink_chain(GstPad * pad, GstObject * parent, GstBuffer * buf)
 {
 	size_t size;
 	void *p;
+	int fd;
 	char file[PATH_MAX];
 	static gint nOutputBuffers = 0;
 	GstBuffer *outbuffer;
@@ -536,7 +537,7 @@ test_encode_sink_chain(GstPad * pad, GstObject * parent, GstBuffer * buf)
 		
 		sprintf(file, g_output_data_file_path, nOutputBuffers);
 		g_print("%s\n", file);
-		get_data(file, &size, &p);
+		get_data(file, &size, &p, &fd);
 		
 //		g_print("size %d : %d\n", gst_buffer_get_size (outbuffer), size);
 		fail_unless (gst_buffer_get_size (outbuffer) == size);
@@ -545,6 +546,7 @@ test_encode_sink_chain(GstPad * pad, GstObject * parent, GstBuffer * buf)
 		gst_buffer_unmap (outbuffer, &map);
 
 		fail_unless (0 == munmap(p, size));
+		close(fd);
 		
 		buffers = g_list_remove (buffers, outbuffer);
 		
@@ -561,6 +563,7 @@ input_buffers(int num_bufs, char* data_path)
 {
 	size_t size;
 	void *p;
+	int fd;
 	char file[PATH_MAX];
 	GstBuffer *inbuffer;
 	gint nInputBuffers = 0;
@@ -570,13 +573,14 @@ input_buffers(int num_bufs, char* data_path)
 			sprintf(file, data_path, nInputBuffers);
 			g_print("%s\n", file);
 			
-			get_data(file, &size, &p);
+			get_data(file, &size, &p, &fd);
 			
 			inbuffer = gst_buffer_new_and_alloc (size);
 			gst_buffer_fill (inbuffer, 0, p, size);
 			
 			fail_unless (0 == munmap(p, size));
-			
+			close(fd);
+
 			GST_BUFFER_TIMESTAMP (inbuffer) = 0;
 			ASSERT_BUFFER_REFCOUNT (inbuffer, "inbuffer", 1);
 			

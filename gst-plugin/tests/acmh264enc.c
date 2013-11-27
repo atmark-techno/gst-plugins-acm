@@ -544,13 +544,14 @@ GST_START_TEST (test_check_caps)
 GST_END_TEST;
 
 /* H264 encode	*/
+static gint g_nOutputBuffers = 0;
 static GstFlowReturn
 test_encode_sink_chain(GstPad * pad, GstObject * parent, GstBuffer * buf)
 {
 	size_t size;
 	void *p;
+	int fd;
 	char file[PATH_MAX];
-	static gint nOutputBuffers = 0;
 	GstBuffer *outbuffer;
 	GstMapInfo map;
 	GstFlowReturn ret;
@@ -559,23 +560,25 @@ test_encode_sink_chain(GstPad * pad, GstObject * parent, GstBuffer * buf)
 	
 	/* check outputed buffer */
 	if (g_list_length (buffers) > 0) {
-		++nOutputBuffers;
+		++g_nOutputBuffers;
 		
 		outbuffer = GST_BUFFER (buffers->data);
 		fail_if (outbuffer == NULL);
 		fail_unless (GST_IS_BUFFER (outbuffer));
 
-		sprintf(file, g_output_data_file_path, nOutputBuffers);
+		sprintf(file, g_output_data_file_path, g_nOutputBuffers);
 		g_print("%s\n", file);
 
-		get_data(file, &size, &p);
+		get_data(file, &size, &p, &fd);
 
+//		g_print("%d - %d\n", gst_buffer_get_size (outbuffer), size);
 		fail_unless (gst_buffer_get_size (outbuffer) == size);
 		gst_buffer_map (outbuffer, &map, GST_MAP_READ);
 		fail_unless (0 == memcmp(p, map.data, size));
 		gst_buffer_unmap (outbuffer, &map);
 
 		fail_unless (0 == munmap(p, size));
+		close(fd);
 
 		buffers = g_list_remove (buffers, outbuffer);
 		ASSERT_BUFFER_REFCOUNT (outbuffer, "outbuffer", 1);
@@ -592,6 +595,7 @@ input_buffers(int num_bufs, char* data_path)
 {
 	size_t size;
 	void *p;
+	int fd;
 	char file[PATH_MAX];
 	GstBuffer *inbuffer;
 	gint nInputBuffers = 0;
@@ -601,12 +605,13 @@ input_buffers(int num_bufs, char* data_path)
 			sprintf(file, data_path, nInputBuffers);
 			g_print("%s\n", file);
 
-			get_data(file, &size, &p);
+			get_data(file, &size, &p, &fd);
 
 			inbuffer = gst_buffer_new_and_alloc (size);
 			gst_buffer_fill (inbuffer, 0, p, size);
 
 			fail_unless (0 == munmap(p, size));
+			close(fd);
 
 			GST_BUFFER_TIMESTAMP (inbuffer) = 0;
 			ASSERT_BUFFER_REFCOUNT (inbuffer, "inbuffer", 1);
@@ -644,6 +649,7 @@ check_encode_avc(gint B_pic_mode, gint max_GOP_length)
 	g_sink_base_chain = GST_PAD_CHAINFUNC (mysinkpad);
 	gst_pad_set_chain_function (mysinkpad,
 								GST_DEBUG_FUNCPTR (test_encode_sink_chain));
+	g_nOutputBuffers = 0;
 	
 	sprintf(g_output_data_file_path, "data/h264_enc/avc_propset%02d%02d/",
 			B_pic_mode, max_GOP_length);
@@ -681,7 +687,8 @@ check_encode_bs(gint B_pic_mode, gint max_GOP_length)
 	g_sink_base_chain = GST_PAD_CHAINFUNC (mysinkpad);
 	gst_pad_set_chain_function (mysinkpad,
 								GST_DEBUG_FUNCPTR (test_encode_sink_chain));
-	
+	g_nOutputBuffers = 0;
+
 	sprintf(g_output_data_file_path, "data/h264_enc/bs_propset%02d%02d/",
 			B_pic_mode, max_GOP_length);
 	strcat(g_output_data_file_path, "h264_%03d.data");
@@ -700,52 +707,137 @@ check_encode_bs(gint B_pic_mode, gint max_GOP_length)
 	gst_caps_unref (srccaps);
 }
 
-GST_START_TEST (test_encode_avc)
+GST_START_TEST (test_encode_avc0000)
 {
-	/* B_pic_mode:0	*/
 	check_encode_avc(0, 0);
+}
+GST_END_TEST;
+
+GST_START_TEST (test_encode_avc0001)
+{
 	check_encode_avc(0, 1);
+}
+GST_END_TEST;
+
+GST_START_TEST (test_encode_avc0002)
+{
 	check_encode_avc(0, 2);
+}
+GST_END_TEST;
+
+GST_START_TEST (test_encode_avc0003)
+{
 	check_encode_avc(0, 3);
+}
+GST_END_TEST;
+
+GST_START_TEST (test_encode_avc0015)
+{
 	check_encode_avc(0, 15);
+}
+GST_END_TEST;
 
-	/* B_pic_mode:1	*/
+GST_START_TEST (test_encode_avc0102)
+{
 	check_encode_avc(1, 2);
+}
+GST_END_TEST;
+
+GST_START_TEST (test_encode_avc0103)
+{
 	check_encode_avc(1, 3);
+}
+GST_END_TEST;
+
+GST_START_TEST (test_encode_avc0115)
+{
 	check_encode_avc(1, 15);
+}
+GST_END_TEST;
 
-	/* B_pic_mode:2	*/
+GST_START_TEST (test_encode_avc0203)
+{
 	check_encode_avc(2, 3);
-	check_encode_avc(2, 15);
+}
+GST_END_TEST;
 
-	/* B_pic_mode:3	*/
+GST_START_TEST (test_encode_avc0215)
+{
+	check_encode_avc(2, 15);
+}
+GST_END_TEST;
+
+GST_START_TEST (test_encode_avc0315)
+{
 	check_encode_avc(3, 15);
 }
 GST_END_TEST;
 
-GST_START_TEST (test_encode_bs)
+GST_START_TEST (test_encode_bs0000)
 {
-	/* B_pic_mode:0	*/
 	check_encode_bs(0, 0);
-	check_encode_bs(0, 1);
-	check_encode_bs(0, 2);
-	check_encode_bs(0, 3);
-	check_encode_bs(0, 15);
-	
-	/* B_pic_mode:1	*/
-	check_encode_bs(1, 2);
-	check_encode_bs(1, 3);
-	check_encode_bs(1, 15);
-	
-	/* B_pic_mode:2	*/
-	check_encode_bs(2, 3);
-	check_encode_bs(2, 15);
-	
-	/* B_pic_mode:3	*/
-	check_encode_bs(3, 15);
 }
 GST_END_TEST;
 
+GST_START_TEST (test_encode_bs0001)
+{
+	check_encode_bs(0, 1);
+}
+GST_END_TEST;
+
+GST_START_TEST (test_encode_bs0002)
+{
+	check_encode_bs(0, 2);
+}
+GST_END_TEST;
+
+GST_START_TEST (test_encode_bs0003)
+{
+	check_encode_bs(0, 3);
+}
+GST_END_TEST;
+
+GST_START_TEST (test_encode_bs0015)
+{
+	check_encode_bs(0, 15);
+}
+GST_END_TEST;
+
+GST_START_TEST (test_encode_bs0102)
+{
+	check_encode_bs(1, 2);
+}
+GST_END_TEST;
+
+GST_START_TEST (test_encode_bs0103)
+{
+	check_encode_bs(1, 3);
+}
+GST_END_TEST;
+
+GST_START_TEST (test_encode_bs0115)
+{
+	check_encode_bs(1, 15);
+}
+GST_END_TEST;
+
+GST_START_TEST (test_encode_bs0203)
+{
+	check_encode_bs(2, 3);
+}
+GST_END_TEST;
+
+GST_START_TEST (test_encode_bs0215)
+{
+	check_encode_bs(2, 15);
+}
+GST_END_TEST;
+
+GST_START_TEST (test_encode_bs0315)
+{
+	check_encode_bs(3, 15);
+}
+GST_END_TEST;
 
 static Suite *
 acmh264enc_suite (void)
@@ -764,11 +856,40 @@ acmh264enc_suite (void)
 
 	tcase_add_test (tc_chain, test_check_caps);
 
-#if 0	// TODO : 出力されるバッファのピクチャ種別、キャプチャ順カウンタの問題解決後対応
-	tcase_add_test (tc_chain, test_encode_avc);
-	tcase_add_test (tc_chain, test_encode_bs);
-#endif
+	/* avc */
+	/* B_pic_mode:0	*/
+	tcase_add_test (tc_chain, test_encode_avc0000);
+	tcase_add_test (tc_chain, test_encode_avc0001);
+	tcase_add_test (tc_chain, test_encode_avc0002);
+	tcase_add_test (tc_chain, test_encode_avc0003);
+	tcase_add_test (tc_chain, test_encode_avc0015);
+	/* B_pic_mode:1	*/
+	tcase_add_test (tc_chain, test_encode_avc0102);
+	tcase_add_test (tc_chain, test_encode_avc0103);
+	tcase_add_test (tc_chain, test_encode_avc0115);
+	/* B_pic_mode:2	*/
+	tcase_add_test (tc_chain, test_encode_avc0203);
+	tcase_add_test (tc_chain, test_encode_avc0215);
+	/* B_pic_mode:3	*/
+	tcase_add_test (tc_chain, test_encode_avc0315);
 
+	/* byte-stream */
+	/* B_pic_mode:0	*/
+	tcase_add_test (tc_chain, test_encode_bs0000);
+	tcase_add_test (tc_chain, test_encode_bs0001);
+	tcase_add_test (tc_chain, test_encode_bs0002);
+	tcase_add_test (tc_chain, test_encode_bs0003);
+	tcase_add_test (tc_chain, test_encode_bs0015);
+	/* B_pic_mode:1	*/
+	tcase_add_test (tc_chain, test_encode_bs0102);
+	tcase_add_test (tc_chain, test_encode_bs0103);
+	tcase_add_test (tc_chain, test_encode_bs0115);
+	/* B_pic_mode:2	*/
+	tcase_add_test (tc_chain, test_encode_bs0203);
+	tcase_add_test (tc_chain, test_encode_bs0215);
+	/* B_pic_mode:3	*/
+	tcase_add_test (tc_chain, test_encode_bs0315);
+	
 	return s;
 }
 

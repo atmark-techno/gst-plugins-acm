@@ -38,7 +38,7 @@
 
 
 void
-get_data(char *file, size_t *size, void **p)
+get_data(char *file, size_t *size, void **p, int *fd)
 {
 	struct stat sb;
 	int pcm;
@@ -54,6 +54,7 @@ get_data(char *file, size_t *size, void **p)
 	ref = mmap(NULL, sb.st_size, PROT_READ, MAP_PRIVATE, pcm, 0);
 	fail_if(ref == MAP_FAILED, "mmap: %s", strerror(errno));
 	*p = ref;
+	*fd = pcm;
 }
 
 GstBuffer *

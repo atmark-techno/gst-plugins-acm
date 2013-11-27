@@ -26,7 +26,7 @@
 #include <gst/gst.h>
 
 /* get data from file		*/
-void get_data(char *file, size_t *size, void **p);
+void get_data(char *file, size_t *size, void **p, int *fd);
 
 /* create audio buffer for specified caps */
 GstBuffer *create_audio_buffer (GstCaps * caps);

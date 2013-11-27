@@ -103,6 +103,7 @@ enum {
 #define DBG_LOG_PERF_PUSH				0
 #define DBG_LOG_PERF_SELECT_OUT			0
 #define DBG_LOG_OUT_TIMESTAMP			0
+#define DBG_LOG_IN_FRAME_LIST			0
 
 /* select() による待ち時間の計測		*/
 #define DBG_MEASURE_PERF_SELECT_IN		0
@@ -158,6 +159,9 @@ struct _GstAcmH264EncPrivate
 
 	/* V4L2_PIX_FMT_H264 or V4L2_PIX_FMT_H264_NO_SC 	*/
 	gint output_format;
+
+	/* list of incoming GstVideoCodecFrame	*/
+	GList *in_frames;
 };
 
 GST_DEBUG_CATEGORY_STATIC (acmh264enc_debug);
@@ -304,6 +308,10 @@ static GstFlowReturn gst_acm_h264_enc_handle_out_frame_with_wait(GstAcmH264Enc *
 static GstFlowReturn gst_acm_h264_enc_handle_out_frame(GstAcmH264Enc * me,
 	GstBuffer *v4l2buf_out);
 static GstBuffer* gst_acm_h264_enc_make_codec_data (GstAcmH264Enc * me);
+static void gst_acm_h264_enc_push_frame (GstAcmH264Enc * me,
+	GstVideoCodecFrame * frame);
+static GstVideoCodecFrame *gst_acm_h264_enc_pop_frame (GstAcmH264Enc * me,
+	guint32 frame_number);
 
 #define gst_acm_h264_enc_parent_class parent_class
 G_DEFINE_TYPE (GstAcmH264Enc, gst_acm_h264_enc, GST_TYPE_VIDEO_ENCODER);
@@ -521,6 +529,7 @@ gst_acm_h264_enc_init (GstAcmH264Enc * me)
 	me->priv->is_handled_1stframe_out = FALSE;
 	me->priv->is_qbufed_null_when_non_bpic = FALSE;
 	me->priv->output_format = V4L2_PIX_FMT_H264_NO_SC;
+	me->priv->in_frames = NULL;
 
 	/* property	*/
 	me->videodev = NULL;
@@ -626,6 +635,7 @@ gst_acm_h264_enc_start (GstVideoEncoder * enc)
 	me->priv->is_handled_1stframe_out = FALSE;
 	me->priv->is_qbufed_null_when_non_bpic = FALSE;
 	me->priv->output_format = V4L2_PIX_FMT_H264_NO_SC;
+	me->priv->in_frames = NULL;
 
 	return TRUE;
 }
@@ -649,6 +659,19 @@ gst_acm_h264_enc_stop (GstVideoEncoder * enc)
 		me->priv->spspps_buf = NULL;
 		me->priv->spspps_size = 0;
 	}
+
+	/* cleanup frame list	*/
+	if (me->priv->in_frames) {
+		GST_INFO_OBJECT (me, "LIST length : %lu", g_list_length(me->priv->in_frames));
+		g_list_foreach (me->priv->in_frames, (GFunc) gst_video_codec_frame_unref, NULL);
+		g_list_free (me->priv->in_frames);
+		me->priv->in_frames = NULL;
+	}
+#if DBG_LOG_IN_FRAME_LIST
+	else {
+		GST_INFO_OBJECT (me, "LIST is NULL");
+	}
+#endif
 
 	return TRUE;
 }
@@ -1251,14 +1274,22 @@ gst_acm_h264_enc_handle_frame (GstVideoEncoder * enc,
 #if DBG_LOG_PERF_CHAIN
 	GST_INFO_OBJECT (me, "# H264ENC-CHAIN HANDLE FRMAE START");
 #endif
-	GST_DEBUG_OBJECT (me, "H264ENC HANDLE FRMAE - frame no:%d, timestamp:%"
-					  GST_TIME_FORMAT ", duration:%" GST_TIME_FORMAT
-					  ", size:%d, ref:%d",
-					  frame->system_frame_number,
-					  GST_TIME_ARGS (frame->pts), GST_TIME_ARGS (frame->duration),
-					  gst_buffer_get_size(frame->input_buffer),
-					  GST_OBJECT_REFCOUNT_VALUE(frame->input_buffer));
-
+#if 0	/* for debug	*/
+	GST_INFO_OBJECT (me, "H264ENC HANDLE FRMAE - frame no:%d, pts:%"
+					 GST_TIME_FORMAT ", duration:%" GST_TIME_FORMAT
+					 ", dts:%" GST_TIME_FORMAT
+					 ", size:%d, ref:%d",
+					 frame->system_frame_number,
+					 GST_TIME_ARGS (frame->pts), GST_TIME_ARGS (frame->duration),
+					 GST_TIME_ARGS (frame->dts), gst_buffer_get_size(frame->input_buffer),
+					 GST_OBJECT_REFCOUNT_VALUE(frame->input_buffer));
+	GST_INFO_OBJECT (me, "DTS:%" GST_TIME_FORMAT,
+					 GST_TIME_ARGS( GST_BUFFER_DTS (frame->input_buffer) ));
+	GST_INFO_OBJECT (me, "PTS:%" GST_TIME_FORMAT,
+					 GST_TIME_ARGS( GST_BUFFER_PTS (frame->input_buffer) ));
+	GST_INFO_OBJECT (me, "duration:%" GST_TIME_FORMAT,
+					 GST_TIME_ARGS( GST_BUFFER_DURATION (frame->input_buffer) ));
+#endif
 #if DBG_MEASURE_PERF_HANDLE_FRAME
 	interval_time_end = gettimeofday_sec();
 	if (interval_time_start > 0) {
@@ -1271,6 +1302,11 @@ gst_acm_h264_enc_handle_frame (GstVideoEncoder * enc,
 #if DBG_DUMP_IN_BUF		/* for debug	*/
 	dump_input_buf(frame->input_buffer);
 #endif
+
+	/* Bピクチャ含む場合の、PTS参照用に、リストに保持	*/
+	if (GST_ACMH264ENC_B_PIC_MODE_0_B_PIC != me->B_pic_mode) {
+		gst_acm_h264_enc_push_frame (me, frame);
+	}
 
 	/* 出力 : プレエンコード分入力した後は、エンコード済みデータができるのを待って取り出す	*/
 	if (me->priv->num_inbuf_queued >= me->priv->pre_encode_num) {
@@ -1350,7 +1386,7 @@ gst_acm_h264_enc_pre_push (GstVideoEncoder *enc, GstVideoCodecFrame *frame)
 	GstAcmH264Enc *me = GST_ACMH264ENC (enc);
 	GstBuffer *buffer = frame->output_buffer;
 	
-	GST_INFO_OBJECT (me, "size:%d", gst_buffer_get_size(buffer));
+//	GST_INFO_OBJECT (me, "size:%d", gst_buffer_get_size(buffer));
 	GST_INFO_OBJECT (me, "DTS:%" GST_TIME_FORMAT,
 					 GST_TIME_ARGS( GST_BUFFER_DTS (buffer) ));
 	GST_INFO_OBJECT (me, "PTS:%" GST_TIME_FORMAT,
@@ -2230,6 +2266,7 @@ gst_acm_h264_enc_handle_out_frame(GstAcmH264Enc * me,
 {
 	GstFlowReturn flowRet = GST_FLOW_OK;
 	GstMapInfo map;
+	gint pictureType = -1;
 	gsize encodedSize = 0;
 	gsize outputSize = 0;
 	GstVideoCodecFrame *frame = NULL;
@@ -2246,6 +2283,7 @@ gst_acm_h264_enc_handle_out_frame(GstAcmH264Enc * me,
 					 GST_OBJECT_REFCOUNT_VALUE(v4l2buf_out));
 	GST_DEBUG_OBJECT(me, "pool_out->num_queued : %d", me->pool_out->num_queued);
 
+	pictureType = get_encoded_picture_type(me, v4l2buf_out);
 	encodedSize = gst_buffer_get_size(v4l2buf_out);
 
 	/* dequeue frame	*/
@@ -2287,30 +2325,23 @@ gst_acm_h264_enc_handle_out_frame(GstAcmH264Enc * me,
 #endif
 
 	/* is key frame ? */
-	if (PICTURE_TYPE_I == get_encoded_picture_type(me, v4l2buf_out)) {
+	if (PICTURE_TYPE_I == pictureType) {
 		GST_VIDEO_CODEC_FRAME_SET_SYNC_POINT (frame);
 	}
 
 	/* PTS	*/
 	if (GST_ACMH264ENC_B_PIC_MODE_0_B_PIC != me->B_pic_mode) {
 		captCounter = get_capture_counter(me, v4l2buf_out);
-		pts_frame = gst_video_encoder_get_frame(GST_VIDEO_ENCODER (me), captCounter);
+		pts_frame = gst_acm_h264_enc_pop_frame(me, captCounter);
 		if (NULL == pts_frame) {
-			GST_WARNING_OBJECT (me, "failed get frame by capture counter (0x%x)",
-								captCounter);
-			// SH からのキャプチャ順カウンタは、0x7FFFFFFE で折り返す
-			captCounter += 0x7FFFFFFF;
-			pts_frame = gst_video_encoder_get_frame(GST_VIDEO_ENCODER (me), captCounter);
-			if (NULL == pts_frame) {
-				GST_ERROR_OBJECT (me, "failed get frame by capture counter (0x%x)",
-								  captCounter);
+			GST_ERROR_OBJECT (me, "failed get frame by capture counter %lu (0x%x)",
+							  captCounter, captCounter);
 
-				goto no_frame_by_capture_counter;
-			}
+			goto no_frame_by_capture_counter;
 		}
 #if 0	/* for debug	*/
-		GST_INFO_OBJECT (me, "Got frame by capt counter (0x%x)",
-						 captCounter);
+		GST_INFO_OBJECT (me, "Got frame by capt counter %lu (0x%x)",
+						 captCounter, captCounter);
 		GST_INFO_OBJECT (me, "oldest DTS:%" GST_TIME_FORMAT,
 						 GST_TIME_ARGS( frame->dts ));
 		GST_INFO_OBJECT (me, "oldest DTS:%" GST_TIME_FORMAT,
@@ -2322,14 +2353,11 @@ gst_acm_h264_enc_handle_out_frame(GstAcmH264Enc * me,
 		GST_INFO_OBJECT (me, "capt   PTS:%" GST_TIME_FORMAT,
 						 GST_TIME_ARGS( pts_frame->pts ));
 #endif
-		if (GST_CLOCK_TIME_NONE == pts_frame->dts) {
-			pts_frame->dts = GST_BUFFER_DTS (frame->input_buffer);
-		}
-		else {
-			pts_frame->dts = frame->dts;
-		}
+		/* gst_video_encoder_finish_frame() での実装により、DTS を明示的にセットする必要有り */
+		frame->dts = frame->abidata.ABI.ts;
+		frame->pts = pts_frame->pts;
+		g_assert(1 == pts_frame->ref_count);
 		gst_video_codec_frame_unref(pts_frame);
-		frame = pts_frame;
 		pts_frame = NULL;
 	}
 
@@ -2517,6 +2545,82 @@ finish_frame_failed:
 //		flowRet = GST_FLOW_ERROR;
 		goto out;
 	}
+}
+
+static void
+gst_acm_h264_enc_push_frame (GstAcmH264Enc * me, GstVideoCodecFrame * frame)
+{
+	GstVideoCodecFrame *cp_frame;
+
+	/* frame のコピーを作成	*/
+	cp_frame = g_slice_new0 (GstVideoCodecFrame);
+	g_assert(NULL != cp_frame);
+	cp_frame->ref_count = 1;
+	cp_frame->system_frame_number = frame->system_frame_number;
+	cp_frame->presentation_frame_number = frame->presentation_frame_number;
+	cp_frame->pts = frame->pts;
+	cp_frame->dts = frame->dts;
+	cp_frame->duration = frame->duration;
+	cp_frame->abidata.ABI.ts = frame->abidata.ABI.ts;
+
+	/* リストに追加		*/
+	me->priv->in_frames = g_list_append (me->priv->in_frames, cp_frame);
+#if DBG_LOG_IN_FRAME_LIST
+	GST_INFO_OBJECT(me, "LIST APPEND frame : %lu", cp_frame->system_frame_number);
+#endif
+}
+
+static GstVideoCodecFrame *
+gst_acm_h264_enc_pop_frame (GstAcmH264Enc * me, guint32 frame_number)
+{
+	GstVideoCodecFrame *frame = NULL;
+	GList *link;
+	GList *g;
+	GstVideoCodecFrame *tmp = NULL;
+	
+	GST_DEBUG_OBJECT (me, "frame_number : %lu", frame_number);
+	
+	/* 該当フレームを検索	*/
+	for (g = me->priv->in_frames; g; g = g->next) {
+		tmp = g->data;
+		
+		if (tmp->system_frame_number == frame_number) {
+			frame = tmp;
+			break;
+		}
+	}
+	
+	/* 見つからなければ、キャプチャ順カウンタの折り返しを考慮して検索	*/
+	if (NULL == frame) {
+		GST_WARNING_OBJECT (me, "failed get frame by capture counter %lu (0x%x)",
+							frame_number, frame_number);
+		// SH からのキャプチャ順カウンタは、0x7FFFFFFE で折り返す
+		frame_number += 0x7FFFFFFF;
+		GST_WARNING_OBJECT (me, "try get frame by capture counter %lu (0x%x)",
+							frame_number, frame_number);
+		
+		for (g = me->priv->in_frames; g; g = g->next) {
+			tmp = g->data;
+			
+			if (tmp->system_frame_number == frame_number) {
+				frame = tmp;
+				break;
+			}
+		}
+	}
+	
+	/* 見つかったらリストから取り出し		*/
+	if (frame) {
+		link = g_list_find (me->priv->in_frames, frame);
+		if (link) {
+#if DBG_LOG_IN_FRAME_LIST
+			GST_INFO_OBJECT(me, "LIST POP frame : %lu", frame->system_frame_number);
+#endif
+			me->priv->in_frames = g_list_delete_link (me->priv->in_frames, link);
+		}
+	}
+	
+	return frame;
 }
 
 static gboolean
