@@ -27,7 +27,7 @@
 #include <gst/gstatomicqueue.h>
 #include <gst/video/video.h>
 #include <gst/video/gstvideodecoder.h>
-#include "gstv4l2bufferpool.h"
+#include "gstacmv4l2bufferpool.h"
 
 G_BEGIN_DECLS
 
@@ -104,7 +104,7 @@ typedef struct _GstAcmH264Dec {
 	/* 初回データ処理済みフラグ	*/
 	gboolean is_handled_1stframe;
 	/* buffer pool */
-	GstV4l2BufferPool* pool_out;
+	GstAcmV4l2BufferPool* pool_out;
 	/* QBUF(V4L2_BUF_TYPE_VIDEO_OUTPUT) 用カウンタ	*/
 	gint num_inbuf_acquired;
 	/* 初回デコード済みデータ取得済みフラグ	*/

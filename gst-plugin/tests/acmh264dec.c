@@ -34,9 +34,6 @@
 #include <gst/audio/audio.h>
 
 
-/* v4l2 mem2mem デバイスファイル	*/
-#define M2M_DEVICE	"/dev/video2"
-
 /* 入力データの種類	*/
 enum {
 	AVC_AU,
@@ -104,9 +101,6 @@ setup_acmh264dec ()
 	
 	g_print ("setup_acmh264dec\n");
 	acmh264dec = gst_check_setup_element ("acmh264dec");
-	g_object_set (acmh264dec,
-				  "device", M2M_DEVICE,
-				  NULL);
 	g_print ("pass : gst_check_setup_element()\n");
 	mysrcpad = gst_check_setup_src_pad (acmh264dec, &srctemplate);
 	g_print ("pass : gst_check_setup_src_pad()\n");
@@ -136,9 +130,6 @@ GST_START_TEST (test_properties)
 {
 	GstElement *acmh264dec;
 	gchar *device;
-	gint	width;
-	gint 	height;
-	gchar 	*format;
 	gint 	buf_pic_cnt;
 	gboolean enable_vio6;
 	gint 	stride;
@@ -149,10 +140,7 @@ GST_START_TEST (test_properties)
 	
 	g_object_set (acmh264dec,
 				  "device", 		"/dev/video1",
-				  "width", 			1024,
-				  "height", 		768,
-				  "buf-pic-cnt", 	5, 
-				  "format", 		"RGB",
+				  "buf-pic-cnt", 	5,
 				  "enable-vio6", 	TRUE,
 				  "stride",			2048,
 				  "x-offset",		20,
@@ -160,36 +148,25 @@ GST_START_TEST (test_properties)
 				  NULL);
 	g_object_get (acmh264dec,
 				  "device", 		&device,
-				  "width", 			&width,
-				  "height", 		&height,
 				  "buf-pic-cnt", 	&buf_pic_cnt,
-				  "format", 		&format,
 				  "enable-vio6", 	&enable_vio6,
 				  "stride",			&stride,
 				  "x-offset",		&x_offset,
 				  "y-offset",		&y_offset,
 				  NULL);
 	fail_unless (g_str_equal (device, "/dev/video1"));
-	fail_unless_equals_int (width, 1024);
-	fail_unless_equals_int (height, 768);
 	fail_unless_equals_int (buf_pic_cnt, 5);
-	fail_unless (g_str_equal (format, "RGB"));
 	fail_unless (enable_vio6 == TRUE);
 	fail_unless_equals_int (stride, 2048);
 	fail_unless_equals_int (x_offset, 20);
 	fail_unless_equals_int (y_offset, 30);
 	g_free (device);
 	device = NULL;
-	g_free (format);
-	format = NULL;
 
 	/* new properties */
 	g_object_set (acmh264dec,
 				  "device", 		"/dev/video2",
-				  "width", 			1920,
-				  "height", 		1080,
 				  "buf-pic-cnt", 	8,
-				  "format", 		"RGBx",
 				  "enable-vio6", 	FALSE,
 				  "stride",			240,
 				  "x-offset",		100,
@@ -197,28 +174,20 @@ GST_START_TEST (test_properties)
 				  NULL);
 	g_object_get (acmh264dec,
 				  "device", 		&device,
-				  "width", 			&width,
-				  "height", 		&height,
 				  "buf-pic-cnt", 	&buf_pic_cnt,
-				  "format", 		&format,
 				  "enable-vio6", 	&enable_vio6,
 				  "stride",			&stride,
 				  "x-offset",		&x_offset,
 				  "y-offset",		&y_offset,
 				  NULL);
 	fail_unless (g_str_equal (device, "/dev/video2"));
-	fail_unless_equals_int (width, 1920);
-	fail_unless_equals_int (height, 1080);
 	fail_unless_equals_int (buf_pic_cnt, 8);
-	fail_unless (g_str_equal (format, "RGBx"));
 	fail_unless (enable_vio6 == FALSE);
 	fail_unless_equals_int (stride, 240);
 	fail_unless_equals_int (x_offset, 100);
 	fail_unless_equals_int (y_offset, 200);
 	g_free (device);
 	device = NULL;
-	g_free (format);
-	format = NULL;
 
 	cleanup_acmh264dec (acmh264dec);
 }

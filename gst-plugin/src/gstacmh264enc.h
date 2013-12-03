@@ -24,7 +24,7 @@
 #include <gst/gst.h>
 #include <gst/video/video.h>
 #include <gst/video/gstvideoencoder.h>
-#include "gstv4l2bufferpool.h"
+#include "gstacmv4l2bufferpool.h"
 
 G_BEGIN_DECLS
 
@@ -120,8 +120,8 @@ typedef struct _GstAcmH264Enc {
 	char *videodev;					/* property */
 	gint video_fd;
 	/* buffer pool */
-	GstV4l2BufferPool* pool_in;
-	GstV4l2BufferPool* pool_out;
+	GstAcmV4l2BufferPool* pool_in;
+	GstAcmV4l2BufferPool* pool_out;
 
 	/* ACM h264enc */
 #if 0	/* USE_STRIDE_PROP	*/

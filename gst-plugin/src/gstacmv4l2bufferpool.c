@@ -5,7 +5,7 @@
  *               2009 Texas Instruments, Inc - http://www.ti.com/
  *               2013 Atmark Techno, Inc.
  *
- * gstv4l2bufferpool.c V4L2 buffer pool class
+ * gstacmv4l2bufferpool.c V4L2 buffer pool class
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Library General Public
@@ -35,8 +35,8 @@
 #include "gst/video/gstvideometa.h"
 #include "gst/video/gstvideopool.h"
 
-#include "gstv4l2bufferpool.h"
-#include "v4l2_util.h"
+#include "gstacmv4l2bufferpool.h"
+#include "gstacmv4l2_util.h"
 #include "gstacmdmabufmeta.h"
 
 /* videodev2.h is not versioned and we can't easily check for the presence
@@ -59,35 +59,35 @@
 #define TYPE_STR(type)	\
 	(V4L2_BUF_TYPE_VIDEO_CAPTURE == type ? "CAP" : "OUT")
 
-//GST_DEBUG_CATEGORY_EXTERN (v4l2_debug);
-GST_DEBUG_CATEGORY (v4l2_debug);
-#define GST_CAT_DEFAULT v4l2_debug
+//GST_DEBUG_CATEGORY_EXTERN (acm_v4l2_debug);
+GST_DEBUG_CATEGORY (acm_v4l2_debug);
+#define GST_CAT_DEFAULT acm_v4l2_debug
 
 /*
- * GstV4l2Buffer:
+ * GstAcmV4l2Buffer:
  */
 GType
-gst_v4l2_meta_api_get_type (void)
+gst_acm_v4l2_meta_api_get_type (void)
 {
 	static volatile GType type;
 	static const gchar *tags[] = { "memory", NULL };
 	
 	if (g_once_init_enter (&type)) {
-		GType _type = gst_meta_api_type_register ("GstV4l2MetaAPI", tags);
+		GType _type = gst_meta_api_type_register ("GstAcmV4l2MetaAPI", tags);
 		g_once_init_leave (&type, _type);
 	}
 	return type;
 }
 
 const GstMetaInfo *
-gst_v4l2_meta_get_info (void)
+gst_acm_v4l2_meta_get_info (void)
 {
 	static const GstMetaInfo *meta_info = NULL;
 	
 	if (g_once_init_enter (&meta_info)) {
 		const GstMetaInfo *meta =
-        gst_meta_register (gst_v4l2_meta_api_get_type (), "GstV4l2Meta",
-			sizeof (GstV4l2Meta), (GstMetaInitFunction) NULL,
+        gst_meta_register (gst_acm_v4l2_meta_api_get_type (), "GstAcmV4l2Meta",
+			sizeof (GstAcmV4l2Meta), (GstMetaInitFunction) NULL,
 			(GstMetaFreeFunction) NULL, (GstMetaTransformFunction) NULL);
 		g_once_init_leave (&meta_info, meta);
 	}
@@ -95,31 +95,31 @@ gst_v4l2_meta_get_info (void)
 }
 
 /*
- * GstV4l2BufferPool:
+ * GstAcmV4l2BufferPool:
  */
-#define gst_v4l2_buffer_pool_parent_class parent_class
-G_DEFINE_TYPE (GstV4l2BufferPool, gst_v4l2_buffer_pool, GST_TYPE_BUFFER_POOL);
+#define gst_acm_v4l2_buffer_pool_parent_class parent_class
+G_DEFINE_TYPE (GstAcmV4l2BufferPool, gst_acm_v4l2_buffer_pool, GST_TYPE_BUFFER_POOL);
 
-static void gst_v4l2_buffer_pool_release_buffer (GstBufferPool * bpool,
+static void gst_acm_v4l2_buffer_pool_release_buffer (GstBufferPool * bpool,
     GstBuffer * buffer);
 
 static void
-gst_v4l2_buffer_pool_free_buffer (GstBufferPool * bpool, GstBuffer * buffer)
+gst_acm_v4l2_buffer_pool_free_buffer (GstBufferPool * bpool, GstBuffer * buffer)
 {
-	GstV4l2BufferPool *pool = GST_V4L2_BUFFER_POOL (bpool);
+	GstAcmV4l2BufferPool *pool = GST_ACM_V4L2_BUFFER_POOL (bpool);
 
 	GST_INFO_OBJECT (pool, "%s: - FREE BUFFER. (%p)",
 					 TYPE_STR(pool->init_param.type), buffer);
 
 	switch (pool->init_param.mode) {
-	case GST_V4L2_IO_RW:
+	case GST_ACM_V4L2_IO_RW:
 		break;
-	case GST_V4L2_IO_MMAP:
+	case GST_ACM_V4L2_IO_MMAP:
 	{
-		GstV4l2Meta *meta;
+		GstAcmV4l2Meta *meta;
 		gint index;
 
-		meta = GST_V4L2_META_GET (buffer);
+		meta = GST_ACM_V4L2_META_GET (buffer);
 		if (NULL == meta) {
 			GST_ERROR_OBJECT (pool, "%s: - meta is NULL",
 							  TYPE_STR(pool->init_param.type));
@@ -131,16 +131,16 @@ gst_v4l2_buffer_pool_free_buffer (GstBufferPool * bpool, GstBuffer * buffer)
 			"%s: - unmap buffer %p idx %d (data %p, len %u)",
 			TYPE_STR(pool->init_param.type), buffer,index, meta->mem, meta->vbuffer.length);
 
-		v4l2_munmap (meta->mem, meta->vbuffer.length);
+		gst_acm_v4l2_munmap (meta->mem, meta->vbuffer.length);
 		pool->buffers[index] = NULL;
 		break;
 	}
-	case GST_V4L2_IO_DMABUF:
+	case GST_ACM_V4L2_IO_DMABUF:
 	{
-		GstV4l2Meta *meta;
+		GstAcmV4l2Meta *meta;
 		gint index;
 
-		meta = GST_V4L2_META_GET (buffer);
+		meta = GST_ACM_V4L2_META_GET (buffer);
 		if (NULL == meta) {
 			GST_ERROR_OBJECT (pool, "%s: - meta is NULL",
 							  TYPE_STR(pool->init_param.type));
@@ -163,25 +163,25 @@ gst_v4l2_buffer_pool_free_buffer (GstBufferPool * bpool, GstBuffer * buffer)
 }
 
 static GstFlowReturn
-gst_v4l2_buffer_pool_alloc_buffer (GstBufferPool * bpool, GstBuffer ** buffer,
+gst_acm_v4l2_buffer_pool_alloc_buffer (GstBufferPool * bpool, GstBuffer ** buffer,
     GstBufferPoolAcquireParams * params)
 {
-	GstV4l2BufferPool *pool = GST_V4L2_BUFFER_POOL (bpool);
+	GstAcmV4l2BufferPool *pool = GST_ACM_V4L2_BUFFER_POOL (bpool);
 	GstBuffer *newbuf;
-	GstV4l2Meta *meta;
+	GstAcmV4l2Meta *meta;
 	guint index;
 
 	switch (pool->init_param.mode) {
-	case GST_V4L2_IO_RW:
+	case GST_ACM_V4L2_IO_RW:
 	{
 		newbuf = gst_buffer_new_allocate (
 					pool->allocator, pool->size, &pool->params);
 		break;
 	}
-	case GST_V4L2_IO_MMAP:
+	case GST_ACM_V4L2_IO_MMAP:
 	{
 		newbuf = gst_buffer_new ();
-		meta = GST_V4L2_META_ADD (newbuf);
+		meta = GST_ACM_V4L2_META_ADD (newbuf);
 		
 		index = pool->num_allocated;
 		
@@ -193,7 +193,7 @@ gst_v4l2_buffer_pool_alloc_buffer (GstBufferPool * bpool, GstBuffer ** buffer,
 		meta->vbuffer.memory = V4L2_MEMORY_MMAP;
 		
 		GST_INFO_OBJECT (pool, "%s: - VIDIOC_QUERYBUF", TYPE_STR(pool->init_param.type));
-		if (v4l2_ioctl (pool->init_param.video_fd,
+		if (gst_acm_v4l2_ioctl (pool->init_param.video_fd,
 						VIDIOC_QUERYBUF, &meta->vbuffer) < 0) {
 			goto querybuf_failed;
 		}
@@ -210,7 +210,7 @@ gst_v4l2_buffer_pool_alloc_buffer (GstBufferPool * bpool, GstBuffer ** buffer,
 		GST_INFO_OBJECT (pool, "  length:    %u", meta->vbuffer.length);
 #endif
 
-		meta->mem = v4l2_mmap (0, meta->vbuffer.length,
+		meta->mem = gst_acm_v4l2_mmap (0, meta->vbuffer.length,
 						PROT_READ | PROT_WRITE, MAP_SHARED, pool->init_param.video_fd,
 						meta->vbuffer.m.offset);
 		if (meta->mem == MAP_FAILED) {
@@ -224,10 +224,10 @@ gst_v4l2_buffer_pool_alloc_buffer (GstBufferPool * bpool, GstBuffer ** buffer,
 		
 		break;
 	}
-	case GST_V4L2_IO_DMABUF:
+	case GST_ACM_V4L2_IO_DMABUF:
 	{
 		newbuf = gst_buffer_new ();
-		meta = GST_V4L2_META_ADD (newbuf);
+		meta = GST_ACM_V4L2_META_ADD (newbuf);
 		
 		index = pool->num_allocated;
 		
@@ -238,7 +238,7 @@ gst_v4l2_buffer_pool_alloc_buffer (GstBufferPool * bpool, GstBuffer ** buffer,
 		meta->vbuffer.type = pool->init_param.type;
 		meta->vbuffer.memory = V4L2_MEMORY_DMABUF;
 		GST_INFO_OBJECT (pool, "%s - VIDIOC_QUERYBUF", TYPE_STR(pool->init_param.type));
-		if (v4l2_ioctl (pool->init_param.video_fd,
+		if (gst_acm_v4l2_ioctl (pool->init_param.video_fd,
 						VIDIOC_QUERYBUF, &meta->vbuffer) < 0) {
 			goto querybuf_failed;
 		}
@@ -311,9 +311,9 @@ add_dmabuf_meta_failed:
 }
 
 static gboolean
-gst_v4l2_buffer_pool_set_config (GstBufferPool * bpool, GstStructure * config)
+gst_acm_v4l2_buffer_pool_set_config (GstBufferPool * bpool, GstStructure * config)
 {
-	GstV4l2BufferPool *pool = GST_V4L2_BUFFER_POOL (bpool);
+	GstAcmV4l2BufferPool *pool = GST_ACM_V4L2_BUFFER_POOL (bpool);
 	GstCaps *caps;
 	guint size, min_buffers, max_buffers, num_buffers, copy_threshold;
 	GstAllocator *allocator;
@@ -336,13 +336,13 @@ gst_v4l2_buffer_pool_set_config (GstBufferPool * bpool, GstStructure * config)
 					 TYPE_STR(pool->init_param.type), config);
 
 	switch (pool->init_param.mode) {
-	case GST_V4L2_IO_RW:
+	case GST_ACM_V4L2_IO_RW:
 		/* we preallocate 1 buffer, this value also instructs the latency
 		 * calculation to have 1 frame latency max */
 		num_buffers = 1;
 		copy_threshold = 0;
 		break;
-	case GST_V4L2_IO_MMAP:
+	case GST_ACM_V4L2_IO_MMAP:
 	{
 		/* request a reasonable number of buffers when no max specified. We will
 		 * copy when we run out of buffers */
@@ -362,14 +362,14 @@ gst_v4l2_buffer_pool_set_config (GstBufferPool * bpool, GstStructure * config)
 		
 		GST_INFO_OBJECT (pool, "%s: - VIDIOC_REQBUFS. count:%u",
 			TYPE_STR(pool->init_param.type), num_buffers);
-		if (v4l2_ioctl (pool->init_param.video_fd, VIDIOC_REQBUFS, &breq) < 0)
+		if (gst_acm_v4l2_ioctl (pool->init_param.video_fd, VIDIOC_REQBUFS, &breq) < 0)
 			goto reqbufs_failed;
 		
 		GST_DEBUG_OBJECT (pool, " count:  %u", breq.count);
 		GST_DEBUG_OBJECT (pool, " type:   %d", breq.type);
 		GST_DEBUG_OBJECT (pool, " memory: %d", breq.memory);
 		
-		if (breq.count < GST_V4L2_MIN_BUFFERS)
+		if (breq.count < GST_ACM_V4L2_MIN_BUFFERS)
 			goto no_buffers;
 		
 		if (num_buffers != breq.count) {
@@ -394,7 +394,7 @@ gst_v4l2_buffer_pool_set_config (GstBufferPool * bpool, GstStructure * config)
 		}
 		break;
 	}
-	case GST_V4L2_IO_DMABUF:
+	case GST_ACM_V4L2_IO_DMABUF:
 	{
 		/* request a reasonable number of buffers when no max specified. We will
 		 * copy when we run out of buffers */
@@ -414,7 +414,7 @@ gst_v4l2_buffer_pool_set_config (GstBufferPool * bpool, GstStructure * config)
 		
 		GST_INFO_OBJECT (pool, "%s: - VIDIOC_REQBUFS. count:%u",
 			TYPE_STR(pool->init_param.type), num_buffers);
-		if (v4l2_ioctl (pool->init_param.video_fd, VIDIOC_REQBUFS, &breq) < 0) {
+		if (gst_acm_v4l2_ioctl (pool->init_param.video_fd, VIDIOC_REQBUFS, &breq) < 0) {
 			goto reqbufs_failed;
 		}
 		
@@ -422,7 +422,7 @@ gst_v4l2_buffer_pool_set_config (GstBufferPool * bpool, GstStructure * config)
 		GST_DEBUG_OBJECT (pool, " type:   %d", breq.type);
 		GST_DEBUG_OBJECT (pool, " memory: %d", breq.memory);
 		
-		if (breq.count < GST_V4L2_MIN_BUFFERS) {
+		if (breq.count < GST_ACM_V4L2_MIN_BUFFERS) {
 			goto no_buffers;
 		}
 		
@@ -488,17 +488,17 @@ no_buffers:
 	{
 		GST_ERROR_OBJECT (pool,
 			"%s: - we received %d from device, we want at least %d",
-			TYPE_STR(pool->init_param.type), breq.count, GST_V4L2_MIN_BUFFERS);
+			TYPE_STR(pool->init_param.type), breq.count, GST_ACM_V4L2_MIN_BUFFERS);
 		return FALSE;
 	}
 }
 
 static gboolean
-gst_v4l2_buffer_pool_start (GstBufferPool * bpool)
+gst_acm_v4l2_buffer_pool_start (GstBufferPool * bpool)
 {
-	GstV4l2BufferPool *pool = GST_V4L2_BUFFER_POOL (bpool);
+	GstAcmV4l2BufferPool *pool = GST_ACM_V4L2_BUFFER_POOL (bpool);
 	
-	GST_DEBUG_OBJECT (bpool, "%s: - gst_v4l2_buffer_pool_start()",
+	GST_DEBUG_OBJECT (bpool, "%s: - gst_acm_v4l2_buffer_pool_start()",
 					  TYPE_STR(pool->init_param.type));
 	
 	pool->buffers = g_new0 (GstBuffer *, pool->num_buffers);
@@ -523,10 +523,10 @@ start_failed:
 }
 
 static gboolean
-gst_v4l2_buffer_pool_stop (GstBufferPool * bpool)
+gst_acm_v4l2_buffer_pool_stop (GstBufferPool * bpool)
 {
 	gboolean ret;
-	GstV4l2BufferPool *pool = GST_V4L2_BUFFER_POOL (bpool);
+	GstAcmV4l2BufferPool *pool = GST_ACM_V4L2_BUFFER_POOL (bpool);
 	guint n;
 	
 	GST_DEBUG_OBJECT (pool, "%s: - stopping pool", TYPE_STR(pool->init_param.type));
@@ -539,7 +539,7 @@ gst_v4l2_buffer_pool_stop (GstBufferPool * bpool)
 	/* then free the remaining buffers */
 	for (n = 0; n < pool->num_buffers; n++) {
 		if (pool->buffers[n]) {
-			gst_v4l2_buffer_pool_free_buffer (bpool, pool->buffers[n]);
+			gst_acm_v4l2_buffer_pool_free_buffer (bpool, pool->buffers[n]);
 		}
 	}
 	pool->num_queued = 0;
@@ -550,14 +550,14 @@ gst_v4l2_buffer_pool_stop (GstBufferPool * bpool)
 }
 
 GstFlowReturn
-gst_v4l2_buffer_pool_qbuf (GstV4l2BufferPool * pool, GstBuffer * buf, gsize size)
+gst_acm_v4l2_buffer_pool_qbuf (GstAcmV4l2BufferPool * pool, GstBuffer * buf, gsize size)
 {
-	GstV4l2Meta *meta;
+	GstAcmV4l2Meta *meta;
 
 	GST_DEBUG_OBJECT (pool, "%s: - enqueue buffer %p",
 					  TYPE_STR(pool->init_param.type), buf);
 
-	meta = GST_V4L2_META_GET (buf);
+	meta = GST_ACM_V4L2_META_GET (buf);
 	if (NULL == meta) {
 		GST_ERROR_OBJECT (pool, "%s: - meta is NULL", TYPE_STR(pool->init_param.type));
 
@@ -579,7 +579,7 @@ gst_v4l2_buffer_pool_qbuf (GstV4l2BufferPool * pool, GstBuffer * buf, gsize size
 
 	GST_DEBUG_OBJECT (pool, "%s: - VIDIOC_QBUF - size:%d",
 					  TYPE_STR(pool->init_param.type), meta->vbuffer.bytesused);
-	if (v4l2_ioctl (pool->init_param.video_fd, VIDIOC_QBUF, &(meta->vbuffer)) < 0) {
+	if (gst_acm_v4l2_ioctl (pool->init_param.video_fd, VIDIOC_QBUF, &(meta->vbuffer)) < 0) {
 #if USE_GST_FLOW_DQBUF_EAGAIN
 		if (EAGAIN == errno) {
 #if 0
@@ -635,26 +635,26 @@ queue_failed:
 
 /* select() の代わりに、VIDIOC_DQBUF 可能かどうかをチェックする	*/
 gboolean
-gst_v4l2_buffer_pool_is_ready_to_dqbuf(GstV4l2BufferPool * pool)
+gst_acm_v4l2_buffer_pool_is_ready_to_dqbuf(GstAcmV4l2BufferPool * pool)
 {
 	struct v4l2_buffer vbuffer;
 	memset(&vbuffer, 0, sizeof(struct v4l2_buffer));
 	vbuffer.index	= pool->next_qbuf_index;
 	vbuffer.type	= pool->init_param.type;
 	switch (pool->init_param.mode) {
-	case GST_V4L2_IO_RW:
+	case GST_ACM_V4L2_IO_RW:
 		break;
-	case GST_V4L2_IO_MMAP:
+	case GST_ACM_V4L2_IO_MMAP:
 		vbuffer.memory = V4L2_MEMORY_MMAP;
 		break;
-	case GST_V4L2_IO_DMABUF:
+	case GST_ACM_V4L2_IO_DMABUF:
 		vbuffer.memory = V4L2_MEMORY_DMABUF;
 		break;
 	default:
 		g_assert_not_reached ();
 		break;
 	}
-	if (v4l2_ioctl (pool->init_param.video_fd,
+	if (gst_acm_v4l2_ioctl (pool->init_param.video_fd,
 					VIDIOC_QUERYBUF, &vbuffer) < 0) {
 		goto querybuf_failed;
 	}
@@ -698,13 +698,13 @@ querybuf_failed:
 }
 
 GstFlowReturn
-gst_v4l2_buffer_pool_dqbuf (GstV4l2BufferPool * pool, GstBuffer ** buffer)
+gst_acm_v4l2_buffer_pool_dqbuf (GstAcmV4l2BufferPool * pool, GstBuffer ** buffer)
 {
-	return gst_v4l2_buffer_pool_dqbuf_ex(pool, buffer, NULL);
+	return gst_acm_v4l2_buffer_pool_dqbuf_ex(pool, buffer, NULL);
 }
 
 GstFlowReturn
-gst_v4l2_buffer_pool_dqbuf_ex (GstV4l2BufferPool * pool, GstBuffer ** buffer,
+gst_acm_v4l2_buffer_pool_dqbuf_ex (GstAcmV4l2BufferPool * pool, GstBuffer ** buffer,
 							   guint32* bytesused)
 {
 //	GstFlowReturn res;
@@ -715,12 +715,12 @@ gst_v4l2_buffer_pool_dqbuf_ex (GstV4l2BufferPool * pool, GstBuffer ** buffer,
 	memset (&vbuffer, 0x00, sizeof (vbuffer));
 	vbuffer.type = pool->init_param.type;
     switch (pool->init_param.mode) {
-	case GST_V4L2_IO_RW:
+	case GST_ACM_V4L2_IO_RW:
 		break;
-	case GST_V4L2_IO_MMAP:
+	case GST_ACM_V4L2_IO_MMAP:
 		vbuffer.memory = V4L2_MEMORY_MMAP;
 		break;
-	case GST_V4L2_IO_DMABUF:
+	case GST_ACM_V4L2_IO_DMABUF:
 		vbuffer.memory = V4L2_MEMORY_DMABUF;
 		break;
 	default:
@@ -729,7 +729,7 @@ gst_v4l2_buffer_pool_dqbuf_ex (GstV4l2BufferPool * pool, GstBuffer ** buffer,
     }
 	
 	GST_DEBUG_OBJECT (pool, "%s: - VIDIOC_DQBUF", TYPE_STR(pool->init_param.type));
-	if (v4l2_ioctl (pool->init_param.video_fd, VIDIOC_DQBUF, &vbuffer) < 0) {
+	if (gst_acm_v4l2_ioctl (pool->init_param.video_fd, VIDIOC_DQBUF, &vbuffer) < 0) {
 #if USE_GST_FLOW_DQBUF_EAGAIN
 		if (EAGAIN == errno) {
 #if 0
@@ -763,9 +763,9 @@ gst_v4l2_buffer_pool_dqbuf_ex (GstV4l2BufferPool * pool, GstBuffer ** buffer,
 
 	/* copy meta info 	*/
 	if (V4L2_BUF_TYPE_VIDEO_CAPTURE == pool->init_param.type) {
-		GstV4l2Meta *meta;
+		GstAcmV4l2Meta *meta;
 		
-		meta = GST_V4L2_META_GET (outbuf);
+		meta = GST_ACM_V4L2_META_GET (outbuf);
 		g_assert (NULL != meta);
 		memcpy(&(meta->vbuffer), &vbuffer, sizeof(struct v4l2_buffer));
 	}
@@ -802,7 +802,7 @@ gst_v4l2_buffer_pool_dqbuf_ex (GstV4l2BufferPool * pool, GstBuffer ** buffer,
 #endif
 	/* this can change at every frame, esp. with jpeg */
 	if (pool->init_param.type == V4L2_BUF_TYPE_VIDEO_CAPTURE) {
-		if (GST_V4L2_IO_DMABUF == pool->init_param.mode) {
+		if (GST_ACM_V4L2_IO_DMABUF == pool->init_param.mode) {
 			/* バッファ自体は使わないので、何もしない	*/
 		}
 		else {
@@ -835,7 +835,7 @@ gst_v4l2_buffer_pool_dqbuf_ex (GstV4l2BufferPool * pool, GstBuffer ** buffer,
 #endif
 	}
 	else {
-		if (GST_V4L2_IO_DMABUF == pool->init_param.mode) {
+		if (GST_ACM_V4L2_IO_DMABUF == pool->init_param.mode) {
 			/* バッファ自体は使わないので、何もしない	*/
 		}
 		else {
@@ -848,10 +848,10 @@ gst_v4l2_buffer_pool_dqbuf_ex (GstV4l2BufferPool * pool, GstBuffer ** buffer,
 	
 #if 0	/* for debug	*/
 	if (V4L2_BUF_TYPE_VIDEO_CAPTURE == pool->init_param.type) {
-		GstV4l2Meta *meta;
+		GstAcmV4l2Meta *meta;
 		GstAcmDmabufMeta *dmabufmeta = NULL;
 
-		meta = GST_V4L2_META_GET (outbuf);
+		meta = GST_ACM_V4L2_META_GET (outbuf);
 		if (NULL == meta) {
 			GST_ERROR_OBJECT (pool, "%s: - meta is NULL!",
 							 TYPE_STR(pool->init_param.type));
@@ -948,11 +948,11 @@ no_buffer:
 }
 
 GstFlowReturn
-gst_v4l2_buffer_pool_acquire_buffer (GstBufferPool * bpool, GstBuffer ** buffer,
+gst_acm_v4l2_buffer_pool_acquire_buffer (GstBufferPool * bpool, GstBuffer ** buffer,
     GstBufferPoolAcquireParams * params)
 {
 	GstFlowReturn ret;
-	GstV4l2BufferPool *pool = GST_V4L2_BUFFER_POOL (bpool);
+	GstAcmV4l2BufferPool *pool = GST_ACM_V4L2_BUFFER_POOL (bpool);
 	
 	GST_DEBUG_OBJECT (pool, "%s: - ACQUIRE", TYPE_STR(pool->init_param.type));
 
@@ -973,18 +973,18 @@ gst_v4l2_buffer_pool_acquire_buffer (GstBufferPool * bpool, GstBuffer ** buffer,
 	case V4L2_BUF_TYPE_VIDEO_CAPTURE:
 		/* capture, This function should return a buffer with new captured data */
 		switch (pool->init_param.mode) {
-		case GST_V4L2_IO_RW:
+		case GST_ACM_V4L2_IO_RW:
 			/* take empty buffer from the pool */
 			ret = GST_BUFFER_POOL_CLASS (parent_class)->acquire_buffer (
 					bpool, buffer, params);
 			break;
 			
-		case GST_V4L2_IO_MMAP:
+		case GST_ACM_V4L2_IO_MMAP:
 #if 0
 			/* just dequeue a buffer, we basically use the queue of v4l2 as the
 			 * storage for our buffers. This function does poll first so we can
 			 * interrupt it fine. */
-			ret = gst_v4l2_buffer_pool_dqbuf (pool, buffer);
+			ret = gst_acm_v4l2_buffer_pool_dqbuf (pool, buffer);
 			if (G_UNLIKELY (ret != GST_FLOW_OK))
 				goto done;
 			
@@ -998,7 +998,7 @@ gst_v4l2_buffer_pool_acquire_buffer (GstBufferPool * bpool, GstBuffer ** buffer,
 								TYPE_STR(pool->init_param.type), *buffer, copy);
 				
 				/* and requeue so that we can continue capturing */
-				ret = gst_v4l2_buffer_pool_qbuf (pool, *buffer);
+				ret = gst_acm_v4l2_buffer_pool_qbuf (pool, *buffer);
 				*buffer = copy;
 			}
 #else
@@ -1008,7 +1008,7 @@ gst_v4l2_buffer_pool_acquire_buffer (GstBufferPool * bpool, GstBuffer ** buffer,
 #endif
 			break;
 			
-		case GST_V4L2_IO_DMABUF:
+		case GST_ACM_V4L2_IO_DMABUF:
 			/* get an empty buffer newly */
 			ret = GST_BUFFER_POOL_CLASS (parent_class)->acquire_buffer (
 					bpool, buffer, params);
@@ -1023,19 +1023,19 @@ gst_v4l2_buffer_pool_acquire_buffer (GstBufferPool * bpool, GstBuffer ** buffer,
 	case V4L2_BUF_TYPE_VIDEO_OUTPUT:
 		/* playback, This function should return an empty buffer */
 		switch (pool->init_param.mode) {
-		case GST_V4L2_IO_RW:
+		case GST_ACM_V4L2_IO_RW:
 			/* get an empty buffer */
 			ret = GST_BUFFER_POOL_CLASS (parent_class)->acquire_buffer (
 					bpool, buffer, params);
 			break;
 			
-		case GST_V4L2_IO_MMAP:
+		case GST_ACM_V4L2_IO_MMAP:
 			/* get a free unqueued buffer */
 			ret = GST_BUFFER_POOL_CLASS (parent_class)->acquire_buffer (
 					bpool, buffer, params);
 			break;
 			
-		case GST_V4L2_IO_DMABUF:
+		case GST_ACM_V4L2_IO_DMABUF:
 			/* get a free unqueued buffer */
 			ret = GST_BUFFER_POOL_CLASS (parent_class)->acquire_buffer (
 					bpool, buffer, params);
@@ -1067,9 +1067,9 @@ flushing:
 }
 
 static void
-gst_v4l2_buffer_pool_release_buffer (GstBufferPool * bpool, GstBuffer * buffer)
+gst_acm_v4l2_buffer_pool_release_buffer (GstBufferPool * bpool, GstBuffer * buffer)
 {
-	GstV4l2BufferPool *pool = GST_V4L2_BUFFER_POOL (bpool);
+	GstAcmV4l2BufferPool *pool = GST_ACM_V4L2_BUFFER_POOL (bpool);
 	
 	switch (pool->init_param.type) {
 	case V4L2_BUF_TYPE_VIDEO_CAPTURE:
@@ -1078,19 +1078,19 @@ gst_v4l2_buffer_pool_release_buffer (GstBufferPool * bpool, GstBuffer * buffer)
 		/* capture, put the buffer back in the queue so that we can refill it
 		 * later. */
 		switch (pool->init_param.mode) {
-		case GST_V4L2_IO_RW:
+		case GST_ACM_V4L2_IO_RW:
 			/* release back in the pool */
 			GST_BUFFER_POOL_CLASS (parent_class)->release_buffer (bpool, buffer);
 			break;
 			
-		case GST_V4L2_IO_MMAP:
+		case GST_ACM_V4L2_IO_MMAP:
 			/* queue back in the device */
-			gst_v4l2_buffer_pool_qbuf (pool, buffer, gst_buffer_get_size(buffer));
+			gst_acm_v4l2_buffer_pool_qbuf (pool, buffer, gst_buffer_get_size(buffer));
 			break;
 			
-		case GST_V4L2_IO_DMABUF:
+		case GST_ACM_V4L2_IO_DMABUF:
 			/* queue back in the device */
-			gst_v4l2_buffer_pool_qbuf (pool, buffer, gst_buffer_get_size(buffer));
+			gst_acm_v4l2_buffer_pool_qbuf (pool, buffer, gst_buffer_get_size(buffer));
 			break;
 		default:
 			g_assert_not_reached ();
@@ -1100,16 +1100,16 @@ gst_v4l2_buffer_pool_release_buffer (GstBufferPool * bpool, GstBuffer * buffer)
 		
 	case V4L2_BUF_TYPE_VIDEO_OUTPUT:
 		switch (pool->init_param.mode) {
-		case GST_V4L2_IO_RW:
+		case GST_ACM_V4L2_IO_RW:
 			/* release back in the pool */
 			GST_BUFFER_POOL_CLASS (parent_class)->release_buffer (bpool, buffer);
 			break;
 			
-		case GST_V4L2_IO_MMAP:
+		case GST_ACM_V4L2_IO_MMAP:
 		{
-			GstV4l2Meta *meta;
+			GstAcmV4l2Meta *meta;
 			
-			meta = GST_V4L2_META_GET (buffer);
+			meta = GST_ACM_V4L2_META_GET (buffer);
 			g_assert (meta != NULL);
 			
 			if (pool->buffers[meta->vbuffer.index] == NULL) {
@@ -1133,11 +1133,11 @@ gst_v4l2_buffer_pool_release_buffer (GstBufferPool * bpool, GstBuffer * buffer)
 			break;
 		}
 			
-		case GST_V4L2_IO_DMABUF:
+		case GST_ACM_V4L2_IO_DMABUF:
 		{
-			GstV4l2Meta *meta;
+			GstAcmV4l2Meta *meta;
 			
-			meta = GST_V4L2_META_GET (buffer);
+			meta = GST_ACM_V4L2_META_GET (buffer);
 			g_assert (meta != NULL);
 			
 			if (pool->buffers[meta->vbuffer.index] == NULL) {
@@ -1174,12 +1174,12 @@ gst_v4l2_buffer_pool_release_buffer (GstBufferPool * bpool, GstBuffer * buffer)
 }
 
 static void
-gst_v4l2_buffer_pool_finalize (GObject * object)
+gst_acm_v4l2_buffer_pool_finalize (GObject * object)
 {
-	GstV4l2BufferPool *pool = GST_V4L2_BUFFER_POOL (object);
+	GstAcmV4l2BufferPool *pool = GST_ACM_V4L2_BUFFER_POOL (object);
 	
 	if (pool->init_param.video_fd >= 0)
-		v4l2_close (pool->init_param.video_fd);
+		close (pool->init_param.video_fd);
 	if (pool->allocator)
 		gst_object_unref (pool->allocator);
 	g_free (pool->buffers);
@@ -1188,50 +1188,50 @@ gst_v4l2_buffer_pool_finalize (GObject * object)
 }
 
 static void
-gst_v4l2_buffer_pool_init (GstV4l2BufferPool * pool)
+gst_acm_v4l2_buffer_pool_init (GstAcmV4l2BufferPool * pool)
 {
 }
 
 static void
-gst_v4l2_buffer_pool_class_init (GstV4l2BufferPoolClass * klass)
+gst_acm_v4l2_buffer_pool_class_init (GstAcmV4l2BufferPoolClass * klass)
 {
 	GObjectClass *object_class = G_OBJECT_CLASS (klass);
 	GstBufferPoolClass *bufferpool_class = GST_BUFFER_POOL_CLASS (klass);
 	
-	object_class->finalize = gst_v4l2_buffer_pool_finalize;
+	object_class->finalize = gst_acm_v4l2_buffer_pool_finalize;
 	
-	bufferpool_class->start = gst_v4l2_buffer_pool_start;
-	bufferpool_class->stop = gst_v4l2_buffer_pool_stop;
-	bufferpool_class->set_config = gst_v4l2_buffer_pool_set_config;
-	bufferpool_class->alloc_buffer = gst_v4l2_buffer_pool_alloc_buffer;
-	bufferpool_class->acquire_buffer = gst_v4l2_buffer_pool_acquire_buffer;
-	bufferpool_class->release_buffer = gst_v4l2_buffer_pool_release_buffer;
-	bufferpool_class->free_buffer = gst_v4l2_buffer_pool_free_buffer;
+	bufferpool_class->start = gst_acm_v4l2_buffer_pool_start;
+	bufferpool_class->stop = gst_acm_v4l2_buffer_pool_stop;
+	bufferpool_class->set_config = gst_acm_v4l2_buffer_pool_set_config;
+	bufferpool_class->alloc_buffer = gst_acm_v4l2_buffer_pool_alloc_buffer;
+	bufferpool_class->acquire_buffer = gst_acm_v4l2_buffer_pool_acquire_buffer;
+	bufferpool_class->release_buffer = gst_acm_v4l2_buffer_pool_release_buffer;
+	bufferpool_class->free_buffer = gst_acm_v4l2_buffer_pool_free_buffer;
 
-	GST_DEBUG_CATEGORY_INIT (v4l2_debug, "v4l2", 0, "V4L2 API calls");
+	GST_DEBUG_CATEGORY_INIT (acm_v4l2_debug, "acmv4l2", 0, "ACM V4L2 API calls");
 }
 
 /**
- * gst_v4l2_buffer_pool_new:
+ * gst_acm_v4l2_buffer_pool_new:
  * @obj:  the v4l2 object owning the pool
  *
  * Construct a new buffer pool.
  *
  * Returns: the new pool, use gst_object_unref() to free resources
  */
-GstV4l2BufferPool *
-gst_v4l2_buffer_pool_new (GstV4l2InitParam *param, GstCaps * caps)
+GstAcmV4l2BufferPool *
+gst_acm_v4l2_buffer_pool_new (GstAcmV4l2InitParam *param, GstCaps * caps)
 {
-	GstV4l2BufferPool *pool = NULL;
+	GstAcmV4l2BufferPool *pool = NULL;
 	GstStructure *s;
 	gint fd;
 	gint i;
 	
-	fd = v4l2_dup (param->video_fd);
+	fd = gst_acm_v4l2_dup (param->video_fd);
 	if (fd < 0)
 		goto dup_failed;
 	
-	pool = (GstV4l2BufferPool *) g_object_new (GST_TYPE_V4L2_BUFFER_POOL, NULL);
+	pool = (GstAcmV4l2BufferPool *) g_object_new (GST_TYPE_ACM_V4L2_BUFFER_POOL, NULL);
 	pool->init_param.video_fd = fd;
 	pool->init_param.type = param->type;
 	pool->init_param.mode = param->mode;
@@ -1274,7 +1274,7 @@ dup_failed:
 
 /* VIDIOC_QUERYBUF により、各バッファの状態をログ出力	（デバッグ用途）	*/
 void
-gst_v4l2_buffer_pool_log_buf_status(GstV4l2BufferPool* pool)
+gst_acm_v4l2_buffer_pool_log_buf_status(GstAcmV4l2BufferPool* pool)
 {
 	struct v4l2_buffer vbuffer;
 	int index;
@@ -1289,12 +1289,12 @@ gst_v4l2_buffer_pool_log_buf_status(GstV4l2BufferPool* pool)
 		vbuffer.index	= index;
 		vbuffer.type	= pool->init_param.type;
 		switch (pool->init_param.mode) {
-		case GST_V4L2_IO_RW:
+		case GST_ACM_V4L2_IO_RW:
 			break;
-		case GST_V4L2_IO_MMAP:
+		case GST_ACM_V4L2_IO_MMAP:
 			vbuffer.memory = V4L2_MEMORY_MMAP;
 			break;
-		case GST_V4L2_IO_DMABUF:
+		case GST_ACM_V4L2_IO_DMABUF:
 			vbuffer.memory = V4L2_MEMORY_DMABUF;
 			break;
 		default:
@@ -1304,7 +1304,7 @@ gst_v4l2_buffer_pool_log_buf_status(GstV4l2BufferPool* pool)
 		
 //		GST_INFO_OBJECT (pool, "%s: - VIDIOC_QUERYBUF",
 //						 TYPE_STR(pool->init_param.type));
-		r = v4l2_ioctl (pool->init_param.video_fd, VIDIOC_QUERYBUF, &vbuffer);
+		r = gst_acm_v4l2_ioctl (pool->init_param.video_fd, VIDIOC_QUERYBUF, &vbuffer);
 		if (r < 0) {
 			GST_ERROR_OBJECT (pool,
 				"%s: - Failed QUERYBUF: %s",

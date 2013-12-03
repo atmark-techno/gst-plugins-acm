@@ -46,7 +46,7 @@
 #include <gst/codecparsers/gsth264parser.h>
 
 #include "gstacmh264dec.h"
-#include "v4l2_util.h"
+#include "gstacmv4l2_util.h"
 #include "gstacmdmabufmeta.h"
 
 
@@ -267,7 +267,7 @@ log_buf_status_of_input(GstAcmH264Dec * me)
 		vbuffer.index	= index;
 		vbuffer.type	= V4L2_BUF_TYPE_VIDEO_OUTPUT;
 		vbuffer.memory = V4L2_MEMORY_USERPTR;
-		r = v4l2_ioctl (me->video_fd, VIDIOC_QUERYBUF, &vbuffer);
+		r = gst_acm_v4l2_ioctl (me->video_fd, VIDIOC_QUERYBUF, &vbuffer);
 		if (r < 0) {
 			GST_ERROR_OBJECT (me,
 							  "OUT: - Failed QUERYBUF: %s",
@@ -301,7 +301,7 @@ queued_buf_status_of_input(GstAcmH264Dec * me)
 		vbuffer.index	= index;
 		vbuffer.type	= V4L2_BUF_TYPE_VIDEO_OUTPUT;
 		vbuffer.memory = V4L2_MEMORY_USERPTR;
-		r = v4l2_ioctl (me->video_fd, VIDIOC_QUERYBUF, &vbuffer);
+		r = gst_acm_v4l2_ioctl (me->video_fd, VIDIOC_QUERYBUF, &vbuffer);
 		if (r < 0) {
 			GST_ERROR_OBJECT (me,
 							  "OUT: - Failed QUERYBUF: %s",
@@ -563,14 +563,14 @@ gst_acm_h264_dec_open (GstVideoDecoder * dec)
 
 	/* プロパティとしてセットされていなければ、デバイスを検索		*/
 	if (NULL == me->videodev) {
-		me->videodev = gst_v4l2_getdev(DRIVER_NAME);
+		me->videodev = gst_acm_v4l2_getdev(DRIVER_NAME);
 	}
 
 	GST_INFO_OBJECT (me, "H264DEC OPEN ACM DECODER. (%s)", me->videodev);
 	
 	/* デバイスファイルオープン	*/
 	GST_INFO_OBJECT (me, "Trying to open device %s", me->videodev);
-	if (! gst_v4l2_open (me->videodev, &(me->video_fd), TRUE)) {
+	if (! gst_acm_v4l2_open (me->videodev, &(me->video_fd), TRUE)) {
         GST_ELEMENT_ERROR (me, RESOURCE, NOT_FOUND, (NULL),
 			("Failed open device %s. (%s)", me->videodev, g_strerror (errno)));
 		return FALSE;
@@ -596,7 +596,7 @@ gst_acm_h264_dec_close (GstVideoDecoder * dec)
 	
 	/* close device	*/
 	if (me->video_fd > 0) {
-		gst_v4l2_close(me->videodev, me->video_fd);
+		gst_acm_v4l2_close(me->videodev, me->video_fd);
 		me->video_fd = -1;
 	}
 
@@ -1491,7 +1491,7 @@ gst_acm_h264_dec_handle_frame (GstVideoDecoder * dec,
 #if DBG_LOG_PERF_PUSH
 		GST_INFO_OBJECT (me, "H264DEC-PUSH DQBUF START");
 #endif
-		ret = gst_v4l2_buffer_pool_dqbuf_ex (me->pool_out, &v4l2buf_out, &bytesused);
+		ret = gst_acm_v4l2_buffer_pool_dqbuf_ex (me->pool_out, &v4l2buf_out, &bytesused);
 #if DBG_LOG_PERF_PUSH
 		GST_INFO_OBJECT (me, "H264DEC-PUSH DQBUF END");
 #endif
@@ -1522,7 +1522,7 @@ gst_acm_h264_dec_handle_frame (GstVideoDecoder * dec,
 			 */
 			if (0 == bytesused) {
 				GST_WARNING_OBJECT(me, "drop frame(1) by bytesused(0) at %d", i + 1);
-				gst_v4l2_buffer_pool_qbuf(me->pool_out,
+				gst_acm_v4l2_buffer_pool_qbuf(me->pool_out,
 					v4l2buf_out, gst_buffer_get_size(v4l2buf_out));
 				n++;	/* drop した分 loop 数を増やす	*/
 				
@@ -1573,7 +1573,7 @@ gst_acm_h264_dec_handle_frame (GstVideoDecoder * dec,
 			 */
 #if DBG_LOG_PERF_SELECT_OUT
 			GST_INFO_OBJECT(me, "wait until enable dqbuf (pool_out)");
-			gst_v4l2_buffer_pool_log_buf_status(me->pool_out);
+			gst_acm_v4l2_buffer_pool_log_buf_status(me->pool_out);
 #endif
 			do {
 #if DBG_LOG_PERF_PUSH
@@ -1603,10 +1603,10 @@ gst_acm_h264_dec_handle_frame (GstVideoDecoder * dec,
 #if DBG_LOG_PERF_PUSH
 					GST_INFO_OBJECT (me, "H264DEC-PUSH DQBUF RESTART");
 #endif
-					ret = gst_v4l2_buffer_pool_dqbuf_ex(me->pool_out,
+					ret = gst_acm_v4l2_buffer_pool_dqbuf_ex(me->pool_out,
 							&v4l2buf_out, &bytesused);
 					if (GST_FLOW_OK != ret) {
-						GST_ERROR_OBJECT (me, "gst_v4l2_buffer_pool_dqbuf() returns %s",
+						GST_ERROR_OBJECT (me, "gst_acm_v4l2_buffer_pool_dqbuf() returns %s",
 										  gst_flow_get_name (ret));
 						goto dqbuf_failed;
 					}
@@ -1637,7 +1637,7 @@ gst_acm_h264_dec_handle_frame (GstVideoDecoder * dec,
 				 */
 				if (0 == bytesused) {
 					GST_WARNING_OBJECT(me, "drop frame(2) by bytesused(0)");
-					gst_v4l2_buffer_pool_qbuf(me->pool_out,
+					gst_acm_v4l2_buffer_pool_qbuf(me->pool_out,
 						v4l2buf_out, gst_buffer_get_size(v4l2buf_out));
 					
 					break;
@@ -1686,7 +1686,7 @@ gst_acm_h264_dec_handle_frame (GstVideoDecoder * dec,
 		memset (v4l2buf_in, 0x00, sizeof (struct v4l2_buffer));
 		v4l2buf_in->type = V4L2_BUF_TYPE_VIDEO_OUTPUT;
 		v4l2buf_in->memory = V4L2_MEMORY_USERPTR;
-		r = v4l2_ioctl (me->video_fd, VIDIOC_DQBUF, v4l2buf_in);
+		r = gst_acm_v4l2_ioctl (me->video_fd, VIDIOC_DQBUF, v4l2buf_in);
 		if (r < 0) {
 			if (EAGAIN == errno) {
 #if DBG_LOG_PERF_SELECT_IN
@@ -1702,7 +1702,7 @@ gst_acm_h264_dec_handle_frame (GstVideoDecoder * dec,
 								 me->pool_out->num_allocated,
 								 me->pool_out->num_queued);
 				
-				gst_v4l2_buffer_pool_log_buf_status(me->pool_out);
+				gst_acm_v4l2_buffer_pool_log_buf_status(me->pool_out);
 				log_buf_status_of_input(me);
 #endif
 				do {
@@ -1729,7 +1729,7 @@ gst_acm_h264_dec_handle_frame (GstVideoDecoder * dec,
 					memset (v4l2buf_in, 0x00, sizeof (struct v4l2_buffer));
 					v4l2buf_in->type = V4L2_BUF_TYPE_VIDEO_OUTPUT;
 					v4l2buf_in->memory = V4L2_MEMORY_USERPTR;
-					r = v4l2_ioctl (me->video_fd, VIDIOC_DQBUF, v4l2buf_in);
+					r = gst_acm_v4l2_ioctl (me->video_fd, VIDIOC_DQBUF, v4l2buf_in);
 					if (r < 0) {
 						GST_ERROR_OBJECT (me, "failed VIDIOC_DQBUF for input");
 
@@ -1791,7 +1791,7 @@ select_timeout:
 						  me->pool_out->num_allocated,
 						  me->pool_out->num_queued);
 
-		gst_v4l2_buffer_pool_log_buf_status(me->pool_out);
+		gst_acm_v4l2_buffer_pool_log_buf_status(me->pool_out);
 		
 		log_buf_status_of_input(me);
 
@@ -1890,7 +1890,7 @@ gst_acm_h264_dec_sink_event (GstVideoDecoder * dec, GstEvent *event)
 			memset (v4l2buf_in, 0x00, sizeof (struct v4l2_buffer));
 			v4l2buf_in->type = V4L2_BUF_TYPE_VIDEO_OUTPUT;
 			v4l2buf_in->memory = V4L2_MEMORY_USERPTR;
-			r = v4l2_ioctl (me->video_fd, VIDIOC_DQBUF, v4l2buf_in);
+			r = gst_acm_v4l2_ioctl (me->video_fd, VIDIOC_DQBUF, v4l2buf_in);
 			if (r < 0) {
 				goto dqbuf_failed;
 			}
@@ -1938,7 +1938,7 @@ gst_acm_h264_dec_sink_event (GstVideoDecoder * dec, GstEvent *event)
 				}
 
 				/* dequeue buffer	*/
-				ret = gst_v4l2_buffer_pool_dqbuf_ex (me->pool_out,
+				ret = gst_acm_v4l2_buffer_pool_dqbuf_ex (me->pool_out,
 						&v4l2buf_out, &bytesused);
 				if (GST_FLOW_OK != ret) {
 					if (GST_FLOW_DQBUF_EAGAIN == ret) {
@@ -1946,7 +1946,7 @@ gst_acm_h264_dec_sink_event (GstVideoDecoder * dec, GstEvent *event)
 						break;
 					}
 					
-					GST_ERROR_OBJECT (me, "gst_v4l2_buffer_pool_dqbuf() returns %s",
+					GST_ERROR_OBJECT (me, "gst_acm_v4l2_buffer_pool_dqbuf() returns %s",
 									  gst_flow_get_name (ret));
 					goto dqbuf_failed;
 				}
@@ -1959,7 +1959,7 @@ gst_acm_h264_dec_sink_event (GstVideoDecoder * dec, GstEvent *event)
 				if (0 == bytesused) {
 					GST_WARNING_OBJECT(me, "drop frame(3) by bytesused(0) at %d",
 						frame->system_frame_number);
-					gst_v4l2_buffer_pool_qbuf(me->pool_out,
+					gst_acm_v4l2_buffer_pool_qbuf(me->pool_out,
 						v4l2buf_out, gst_buffer_get_size(v4l2buf_out));
 					
 					continue;
@@ -2007,11 +2007,11 @@ gst_acm_h264_dec_sink_event (GstVideoDecoder * dec, GstEvent *event)
 				GST_DEBUG_OBJECT(me, "After select for read(EOS). r=%d", r);
 			} while (r == -1 && (errno == EINTR || errno == EAGAIN));
 			if (r > 0 /* && FD_ISSET(me->video_fd, &read_fds) */) {
-				ret = gst_v4l2_buffer_pool_dqbuf (me->pool_out, &v4l2buf_out);
+				ret = gst_acm_v4l2_buffer_pool_dqbuf (me->pool_out, &v4l2buf_out);
 				if (GST_FLOW_OK != ret) {
 					goto dqbuf_failed;
 				}
-				ret = gst_v4l2_buffer_pool_qbuf(me->pool_out, v4l2buf_out,
+				ret = gst_acm_v4l2_buffer_pool_qbuf(me->pool_out, v4l2buf_out,
 						gst_buffer_get_size(v4l2buf_out));
 				if (GST_FLOW_OK != ret) {
 					goto qbuf_failed;
@@ -2109,7 +2109,7 @@ gst_acm_h264_dec_init_decoder (GstAcmH264Dec * me)
 	enum v4l2_buf_type type;
 	int r;
 	GstCaps *srcCaps;
-	GstV4l2InitParam v4l2InitParam;
+	GstAcmV4l2InitParam v4l2InitParam;
 	struct v4l2_format fmt;
 	struct v4l2_control ctrl;
 	gint i = 0;
@@ -2182,21 +2182,21 @@ gst_acm_h264_dec_init_decoder (GstAcmH264Dec * me)
 	/* buffering_pic_cnt */
 	ctrl.id = V4L2_CID_NR_BUFFERING_PICS;
 	ctrl.value = me->buffering_pic_cnt;
-	r = v4l2_ioctl(me->video_fd, VIDIOC_S_CTRL, &ctrl);
+	r = gst_acm_v4l2_ioctl(me->video_fd, VIDIOC_S_CTRL, &ctrl);
 	if (r < 0) {
 		goto set_init_param_failed;
 	}
 	/* VIO6の有効無効フラグ */
 	ctrl.id = V4L2_CID_ENABLE_VIO;
 	ctrl.value = me->enable_vio6;
-	r = v4l2_ioctl(me->video_fd, VIDIOC_S_CTRL, &ctrl);
+	r = gst_acm_v4l2_ioctl(me->video_fd, VIDIOC_S_CTRL, &ctrl);
 	if (r < 0) {
 		goto set_init_param_failed;
 	}
 	/* フレームレート */
 	ctrl.id = V4L2_CID_FRAME_RATE;
 	ctrl.value = me->frame_rate;
-	r = v4l2_ioctl(me->video_fd, VIDIOC_S_CTRL, &ctrl);
+	r = gst_acm_v4l2_ioctl(me->video_fd, VIDIOC_S_CTRL, &ctrl);
 	if (r < 0) {
 		goto set_init_param_failed;
 	}
@@ -2210,7 +2210,7 @@ gst_acm_h264_dec_init_decoder (GstAcmH264Dec * me)
 	fmt.fmt.pix.bytesperline = bytesperline;
 	fmt.fmt.pix.priv	= offset;
 
-	r = v4l2_ioctl(me->video_fd, VIDIOC_S_FMT, &fmt);
+	r = gst_acm_v4l2_ioctl(me->video_fd, VIDIOC_S_FMT, &fmt);
 	if (r < 0) {
 		goto set_init_param_failed;
 	}
@@ -2224,7 +2224,7 @@ gst_acm_h264_dec_init_decoder (GstAcmH264Dec * me)
 	fmt.fmt.pix.bytesperline = bytesperline;
 	fmt.fmt.pix.priv	= offset;
 
-	r = v4l2_ioctl(me->video_fd, VIDIOC_S_FMT, &fmt);
+	r = gst_acm_v4l2_ioctl(me->video_fd, VIDIOC_S_FMT, &fmt);
 	if (r < 0) {
 		goto set_init_param_failed;
 	}
@@ -2238,7 +2238,7 @@ gst_acm_h264_dec_init_decoder (GstAcmH264Dec * me)
 		breq.count = DEFAULT_NUM_BUFFERS_IN;
 		breq.memory = V4L2_MEMORY_USERPTR;
 
-		if (v4l2_ioctl (me->video_fd, VIDIOC_REQBUFS, &breq) < 0) {
+		if (gst_acm_v4l2_ioctl (me->video_fd, VIDIOC_REQBUFS, &breq) < 0) {
 			goto reqbufs_failed;
 		}
 		GST_INFO_OBJECT (me, "VIDIOC_REQBUFS");
@@ -2258,7 +2258,7 @@ gst_acm_h264_dec_init_decoder (GstAcmH264Dec * me)
 			me->priv->input_vbuffer[i].index	= i;
 			me->priv->input_vbuffer[i].type	= V4L2_BUF_TYPE_VIDEO_OUTPUT;
 			me->priv->input_vbuffer[i].memory = V4L2_MEMORY_USERPTR;
-			r = v4l2_ioctl (me->video_fd,
+			r = gst_acm_v4l2_ioctl (me->video_fd,
 							VIDIOC_QUERYBUF, &(me->priv->input_vbuffer[i]));
 			if (r < 0) {
 				goto  querybuf_failed;
@@ -2275,11 +2275,11 @@ gst_acm_h264_dec_init_decoder (GstAcmH264Dec * me)
 	}
 	
 	if (NULL == me->pool_out) {
-		memset(&v4l2InitParam, 0, sizeof(GstV4l2InitParam));
+		memset(&v4l2InitParam, 0, sizeof(GstAcmV4l2InitParam));
 		if (me->priv->using_fb_dmabuf) {
 			v4l2InitParam.video_fd = me->video_fd;
 			v4l2InitParam.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
-			v4l2InitParam.mode = GST_V4L2_IO_DMABUF;
+			v4l2InitParam.mode = GST_ACM_V4L2_IO_DMABUF;
 			v4l2InitParam.sizeimage = out_frame_size;
 			v4l2InitParam.init_num_buffers = DEFAULT_NUM_BUFFERS_OUT_DMABUF;
 			
@@ -2292,12 +2292,12 @@ gst_acm_h264_dec_init_decoder (GstAcmH264Dec * me)
 		else {
 			v4l2InitParam.video_fd = me->video_fd;
 			v4l2InitParam.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
-			v4l2InitParam.mode = GST_V4L2_IO_MMAP;
+			v4l2InitParam.mode = GST_ACM_V4L2_IO_MMAP;
 			v4l2InitParam.sizeimage = out_frame_size;
 			v4l2InitParam.init_num_buffers = DEFAULT_NUM_BUFFERS_OUT;
 		}
 		srcCaps = gst_caps_from_string ("video/x-raw");
-		me->pool_out = gst_v4l2_buffer_pool_new(&v4l2InitParam, srcCaps);
+		me->pool_out = gst_acm_v4l2_buffer_pool_new(&v4l2InitParam, srcCaps);
 		gst_caps_unref(srcCaps);
 		if (! me->pool_out) {
 			goto buffer_pool_new_failed;
@@ -2319,14 +2319,14 @@ gst_acm_h264_dec_init_decoder (GstAcmH264Dec * me)
 	/* STREAMON */
 	GST_INFO_OBJECT (me, "H264DEC STREAMON");
 	type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
-	r = v4l2_ioctl(me->video_fd, VIDIOC_STREAMON, &type);
+	r = gst_acm_v4l2_ioctl(me->video_fd, VIDIOC_STREAMON, &type);
 	if (r < 0) {
         goto start_failed;
 	}
 	GST_DEBUG_OBJECT(me, "STREAMON CAPTURE - ret:%d", r);
 	
 	type = V4L2_BUF_TYPE_VIDEO_OUTPUT;
-	r = v4l2_ioctl(me->video_fd, VIDIOC_STREAMON, &type);
+	r = gst_acm_v4l2_ioctl(me->video_fd, VIDIOC_STREAMON, &type);
 	if (r < 0) {
         goto start_failed;
 	}
@@ -2390,7 +2390,7 @@ gst_acm_h264_dec_cleanup_decoder (GstAcmH264Dec * me)
 						  me->pool_out->num_allocated,
 						  me->pool_out->num_queued);
 #if 0	/* for debug	*/
-		gst_v4l2_buffer_pool_log_buf_status(me->pool_out);
+		gst_acm_v4l2_buffer_pool_log_buf_status(me->pool_out);
 #endif
 		gst_buffer_pool_set_active (GST_BUFFER_POOL_CAST (me->pool_out), FALSE);
 		gst_object_unref (me->pool_out);
@@ -2400,14 +2400,14 @@ gst_acm_h264_dec_cleanup_decoder (GstAcmH264Dec * me)
 	/* STREAMOFF */
 	GST_INFO_OBJECT (me, "H264DEC STREAMOFF");
 	type = V4L2_BUF_TYPE_VIDEO_OUTPUT;
-	r = v4l2_ioctl (me->video_fd, VIDIOC_STREAMOFF, &type);
+	r = gst_acm_v4l2_ioctl (me->video_fd, VIDIOC_STREAMOFF, &type);
 	if (r < 0) {
 		goto stop_failed;
 	}
 	GST_DEBUG_OBJECT(me, "STREAMOFF OUTPUT - ret:%d", r);
 
 	type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
-	r = v4l2_ioctl (me->video_fd, VIDIOC_STREAMOFF, &type);
+	r = gst_acm_v4l2_ioctl (me->video_fd, VIDIOC_STREAMOFF, &type);
 	if (r < 0) {
 		goto stop_failed;
 	}
@@ -2488,7 +2488,7 @@ gst_acm_h264_dec_handle_in_frame(GstAcmH264Dec * me,
 #if DBG_LOG_PERF_CHAIN
 	GST_INFO_OBJECT (me, "H264DEC-CHAIN QBUF START");
 #endif
-	r = v4l2_ioctl (me->video_fd, VIDIOC_QBUF, v4l2buf_in);
+	r = gst_acm_v4l2_ioctl (me->video_fd, VIDIOC_QBUF, v4l2buf_in);
 	gst_buffer_unmap(inbuf, &map);
 	if (r < 0) {
 		goto qbuf_failed;
@@ -2761,7 +2761,7 @@ gst_acm_h264_dec_handle_out_frame(GstAcmH264Dec * me,
 			me->priv->displaying_buf = displayingBuf;
 		}
 #if 0	/* for debug */
-		gst_v4l2_buffer_pool_log_buf_status(me->pool_out);
+		gst_acm_v4l2_buffer_pool_log_buf_status(me->pool_out);
 #endif
 	}
 
@@ -2798,19 +2798,19 @@ gst_acm_h264_dec_handle_out_frame(GstAcmH264Dec * me,
 						 gst_buffer_get_size(frame->output_buffer));
 	}
 #if 0	/* for debug */
-	gst_v4l2_buffer_pool_log_buf_status(me->pool_out);
+	gst_acm_v4l2_buffer_pool_log_buf_status(me->pool_out);
 #endif
 
 	/* enqueue buffer	*/
-	ret = gst_v4l2_buffer_pool_qbuf (
+	ret = gst_acm_v4l2_buffer_pool_qbuf (
 			me->pool_out, v4l2buf_out, gst_buffer_get_size(v4l2buf_out));
 	if (GST_FLOW_OK != ret) {
-		GST_ERROR_OBJECT (me, "gst_v4l2_buffer_pool_qbuf() returns %s",
+		GST_ERROR_OBJECT (me, "gst_acm_v4l2_buffer_pool_qbuf() returns %s",
 						  gst_flow_get_name (ret));
 		goto qbuf_failed;
 	}
 #if 0	/* for debug */
-	gst_v4l2_buffer_pool_log_buf_status(me->pool_out);
+	gst_acm_v4l2_buffer_pool_log_buf_status(me->pool_out);
 #endif
 
 	/* down stream へ バッファを push	*/
@@ -2844,10 +2844,10 @@ no_frame:
 		}
 		
 		/* 正しく解放されるように、QBUF する		*/
-		ret = gst_v4l2_buffer_pool_qbuf (
+		ret = gst_acm_v4l2_buffer_pool_qbuf (
 			me->pool_out, v4l2buf_out, gst_buffer_get_size(v4l2buf_out));
 		if (GST_FLOW_OK != ret) {
-			GST_ERROR_OBJECT (me, "gst_v4l2_buffer_pool_qbuf() returns %s",
+			GST_ERROR_OBJECT (me, "gst_acm_v4l2_buffer_pool_qbuf() returns %s",
 							  gst_flow_get_name (ret));
 			goto qbuf_failed;
 		}

@@ -1,5 +1,39 @@
 
-* 2013-11-xx	kaz
+* 2013-12-02	kaz
+- V4L2 : クラス名、メソッド名を変更
+ v4l2src エレメントをパイプラインに使用した場合、クラス名が重複するため、以下のエラーが発生
+   GLib-GObject-WARNING **: cannot register existing type `GstV4l2BufferPool'
+ そこで、クラス名、メソッド名について、prefix を GstV4l2 から GstAcmV4l2 に変更
+
+
+* 2013-11-27	kaz
+- H264 ENC + AAC ENC
+ - 以下のパイプラインでMP4コンテナ、TSコンテナが出力できる事を確認済み
+    - H264 + AACエンコード（MP4コンテナ）
+     gst-launch-1.0 filesrc location=video_yuv.mp4 \
+     ! qtdemux name=demuxv demuxv. ! queue ! videoconvert \
+     ! acmh264enc \
+     ! queue ! qtmux name=mux \
+     filesrc location=audio_pcm.wav \
+     ! wavparse ! queue ! audioconvert ! audioresample \
+     ! acmaacenc \
+     ! queue ! mux. \
+     mux. ! filesink location=output_h264_aac.mp4
+
+    - H264 + AACエンコード（TSコンテナ）
+     gst-launch-1.0 filesrc location=video_yuv.mp4 \
+     ! qtdemux name=demuxv demuxv. ! queue ! videoconvert \
+     ! acmh264enc \
+     ! queue ! mpegtsmux name=mux \
+     filesrc location=audio_pcm.wav \
+     ! wavparse ! queue ! audioconvert ! audioresample \
+     ! acmaacenc \
+     ! audio/mpeg, mpegversion=4, stream-format=adts \
+     ! queue ! mux. \
+     mux. ! filesink location=output_h264_aac.ts
+
+
+* 2013-11-20	kaz
 - H264 ENC : 1st release
  - 以下のパイプラインで動作確認済み
     - YUV422(2vuy)のMP4コンテナ作成

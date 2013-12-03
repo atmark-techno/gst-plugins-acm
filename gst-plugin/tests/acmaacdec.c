@@ -37,9 +37,6 @@
 /* チャンネル数のプロパティ指定は意味ない	*/
 #define ENABLE_CHANNEL_PROPERTY		0
 
-/* v4l2 mem2mem デバイスファイル	*/
-#define M2M_DEVICE	"/dev/video1"
-
 /* For ease of programming we use globals to keep refs for our floating
  * src and sink pads we create; otherwise we always have to do get_pad,
  * get_peer, and then remove references in every test function */
@@ -98,9 +95,6 @@ setup_acmaacdec (void)
 	
 	g_print ("setup_acmaacdec\n");
 	acmaacdec = gst_check_setup_element ("acmaacdec");
-	g_object_set (acmaacdec,
-				  "device", M2M_DEVICE,
-				  NULL);
 	g_print ("pass : gst_check_setup_element()\n");
 	mysrcpad = gst_check_setup_src_pad (acmaacdec, &srctemplate);
 	g_print ("pass : gst_check_setup_src_pad()\n");

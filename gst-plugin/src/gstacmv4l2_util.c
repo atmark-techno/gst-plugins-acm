@@ -2,7 +2,7 @@
  *
  * Copyright (C) 2013 Atmark Techno, Inc.
  *
- * v4l2_util.c - generic V4L2 calls handling
+ * gstacmv4l2_util.c - generic V4L2 calls handling
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Library General Public
@@ -34,22 +34,22 @@
 #include <unistd.h>
 #include <dirent.h>
 
-#include "v4l2_util.h"
+#include "gstacmv4l2_util.h"
 
 
-GST_DEBUG_CATEGORY_STATIC (v4l2util_debug);
-#define GST_CAT_DEFAULT v4l2util_debug
+GST_DEBUG_CATEGORY_STATIC (acm_v4l2util_debug);
+#define GST_CAT_DEFAULT acm_v4l2util_debug
 
 /*
  * get the device's capabilities
  * return value: TRUE on success, FALSE on error
  */
 static gboolean
-gst_v4l2_get_capabilities (gint fd, struct v4l2_capability *vcap)
+get_capabilities (gint fd, struct v4l2_capability *vcap)
 {
 	GST_LOG("getting capabilities");
 	
-	if (v4l2_ioctl (fd, VIDIOC_QUERYCAP, vcap) < 0) {
+	if (gst_acm_v4l2_ioctl (fd, VIDIOC_QUERYCAP, vcap) < 0) {
 		GST_ERROR("failed VIDIOC_QUERYCAP. %s.\n",
 				  g_strerror(errno));
 		
@@ -73,7 +73,8 @@ cap_failed:
 	}
 }
 
-static gboolean is_video_dev(const gchar *dev)
+static gboolean
+is_video_dev(const gchar *dev)
 {
 	return g_str_has_prefix(dev, "video");
 }
@@ -83,14 +84,14 @@ static gboolean is_video_dev(const gchar *dev)
  * return value: TRUE on success, FALSE on error
  */
 gboolean
-gst_v4l2_open (char *dev, gint *fd, gboolean is_nonblock)
+gst_acm_v4l2_open (char *dev, gint *fd, gboolean is_nonblock)
 {
 	struct stat st;
 	/* the video device's capabilities */
 	struct v4l2_capability vcap;
 
-	GST_DEBUG_CATEGORY_INIT (v4l2util_debug, "v4l2util", 0,
-							 "v4l2util debug");
+	GST_DEBUG_CATEGORY_INIT (acm_v4l2util_debug, "acmv4l2util", 0,
+							 "acm v4l2util debug");
 
 	/* check if it is a device */
 	if (stat (dev, &st) == -1)
@@ -111,7 +112,7 @@ gst_v4l2_open (char *dev, gint *fd, gboolean is_nonblock)
 	}
 	
 	/* get capabilities, error will be posted */
-	if (!gst_v4l2_get_capabilities (*fd, &vcap))
+	if (!get_capabilities (*fd, &vcap))
 		goto error;
 	
 	/* do we need to be a capture device? */
@@ -159,7 +160,7 @@ error:
 	{
 		if (*fd > 0) {
 			/* close device */
-			v4l2_close (*fd);
+			close (*fd);
 			*fd = -1;
 		}
 		
@@ -173,13 +174,12 @@ error:
  * return value: TRUE on success, FALSE on error
  */
 gboolean
-gst_v4l2_close (char *dev, gint fd)
+gst_acm_v4l2_close (char *dev, gint fd)
 {
-  GST_INFO ("Trying to close %s (%d)",
-      dev, fd);
+  GST_INFO ("Trying to close %s (%d)", dev, fd);
 
   /* close device */
-  v4l2_close (fd);
+  close (fd);
 
   return TRUE;
 }
@@ -189,7 +189,7 @@ gst_v4l2_close (char *dev, gint fd)
  * return value: result of ioctl()
  */
 gint
-gst_v4l2_ioctl(int fd, int request, void* arg)
+gst_acm_v4l2_ioctl(int fd, int request, void* arg)
 {
 	int e;
 	
@@ -201,7 +201,7 @@ gst_v4l2_ioctl(int fd, int request, void* arg)
 }
 
 gchar*
-gst_v4l2_getdev (gchar *driver)
+gst_acm_v4l2_getdev (gchar *driver)
 {
 	gchar *video_dev = NULL;
 	gint fd;
@@ -209,6 +209,11 @@ gst_v4l2_getdev (gchar *driver)
 	DIR *dp;
 	struct dirent *ep;
 	struct v4l2_capability vcap;
+
+	GST_DEBUG_CATEGORY_INIT (acm_v4l2util_debug, "acmv4l2util", 0,
+							 "acm v4l2util debug");
+
+	GST_INFO ("Try find device '%s'", driver);
 
 	dp = opendir("/dev");
 	if (dp == NULL) {
@@ -221,14 +226,17 @@ gst_v4l2_getdev (gchar *driver)
 			g_free(video_dev);
 			video_dev = g_strdup_printf ("/dev/%s", ep->d_name);
 
-			if (!gst_v4l2_open (video_dev, &fd, TRUE))
+			if (!gst_acm_v4l2_open (video_dev, &fd, TRUE))
 				continue;
-			ret = gst_v4l2_get_capabilities (fd, &vcap);
-			gst_v4l2_close(video_dev, fd);
+			ret = get_capabilities (fd, &vcap);
+			gst_acm_v4l2_close(video_dev, fd);
 			if (!ret)
 				continue;
-			if (!g_strcmp0 (vcap.driver, driver))
+			if (!g_strcmp0 ((gchar *)vcap.driver, driver)) {
+				GST_INFO ("Found device '%s' - %s", driver, video_dev);
+
 				return video_dev;
+			}
 		}
 	}
 

@@ -23,8 +23,8 @@ plugin_LTLIBRARIES = \
 
 # sources used to compile this plug-in
 libgstacmv4l2_la_SOURCES = \
-	gstv4l2bufferpool.h gstv4l2bufferpool.c \
-	v4l2_util.h v4l2_util.c \
+	gstacmv4l2bufferpool.h gstacmv4l2bufferpool.c \
+	gstacmv4l2_util.h gstacmv4l2_util.c \
 	gstacmdmabufmeta.h gstacmdmabufmeta.c
 
 # compiler and linker flags used to compile this plugin, set in configure.ac
@@ -35,8 +35,8 @@ libgstacmv4l2_la_LIBTOOLFLAGS = --tag=disable-static
 
 # headers we need but don't want installed
 noinst_HEADERS = \
-	gstv4l2bufferpool.h \
-	v4l2_util.h \
+	gstacmv4l2bufferpool.h \
+	gstacmv4l2_util.h \
 	gstacmdmabufmeta.h
 
 

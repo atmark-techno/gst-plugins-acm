@@ -49,7 +49,7 @@
 #include <gst/base/gstbitreader.h>
 
 #include "gstacmaacdec.h"
-#include "v4l2_util.h"
+#include "gstacmv4l2_util.h"
 
 
 /* バッファプール内のバッファを no copy で down stream に push する	*/
@@ -481,14 +481,14 @@ gst_acm_aac_dec_open (GstAudioDecoder * dec)
 	
 	/* プロパティとしてセットされていなければ、デバイスを検索		*/
 	if (NULL == me->videodev) {
-		me->videodev = gst_v4l2_getdev(DRIVER_NAME);
+		me->videodev = gst_acm_v4l2_getdev(DRIVER_NAME);
 	}
 
 	GST_INFO_OBJECT (me, "AACDEC OPEN ACM DECODER. (%s)", me->videodev);
 	
 	/* デバイスファイルオープン	*/
 	GST_INFO_OBJECT (me, "Trying to open device %s", me->videodev);
-	if (! gst_v4l2_open (me->videodev, &(me->video_fd), TRUE)) {
+	if (! gst_acm_v4l2_open (me->videodev, &(me->video_fd), TRUE)) {
         GST_ELEMENT_ERROR (me, RESOURCE, NOT_FOUND, (NULL),
 			("Failed open device %s. (%s)", me->videodev, g_strerror (errno)));
 		return FALSE;
@@ -507,7 +507,7 @@ gst_acm_aac_dec_close (GstAudioDecoder * dec)
 
 	/* close device	*/
 	if (me->video_fd > 0) {
-		gst_v4l2_close(me->videodev, me->video_fd);
+		gst_acm_v4l2_close(me->videodev, me->video_fd);
 		me->video_fd = -1;
 	}
 	
@@ -1372,7 +1372,7 @@ gst_acm_aac_dec_handle_frame (GstAudioDecoder * dec, GstBuffer * buffer)
 #if DBG_LOG_PERF_PUSH
 			GST_INFO_OBJECT (me, "AACDEC-PUSH DQBUF START");
 #endif
-			ret = gst_v4l2_buffer_pool_dqbuf (me->pool_out, &v4l2buf_out);
+			ret = gst_acm_v4l2_buffer_pool_dqbuf (me->pool_out, &v4l2buf_out);
 			if (GST_FLOW_DQBUF_EAGAIN == ret) {
 #if DBG_LOG_PERF_PUSH
 				GST_INFO_OBJECT (me, "AACDEC-PUSH DQBUF EAGAIN");
@@ -1381,7 +1381,7 @@ gst_acm_aac_dec_handle_frame (GstAudioDecoder * dec, GstBuffer * buffer)
 				/* 読み込みできる状態になるまで待ってから読み込む		*/
 #if DBG_LOG_PERF_SELECT_OUT
 				GST_INFO_OBJECT(me, "wait until enable dqbuf (pool_out)");
-				gst_v4l2_buffer_pool_log_buf_status(me->pool_out);
+				gst_acm_v4l2_buffer_pool_log_buf_status(me->pool_out);
 #endif
 #if DBG_LOG_PERF_PUSH
 				GST_INFO_OBJECT (me, "AACDEC-PUSH SELECT START");
@@ -1410,9 +1410,9 @@ gst_acm_aac_dec_handle_frame (GstAudioDecoder * dec, GstBuffer * buffer)
 #if DBG_LOG_PERF_PUSH
 					GST_INFO_OBJECT (me, "AACDEC-PUSH DQBUF RESTART");
 #endif
-					ret = gst_v4l2_buffer_pool_dqbuf(me->pool_out, &v4l2buf_out);
+					ret = gst_acm_v4l2_buffer_pool_dqbuf(me->pool_out, &v4l2buf_out);
 					if (GST_FLOW_OK != ret) {
-						GST_ERROR_OBJECT (me, "gst_v4l2_buffer_pool_dqbuf() returns %s",
+						GST_ERROR_OBJECT (me, "gst_acm_v4l2_buffer_pool_dqbuf() returns %s",
 										  gst_flow_get_name (ret));
 						goto dqbuf_failed;
 					}
@@ -1427,7 +1427,7 @@ gst_acm_aac_dec_handle_frame (GstAudioDecoder * dec, GstBuffer * buffer)
 				}
 			}
 			else if (GST_FLOW_OK != ret) {
-				GST_ERROR_OBJECT (me, "gst_v4l2_buffer_pool_dqbuf() returns %s",
+				GST_ERROR_OBJECT (me, "gst_acm_v4l2_buffer_pool_dqbuf() returns %s",
 								  gst_flow_get_name (ret));
 				goto dqbuf_failed;
 			}
@@ -1452,10 +1452,10 @@ gst_acm_aac_dec_handle_frame (GstAudioDecoder * dec, GstBuffer * buffer)
 	/* dequeue buffer	*/
 	if (me->num_inbuf_acquired < me->pool_in->num_buffers) {
 		GST_DEBUG_OBJECT(me, "acquire_buffer");
-		ret = gst_v4l2_buffer_pool_acquire_buffer(
+		ret = gst_acm_v4l2_buffer_pool_acquire_buffer(
 			GST_BUFFER_POOL_CAST (me->pool_in), &v4l2buf_in, NULL);
 		if (GST_FLOW_OK != ret) {
-			GST_ERROR_OBJECT (me, "gst_v4l2_buffer_pool_acquire_buffer() returns %s",
+			GST_ERROR_OBJECT (me, "gst_acm_v4l2_buffer_pool_acquire_buffer() returns %s",
 							  gst_flow_get_name (ret));
 			goto no_buffer;
 		}
@@ -1468,11 +1468,11 @@ gst_acm_aac_dec_handle_frame (GstAudioDecoder * dec, GstBuffer * buffer)
 #endif
 
 		GST_DEBUG_OBJECT(me, "dqbuf (not acquire_buffer)");
-		ret = gst_v4l2_buffer_pool_dqbuf(me->pool_in, &v4l2buf_in);
+		ret = gst_acm_v4l2_buffer_pool_dqbuf(me->pool_in, &v4l2buf_in);
 		if (GST_FLOW_DQBUF_EAGAIN == ret) {
 #if DBG_LOG_PERF_SELECT_IN
 			GST_INFO_OBJECT(me, "wait until enable dqbuf (pool_in)");
-			gst_v4l2_buffer_pool_log_buf_status(me->pool_out);
+			gst_acm_v4l2_buffer_pool_log_buf_status(me->pool_out);
 #endif
 			/* 書き込みができる状態になるまで待ってから書き込む		*/
 #if DBG_LOG_PERF_CHAIN
@@ -1500,9 +1500,9 @@ gst_acm_aac_dec_handle_frame (GstAudioDecoder * dec, GstBuffer * buffer)
 #endif
 
 			if (r > 0) {
-				ret = gst_v4l2_buffer_pool_dqbuf(me->pool_in, &v4l2buf_in);
+				ret = gst_acm_v4l2_buffer_pool_dqbuf(me->pool_in, &v4l2buf_in);
 				if (GST_FLOW_OK != ret) {
-					GST_ERROR_OBJECT (me, "gst_v4l2_buffer_pool_dqbuf() returns %s",
+					GST_ERROR_OBJECT (me, "gst_acm_v4l2_buffer_pool_dqbuf() returns %s",
 									  gst_flow_get_name (ret));
 					goto dqbuf_failed;
 				}
@@ -1516,7 +1516,7 @@ gst_acm_aac_dec_handle_frame (GstAudioDecoder * dec, GstBuffer * buffer)
 			}
 		}
 		else if (GST_FLOW_OK != ret) {
-			GST_ERROR_OBJECT (me, "gst_v4l2_buffer_pool_dqbuf() returns %s",
+			GST_ERROR_OBJECT (me, "gst_acm_v4l2_buffer_pool_dqbuf() returns %s",
 							  gst_flow_get_name (ret));
 			goto dqbuf_failed;
 		}
@@ -1533,14 +1533,14 @@ gst_acm_aac_dec_handle_frame (GstAudioDecoder * dec, GstBuffer * buffer)
 	/* 出力:現時点で読み込み可能なデコード済みデータを全て取り出す	*/
 	do {
 		/* dequeue buffer	*/
-		ret = gst_v4l2_buffer_pool_dqbuf (me->pool_out, &v4l2buf_out);
+		ret = gst_acm_v4l2_buffer_pool_dqbuf (me->pool_out, &v4l2buf_out);
 		if (GST_FLOW_OK != ret) {
 			if (GST_FLOW_DQBUF_EAGAIN == ret) {
 				ret = GST_FLOW_OK;
 				break;
 			}
 			
-			GST_ERROR_OBJECT (me, "gst_v4l2_buffer_pool_dqbuf() returns %s",
+			GST_ERROR_OBJECT (me, "gst_acm_v4l2_buffer_pool_dqbuf() returns %s",
 							  gst_flow_get_name (ret));
 			goto dqbuf_failed;
 		}
@@ -1672,7 +1672,7 @@ gst_acm_aac_dec_sink_event (GstAudioDecoder * dec, GstEvent *event)
 
 #if NOTIFY_EOS_TO_DRIVER
 		/* EOS をデバイスに通知	*/
-		r = v4l2_ioctl(me->video_fd, V4L2_CID_EOS, NULL);
+		r = gst_acm_v4l2_ioctl(me->video_fd, V4L2_CID_EOS, NULL);
 		if (r < 0) {
 			goto notify_eos_failed;
 		}
@@ -1684,14 +1684,14 @@ gst_acm_aac_dec_sink_event (GstAudioDecoder * dec, GstEvent *event)
 		while (gst_audio_decoder_get_delay(dec) > 0) {
 			do {
 				/* dequeue buffer	*/
-				ret = gst_v4l2_buffer_pool_dqbuf (me->pool_out, &v4l2buf_out);
+				ret = gst_acm_v4l2_buffer_pool_dqbuf (me->pool_out, &v4l2buf_out);
 				if (GST_FLOW_OK != ret) {
 					if (GST_FLOW_DQBUF_EAGAIN == ret) {
 //						GST_WARNING_OBJECT (me, "DQBUF_EAGAIN after EOS");
 						break;
 					}
 					
-					GST_ERROR_OBJECT (me, "gst_v4l2_buffer_pool_dqbuf() returns %s",
+					GST_ERROR_OBJECT (me, "gst_acm_v4l2_buffer_pool_dqbuf() returns %s",
 									  gst_flow_get_name (ret));
 					goto dqbuf_failed;
 				}
@@ -1760,7 +1760,7 @@ gst_acm_aac_dec_init_decoder (GstAcmAacDec * me)
 	enum v4l2_buf_type type;
 	int r;
 	GstCaps *sinkCaps, *srcCaps;
-	GstV4l2InitParam v4l2InitParam;
+	GstAcmV4l2InitParam v4l2InitParam;
 	struct v4l2_format fmt;
 	struct acm_aacdec_private_format* pfmt;
 
@@ -1802,23 +1802,23 @@ gst_acm_aac_dec_init_decoder (GstAcmAacDec * me)
 
 	/* Set format for output (decoder input), capture (decoder output)  */
 	fmt.type = V4L2_BUF_TYPE_PRIVATE;
-	r = v4l2_ioctl(me->video_fd, VIDIOC_S_FMT, &fmt);
+	r = gst_acm_v4l2_ioctl(me->video_fd, VIDIOC_S_FMT, &fmt);
 	if (r < 0) {
 		goto set_init_param_failed;
 	}
 
 	/* バッファプールのセットアップ	*/
 	if (NULL == me->pool_in) {
-		memset(&v4l2InitParam, 0, sizeof(GstV4l2InitParam));
+		memset(&v4l2InitParam, 0, sizeof(GstAcmV4l2InitParam));
 		v4l2InitParam.video_fd = me->video_fd;
 		v4l2InitParam.type = V4L2_BUF_TYPE_VIDEO_OUTPUT;
-		v4l2InitParam.mode = GST_V4L2_IO_MMAP;
+		v4l2InitParam.mode = GST_ACM_V4L2_IO_MMAP;
 		/* 1フレーム(1024サンプル) x 16bit x チャンネル数分を確保 */
 		v4l2InitParam.sizeimage = 1024 * 2 * me->channels;
 		GST_DEBUG_OBJECT (me, "in frame size : %d", v4l2InitParam.sizeimage);
 		v4l2InitParam.init_num_buffers = DEFAULT_NUM_BUFFERS_IN;
 		sinkCaps = gst_caps_from_string ("audio/mpeg");
-		me->pool_in = gst_v4l2_buffer_pool_new(&v4l2InitParam, sinkCaps);
+		me->pool_in = gst_acm_v4l2_buffer_pool_new(&v4l2InitParam, sinkCaps);
 		gst_caps_unref(sinkCaps);
 		if (! me->pool_in) {
 			goto buffer_pool_new_failed;
@@ -1826,16 +1826,16 @@ gst_acm_aac_dec_init_decoder (GstAcmAacDec * me)
 	}
 	
 	if (NULL == me->pool_out) {
-		memset(&v4l2InitParam, 0, sizeof(GstV4l2InitParam));
+		memset(&v4l2InitParam, 0, sizeof(GstAcmV4l2InitParam));
 		v4l2InitParam.video_fd = me->video_fd;
 		v4l2InitParam.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
-		v4l2InitParam.mode = GST_V4L2_IO_MMAP;
+		v4l2InitParam.mode = GST_ACM_V4L2_IO_MMAP;
 		/* 1フレーム(出力)の最大サイズ	(2048 word, 16-bit, 8 channels) */
 		v4l2InitParam.sizeimage = 2048 * 2 * me->out_channels;
 		GST_DEBUG_OBJECT (me, "out frame size : %d", v4l2InitParam.sizeimage);
 		v4l2InitParam.init_num_buffers = DEFAULT_NUM_BUFFERS_OUT;
 		srcCaps = gst_caps_from_string ("audio/x-raw");
-		me->pool_out = gst_v4l2_buffer_pool_new(&v4l2InitParam, srcCaps);
+		me->pool_out = gst_acm_v4l2_buffer_pool_new(&v4l2InitParam, srcCaps);
 		gst_caps_unref(srcCaps);
 		if (! me->pool_out) {
 			goto buffer_pool_new_failed;
@@ -1859,14 +1859,14 @@ gst_acm_aac_dec_init_decoder (GstAcmAacDec * me)
 	/* STREAMON */
 	GST_INFO_OBJECT (me, "AACDEC STREAMON");
 	type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
-	r = v4l2_ioctl(me->video_fd, VIDIOC_STREAMON, &type);
+	r = gst_acm_v4l2_ioctl(me->video_fd, VIDIOC_STREAMON, &type);
 	if (r < 0) {
         goto start_failed;
 	}
 	GST_DEBUG_OBJECT(me, "STREAMON CAPTURE - ret:%d", r);
 
 	type = V4L2_BUF_TYPE_VIDEO_OUTPUT;
-	r = v4l2_ioctl(me->video_fd, VIDIOC_STREAMON, &type);
+	r = gst_acm_v4l2_ioctl(me->video_fd, VIDIOC_STREAMON, &type);
 	if (r < 0) {
         goto start_failed;
 	}
@@ -1936,14 +1936,14 @@ gst_acm_aac_dec_cleanup_decoder (GstAcmAacDec * me)
 	/* STREAMOFF */
 	GST_INFO_OBJECT (me, "AACDEC STREAMOFF");
 	type = V4L2_BUF_TYPE_VIDEO_OUTPUT;
-	r = v4l2_ioctl (me->video_fd, VIDIOC_STREAMOFF, &type);
+	r = gst_acm_v4l2_ioctl (me->video_fd, VIDIOC_STREAMOFF, &type);
 	if (r < 0) {
 		goto stop_failed;
 	}
 	GST_DEBUG_OBJECT(me, "STREAMOFF OUTPUT - ret:%d", r);
 
 	type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
-	r = v4l2_ioctl (me->video_fd, VIDIOC_STREAMOFF, &type);
+	r = gst_acm_v4l2_ioctl (me->video_fd, VIDIOC_STREAMOFF, &type);
 	if (r < 0) {
 		goto stop_failed;
 	}
@@ -1989,9 +1989,9 @@ gst_acm_aac_dec_handle_in_frame(GstAcmAacDec * me,
 #if DBG_LOG_PERF_CHAIN
 	GST_INFO_OBJECT (me, "AACDEC-CHAIN QBUF START");
 #endif
-	ret = gst_v4l2_buffer_pool_qbuf (me->pool_in, v4l2buf_in, inputDataSize);
+	ret = gst_acm_v4l2_buffer_pool_qbuf (me->pool_in, v4l2buf_in, inputDataSize);
 	if (GST_FLOW_OK != ret) {
-		GST_ERROR_OBJECT (me, "gst_v4l2_buffer_pool_qbuf() returns %s",
+		GST_ERROR_OBJECT (me, "gst_acm_v4l2_buffer_pool_qbuf() returns %s",
 						 gst_flow_get_name (ret));
 		goto qbuf_failed;
 	}
@@ -2087,10 +2087,10 @@ gst_acm_aac_dec_handle_out_frame(GstAcmAacDec * me,
 #if 0	/* drop は、sink に任せる		*/
 		GST_WARNING_OBJECT(me, "SKIP FINISH FRAME (rendering too late)");
 		/* an queue the buffer again */
-		ret = gst_v4l2_buffer_pool_qbuf (
+		ret = gst_acm_v4l2_buffer_pool_qbuf (
 				me->pool_out, v4l2buf_out, gst_buffer_get_size(v4l2buf_out));
 		if (GST_FLOW_OK != ret) {
-			GST_ERROR_OBJECT (me, "gst_v4l2_buffer_pool_qbuf() returns %s",
+			GST_ERROR_OBJECT (me, "gst_acm_v4l2_buffer_pool_qbuf() returns %s",
 							 gst_flow_get_name (ret));
 			goto qbuf_failed;
 		}
@@ -2191,10 +2191,10 @@ gst_acm_aac_dec_handle_out_frame(GstAcmAacDec * me,
 	}
 
 	/* enqueue buffer	*/
-	ret = gst_v4l2_buffer_pool_qbuf (
+	ret = gst_acm_v4l2_buffer_pool_qbuf (
 			me->pool_out, v4l2buf_out, gst_buffer_get_size(v4l2buf_out));
 	if (GST_FLOW_OK != ret) {
-		GST_ERROR_OBJECT (me, "gst_v4l2_buffer_pool_qbuf() returns %s",
+		GST_ERROR_OBJECT (me, "gst_acm_v4l2_buffer_pool_qbuf() returns %s",
 						  gst_flow_get_name (ret));
 		goto qbuf_failed;
 	}

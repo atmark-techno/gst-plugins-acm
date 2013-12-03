@@ -2,7 +2,7 @@
  *
  * Copyright (C) 2013 Atmark Techno, Inc.
  *
- * v4l2_util.h - generic V4L2 calls handling
+ * gstacmv4l2_util.h - generic V4L2 calls handling
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Library General Public
@@ -20,31 +20,29 @@
  * Boston, MA 02111-1307, USA.
  */
 
-#ifndef __V4L2_UTIL_H__
-#define __V4L2_UTIL_H__
+#ifndef __GST_ACM_V4L2_UTIL_H__
+#define __GST_ACM_V4L2_UTIL_H__
 
 #include <gst/gst.h>
 #include <sys/ioctl.h>
 #include <linux/videodev2.h>
-#define v4l2_close    close
-#define v4l2_dup      dup
-#define v4l2_read     read
-#define v4l2_mmap     mmap
-#define v4l2_munmap   munmap
-#define v4l2_ioctl    gst_v4l2_ioctl
+#define gst_acm_v4l2_dup      dup
+#define gst_acm_v4l2_read     read
+#define gst_acm_v4l2_mmap     mmap
+#define gst_acm_v4l2_munmap   munmap
 
 
 /* open/close the device */
-gboolean	gst_v4l2_open			(char *dev, gint *fd, gboolean is_nonblock);
-gboolean	gst_v4l2_close			(char *dev, gint fd);
+gboolean	gst_acm_v4l2_open(char *dev, gint *fd, gboolean is_nonblock);
+gboolean	gst_acm_v4l2_close(char *dev, gint fd);
 
-gint gst_v4l2_ioctl(int fd, int request, void* arg);
+gint gst_acm_v4l2_ioctl(int fd, int request, void* arg);
 
-gchar *gst_v4l2_getdev(gchar *driver);
+gchar *gst_acm_v4l2_getdev(gchar *driver);
 
 #define LOG_CAPS(obj, caps) GST_DEBUG_OBJECT (obj, "%s: %" GST_PTR_FORMAT, #caps, caps)
 
-#endif /* __V4L2_UTIL_H__ */
+#endif /* __GST_ACM_V4L2_UTIL_H__ */
 
 /*
  * End of file

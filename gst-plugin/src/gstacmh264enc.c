@@ -53,7 +53,7 @@
 #include <media/acm-h264enc.h>
 
 #include "gstacmh264enc.h"
-#include "v4l2_util.h"
+#include "gstacmv4l2_util.h"
 #include "gstacmdmabufmeta.h"
 #include "gstacm_util.h"
 #include "gstacm_debug.h"
@@ -222,13 +222,13 @@ GST_STATIC_PAD_TEMPLATE ("src",
 static gint
 get_encoded_picture_type(GstAcmH264Enc * me, GstBuffer* buffer)
 {
-	GstV4l2Meta *meta;
+	GstAcmV4l2Meta *meta;
 	gint pictureType;
 
 	/* struct v4l2_buffer の reserved フィールドに、
 	 * H264_ENCODER_RESULT の picture_type が返される
 	 */
-	meta = GST_V4L2_META_GET (buffer);
+	meta = GST_ACM_V4L2_META_GET (buffer);
 	g_assert (meta != NULL);
 
 	pictureType = meta->vbuffer.reserved;
@@ -256,12 +256,12 @@ get_encoded_picture_type(GstAcmH264Enc * me, GstBuffer* buffer)
 static unsigned long
 get_capture_counter(GstAcmH264Enc * me, GstBuffer* buffer)
 {
-	GstV4l2Meta *meta;
+	GstAcmV4l2Meta *meta;
 
 	/* struct v4l2_buffer の sequence フィールドに、
 	 * H264_ENCODER_RESULT の キャプチャ順カウンタ が返される
 	 */
-	meta = GST_V4L2_META_GET (buffer);
+	meta = GST_ACM_V4L2_META_GET (buffer);
 	g_assert (meta != NULL);
 
 #if 0	/* for debug	*/
@@ -572,14 +572,14 @@ gst_acm_h264_enc_open (GstVideoEncoder * enc)
 	 * 他のプロパティは、gst_acm_h264_enc_set_format() で設定
 	 */
 	if (NULL == me->videodev) {
-		me->videodev = gst_v4l2_getdev(DRIVER_NAME);
+		me->videodev = gst_acm_v4l2_getdev(DRIVER_NAME);
 	}
 
 	GST_INFO_OBJECT (me, "H264ENC OPEN ACM ENCODER. (%s)", me->videodev);
 	
 	/* open device	*/
 	GST_INFO_OBJECT (me, "Trying to open device %s", me->videodev);
-	if (! gst_v4l2_open (me->videodev, &(me->video_fd), TRUE)) {
+	if (! gst_acm_v4l2_open (me->videodev, &(me->video_fd), TRUE)) {
         GST_ELEMENT_ERROR (me, RESOURCE, NOT_FOUND, (NULL),
 			("Failed open device %s. (%s)", me->videodev, g_strerror (errno)));
 		return FALSE;
@@ -598,7 +598,7 @@ gst_acm_h264_enc_close (GstVideoEncoder * enc)
 	
 	/* close device	*/
 	if (me->video_fd > 0) {
-		gst_v4l2_close(me->videodev, me->video_fd);
+		gst_acm_v4l2_close(me->videodev, me->video_fd);
 		me->video_fd = -1;
 	}
 
@@ -1337,10 +1337,10 @@ gst_acm_h264_enc_handle_frame (GstVideoEncoder * enc,
 
 		GST_INFO_OBJECT(me, "acquire_buffer : %d", me->priv->num_inbuf_acquired);
 		
-		flowRet = gst_v4l2_buffer_pool_acquire_buffer(
+		flowRet = gst_acm_v4l2_buffer_pool_acquire_buffer(
 				GST_BUFFER_POOL_CAST (me->pool_in), &v4l2buf_in, NULL);
 		if (GST_FLOW_OK != flowRet) {
-			GST_ERROR_OBJECT (me, "gst_v4l2_buffer_pool_acquire_buffer() returns %s",
+			GST_ERROR_OBJECT (me, "gst_acm_v4l2_buffer_pool_acquire_buffer() returns %s",
 							  gst_flow_get_name (flowRet));
 			goto no_buffer;
 		}
@@ -1493,7 +1493,7 @@ gst_acm_h264_enc_init_encoder (GstAcmH264Enc * me)
 	enum v4l2_buf_type type;
 	int r;
 	GstCaps *sinkCaps, *srcCaps;
-	GstV4l2InitParam v4l2InitParam;
+	GstAcmV4l2InitParam v4l2InitParam;
 	struct v4l2_format fmt;
 	struct v4l2_control ctrl;
 	guint offset;
@@ -1542,7 +1542,7 @@ gst_acm_h264_enc_init_encoder (GstAcmH264Enc * me)
 	//fmt.fmt.pix.bytesperline = me->input_width * 3 / 2;	/* YUV420 */
 	//fmt.fmt.pix.sizeimage = fmt.fmt.pix.bytesperline * me->input_height;
 	fmt.fmt.pix.priv = offset;
-	r = v4l2_ioctl(me->video_fd, VIDIOC_S_FMT, &fmt);
+	r = gst_acm_v4l2_ioctl(me->video_fd, VIDIOC_S_FMT, &fmt);
 	if (r < 0) {
 		GST_ERROR_OBJECT(me, "failed ioctl - VIDIOC_S_FMT (OUTPUT)");
 		goto set_init_param_failed;
@@ -1558,7 +1558,7 @@ gst_acm_h264_enc_init_encoder (GstAcmH264Enc * me)
 	//fmt.fmt.pix.bytesperline = me->output_width * 3 / 2;	/* YUV420 */
 	//fmt.fmt.pix.sizeimage = fmt.fmt.pix.bytesperline * me->output_height;
 	//fmt.fmt.pix.priv = 0;
-	r = v4l2_ioctl(me->video_fd, VIDIOC_S_FMT, &fmt);
+	r = gst_acm_v4l2_ioctl(me->video_fd, VIDIOC_S_FMT, &fmt);
 	if (r < 0) {
 		GST_ERROR_OBJECT(me, "failed ioctl - VIDIOC_S_FMT (CAPTURE)");
 		goto set_init_param_failed;
@@ -1567,7 +1567,7 @@ gst_acm_h264_enc_init_encoder (GstAcmH264Enc * me)
 	/* bit_rate */
 	ctrl.id = V4L2_CID_TARGET_BIT_RATE;
 	ctrl.value = me->bit_rate;
-	r = v4l2_ioctl(me->video_fd, VIDIOC_S_CTRL, &ctrl);
+	r = gst_acm_v4l2_ioctl(me->video_fd, VIDIOC_S_CTRL, &ctrl);
 	if (r < 0) {
 		GST_ERROR_OBJECT(me, "failed ioctl - V4L2_CID_TARGET_BIT_RATE");
 		goto set_init_param_failed;
@@ -1575,7 +1575,7 @@ gst_acm_h264_enc_init_encoder (GstAcmH264Enc * me)
 	/* max_frame_size */
 	ctrl.id = V4L2_CID_MAX_FRAME_SIZE;
 	ctrl.value = me->max_frame_size;
-	r = v4l2_ioctl(me->video_fd, VIDIOC_S_CTRL, &ctrl);
+	r = gst_acm_v4l2_ioctl(me->video_fd, VIDIOC_S_CTRL, &ctrl);
 	if (r < 0) {
 		GST_ERROR_OBJECT(me, "failed ioctl - V4L2_CID_MAX_FRAME_SIZE");
 		goto set_init_param_failed;
@@ -1583,7 +1583,7 @@ gst_acm_h264_enc_init_encoder (GstAcmH264Enc * me)
 	/* rate_control_mode */
 	ctrl.id = V4L2_CID_RATE_CONTROL_MODE;
 	ctrl.value = me->rate_control_mode;
-	r = v4l2_ioctl(me->video_fd, VIDIOC_S_CTRL, &ctrl);
+	r = gst_acm_v4l2_ioctl(me->video_fd, VIDIOC_S_CTRL, &ctrl);
 	if (r < 0) {
 		GST_ERROR_OBJECT(me, "failed ioctl - V4L2_CID_RATE_CONTROL_MODE");
 		goto set_init_param_failed;
@@ -1591,7 +1591,7 @@ gst_acm_h264_enc_init_encoder (GstAcmH264Enc * me)
 	/* frame_rate_resolution */
 	ctrl.id = V4L2_CID_FRAME_RATE_RESOLUTION;
 	ctrl.value = me->frame_rate_resolution;
-	r = v4l2_ioctl(me->video_fd, VIDIOC_S_CTRL, &ctrl);
+	r = gst_acm_v4l2_ioctl(me->video_fd, VIDIOC_S_CTRL, &ctrl);
 	if (r < 0) {
 		GST_ERROR_OBJECT(me, "failed ioctl - V4L2_CID_FRAME_RATE_RESOLUTION");
 		goto set_init_param_failed;
@@ -1599,7 +1599,7 @@ gst_acm_h264_enc_init_encoder (GstAcmH264Enc * me)
 	/* frame_rate_tick */
 	ctrl.id = V4L2_CID_FRAME_RATE_TICK;
 	ctrl.value = me->frame_rate_tick;
-	r = v4l2_ioctl(me->video_fd, VIDIOC_S_CTRL, &ctrl);
+	r = gst_acm_v4l2_ioctl(me->video_fd, VIDIOC_S_CTRL, &ctrl);
 	if (r < 0) {
 		GST_ERROR_OBJECT(me, "failed ioctl - V4L2_CID_FRAME_RATE_TICK");
 		goto set_init_param_failed;
@@ -1607,7 +1607,7 @@ gst_acm_h264_enc_init_encoder (GstAcmH264Enc * me)
 	/* max_GOP_length */
 	ctrl.id = V4L2_CID_MAX_GOP_LENGTH;
 	ctrl.value = me->max_GOP_length;
-	r = v4l2_ioctl(me->video_fd, VIDIOC_S_CTRL, &ctrl);
+	r = gst_acm_v4l2_ioctl(me->video_fd, VIDIOC_S_CTRL, &ctrl);
 	if (r < 0) {
 		GST_ERROR_OBJECT(me, "failed ioctl - V4L2_CID_MAX_GOP_LENGTH");
 		goto set_init_param_failed;
@@ -1615,7 +1615,7 @@ gst_acm_h264_enc_init_encoder (GstAcmH264Enc * me)
 	/* B_pic_modeの指定 */
 	ctrl.id = V4L2_CID_B_PIC_MODE;
 	ctrl.value = me->B_pic_mode;
-	r = v4l2_ioctl(me->video_fd, VIDIOC_S_CTRL, &ctrl);
+	r = gst_acm_v4l2_ioctl(me->video_fd, VIDIOC_S_CTRL, &ctrl);
 	if (r < 0) {
 		GST_ERROR_OBJECT(me, "failed ioctl - V4L2_CID_B_PIC_MODE");
 		goto set_init_param_failed;
@@ -1623,14 +1623,14 @@ gst_acm_h264_enc_init_encoder (GstAcmH264Enc * me)
 
 	/* setup buffer pool	*/
 	if (NULL == me->pool_in) {
-		memset(&v4l2InitParam, 0, sizeof(GstV4l2InitParam));
+		memset(&v4l2InitParam, 0, sizeof(GstAcmV4l2InitParam));
 		v4l2InitParam.video_fd = me->video_fd;
 		v4l2InitParam.type = V4L2_BUF_TYPE_VIDEO_OUTPUT;
-		v4l2InitParam.mode = GST_V4L2_IO_MMAP;
+		v4l2InitParam.mode = GST_ACM_V4L2_IO_MMAP;
 		v4l2InitParam.sizeimage = in_buf_size;
 		v4l2InitParam.init_num_buffers = DEFAULT_NUM_BUFFERS_IN;
 		sinkCaps = gst_caps_from_string ("video/x-raw");
-		me->pool_in = gst_v4l2_buffer_pool_new(&v4l2InitParam, sinkCaps);
+		me->pool_in = gst_acm_v4l2_buffer_pool_new(&v4l2InitParam, sinkCaps);
 		gst_caps_unref(sinkCaps);
 		if (! me->pool_in) {
 			goto buffer_pool_new_failed;
@@ -1638,14 +1638,14 @@ gst_acm_h264_enc_init_encoder (GstAcmH264Enc * me)
 	}
 	
 	if (NULL == me->pool_out) {
-		memset(&v4l2InitParam, 0, sizeof(GstV4l2InitParam));
+		memset(&v4l2InitParam, 0, sizeof(GstAcmV4l2InitParam));
 		v4l2InitParam.video_fd = me->video_fd;
 		v4l2InitParam.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
-		v4l2InitParam.mode = GST_V4L2_IO_MMAP;
+		v4l2InitParam.mode = GST_ACM_V4L2_IO_MMAP;
 		v4l2InitParam.sizeimage = out_buf_size;
 		v4l2InitParam.init_num_buffers = DEFAULT_NUM_BUFFERS_OUT;
 		srcCaps = gst_caps_from_string ("video/x-h264");
-		me->pool_out = gst_v4l2_buffer_pool_new(&v4l2InitParam, srcCaps);
+		me->pool_out = gst_acm_v4l2_buffer_pool_new(&v4l2InitParam, srcCaps);
 		gst_caps_unref(srcCaps);
 		if (! me->pool_out) {
 			goto buffer_pool_new_failed;
@@ -1669,14 +1669,14 @@ gst_acm_h264_enc_init_encoder (GstAcmH264Enc * me)
 	/* STREAMON */
 	GST_INFO_OBJECT (me, "H264ENC STREAMON");
 	type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
-	r = v4l2_ioctl(me->video_fd, VIDIOC_STREAMON, &type);
+	r = gst_acm_v4l2_ioctl(me->video_fd, VIDIOC_STREAMON, &type);
 	if (r < 0) {
         goto start_failed;
 	}
 	GST_DEBUG_OBJECT(me, "STREAMON CAPTURE - ret:%d", r);
 	
 	type = V4L2_BUF_TYPE_VIDEO_OUTPUT;
-	r = v4l2_ioctl(me->video_fd, VIDIOC_STREAMON, &type);
+	r = gst_acm_v4l2_ioctl(me->video_fd, VIDIOC_STREAMON, &type);
 	if (r < 0) {
         goto start_failed;
 	}
@@ -1740,7 +1740,7 @@ gst_acm_h264_enc_cleanup_encoder (GstAcmH264Enc * me)
 						  me->pool_out->num_allocated,
 						  me->pool_out->num_queued);
 #if 0	/* for debug	*/
-		gst_v4l2_buffer_pool_log_buf_status(me->pool_out);
+		gst_acm_v4l2_buffer_pool_log_buf_status(me->pool_out);
 #endif
 		gst_buffer_pool_set_active (GST_BUFFER_POOL_CAST (me->pool_out), FALSE);
 		gst_object_unref (me->pool_out);
@@ -1751,14 +1751,14 @@ gst_acm_h264_enc_cleanup_encoder (GstAcmH264Enc * me)
 	if (me->priv->is_inited_encoder) {
 		GST_INFO_OBJECT (me, "H264ENC STREAMOFF");
 		type = V4L2_BUF_TYPE_VIDEO_OUTPUT;
-		r = v4l2_ioctl (me->video_fd, VIDIOC_STREAMOFF, &type);
+		r = gst_acm_v4l2_ioctl (me->video_fd, VIDIOC_STREAMOFF, &type);
 		if (r < 0) {
 			goto stop_failed;
 		}
 		GST_DEBUG_OBJECT(me, "STREAMOFF OUTPUT - ret:%d", r);
 
 		type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
-		r = v4l2_ioctl (me->video_fd, VIDIOC_STREAMOFF, &type);
+		r = gst_acm_v4l2_ioctl (me->video_fd, VIDIOC_STREAMOFF, &type);
 		if (r < 0) {
 			goto stop_failed;
 		}
@@ -1795,10 +1795,10 @@ gst_acm_h264_enc_qbuf_null_in(GstAcmH264Enc * me)
 		
 		GST_INFO_OBJECT(me, "acquire_buffer : %d", me->priv->num_inbuf_acquired);
 		
-		flowRet = gst_v4l2_buffer_pool_acquire_buffer(
+		flowRet = gst_acm_v4l2_buffer_pool_acquire_buffer(
 			GST_BUFFER_POOL_CAST (me->pool_in), &v4l2buf_in, NULL);
 		if (GST_FLOW_OK != flowRet) {
-			GST_ERROR_OBJECT (me, "gst_v4l2_buffer_pool_acquire_buffer() returns %s",
+			GST_ERROR_OBJECT (me, "gst_acm_v4l2_buffer_pool_acquire_buffer() returns %s",
 							  gst_flow_get_name (flowRet));
 			goto no_buffer;
 		}
@@ -1856,11 +1856,11 @@ gst_acm_h264_enc_handle_in_frame_with_wait(GstAcmH264Enc * me, GstBuffer *inbuf)
 #endif
 
 	GST_DEBUG_OBJECT(me, "dqbuf (not acquire_buffer)");
-	flowRet = gst_v4l2_buffer_pool_dqbuf(me->pool_in, &v4l2buf_in);
+	flowRet = gst_acm_v4l2_buffer_pool_dqbuf(me->pool_in, &v4l2buf_in);
 	if (GST_FLOW_DQBUF_EAGAIN == flowRet) {
 #if DBG_LOG_PERF_SELECT_IN
 		GST_INFO_OBJECT(me, "wait until enable dqbuf (pool_in)");
-		gst_v4l2_buffer_pool_log_buf_status(me->pool_out);
+		gst_acm_v4l2_buffer_pool_log_buf_status(me->pool_out);
 #endif
 		/* 書き込みができる状態になるまで待ってから書き込む		*/
 		do {
@@ -1881,9 +1881,9 @@ gst_acm_h264_enc_handle_in_frame_with_wait(GstAcmH264Enc * me, GstBuffer *inbuf)
 #endif
 		} while (r < 0 && (EINTR == errno || EAGAIN == errno));
 		if (r > 0) {
-			flowRet = gst_v4l2_buffer_pool_dqbuf(me->pool_in, &v4l2buf_in);
+			flowRet = gst_acm_v4l2_buffer_pool_dqbuf(me->pool_in, &v4l2buf_in);
 			if (GST_FLOW_OK != flowRet) {
-				GST_ERROR_OBJECT (me, "gst_v4l2_buffer_pool_dqbuf() returns %s",
+				GST_ERROR_OBJECT (me, "gst_acm_v4l2_buffer_pool_dqbuf() returns %s",
 								  gst_flow_get_name (flowRet));
 				goto dqbuf_failed;
 			}
@@ -1925,11 +1925,11 @@ select_timeout:
 	{
 		GST_ERROR_OBJECT (me, "pool_in - buffers:%d, queued:%d",
 						  me->pool_in->num_buffers, me->pool_in->num_queued);
-		gst_v4l2_buffer_pool_log_buf_status(me->pool_in);
+		gst_acm_v4l2_buffer_pool_log_buf_status(me->pool_in);
 		
 		GST_ERROR_OBJECT (me, "pool_out - buffers:%d, queued:%d",
 						  me->pool_out->num_buffers, me->pool_out->num_queued);
-		gst_v4l2_buffer_pool_log_buf_status(me->pool_out);
+		gst_acm_v4l2_buffer_pool_log_buf_status(me->pool_out);
 		
 		GST_ELEMENT_ERROR (me, STREAM, ENCODE, (NULL),
 			("timeout with select()"));
@@ -1976,9 +1976,9 @@ gst_acm_h264_enc_handle_in_frame(GstAcmH264Enc * me,
 					 gst_buffer_get_size(v4l2buf_in), inputDataSize);
 
 	/* enqueue buffer	*/
-	flowRet = gst_v4l2_buffer_pool_qbuf (me->pool_in, v4l2buf_in, inputDataSize);
+	flowRet = gst_acm_v4l2_buffer_pool_qbuf (me->pool_in, v4l2buf_in, inputDataSize);
 	if (GST_FLOW_OK != flowRet) {
-		GST_ERROR_OBJECT (me, "gst_v4l2_buffer_pool_qbuf() returns %s",
+		GST_ERROR_OBJECT (me, "gst_acm_v4l2_buffer_pool_qbuf() returns %s",
 						  gst_flow_get_name (flowRet));
 		goto qbuf_failed;
 	}
@@ -2015,7 +2015,7 @@ gst_acm_h264_enc_get_spspps(GstAcmH264Enc * me)
 	}
 
 	/* dequeue buffer	*/
-	flowRet = gst_v4l2_buffer_pool_dqbuf (me->pool_out, &v4l2buf_out);
+	flowRet = gst_acm_v4l2_buffer_pool_dqbuf (me->pool_out, &v4l2buf_out);
 	if (GST_FLOW_DQBUF_EAGAIN == flowRet) {
 		/* 読み込みできる状態になるまで待ってから読み込む		*/
 		do {
@@ -2026,9 +2026,9 @@ gst_acm_h264_enc_get_spspps(GstAcmH264Enc * me)
 			r = select(me->video_fd + 1, &read_fds, NULL, NULL, &tv);
 		} while (r < 0 && (EINTR == errno || EAGAIN == errno));
 		if (r > 0) {
-			flowRet = gst_v4l2_buffer_pool_dqbuf(me->pool_out, &v4l2buf_out);
+			flowRet = gst_acm_v4l2_buffer_pool_dqbuf(me->pool_out, &v4l2buf_out);
 			if (GST_FLOW_OK != flowRet) {
-				GST_ERROR_OBJECT (me, "gst_v4l2_buffer_pool_dqbuf() returns %s",
+				GST_ERROR_OBJECT (me, "gst_acm_v4l2_buffer_pool_dqbuf() returns %s",
 								  gst_flow_get_name (flowRet));
 				goto dqbuf_failed;
 			}
@@ -2043,7 +2043,7 @@ gst_acm_h264_enc_get_spspps(GstAcmH264Enc * me)
 		}
 	}
 	else if (GST_FLOW_OK != flowRet) {
-		GST_ERROR_OBJECT (me, "gst_v4l2_buffer_pool_dqbuf() returns %s",
+		GST_ERROR_OBJECT (me, "gst_acm_v4l2_buffer_pool_dqbuf() returns %s",
 						  gst_flow_get_name (flowRet));
 		goto dqbuf_failed;
 	}
@@ -2053,10 +2053,10 @@ gst_acm_h264_enc_get_spspps(GstAcmH264Enc * me)
 	me->priv->spspps_size = gst_buffer_get_size(me->priv->spspps_buf);
 
 	/* QBUF して戻す	*/
-	flowRet = gst_v4l2_buffer_pool_qbuf (
+	flowRet = gst_acm_v4l2_buffer_pool_qbuf (
 		me->pool_out, v4l2buf_out, gst_buffer_get_size(v4l2buf_out));
 	if (GST_FLOW_OK != flowRet) {
-		GST_ERROR_OBJECT (me, "gst_v4l2_buffer_pool_qbuf() returns %s",
+		GST_ERROR_OBJECT (me, "gst_acm_v4l2_buffer_pool_qbuf() returns %s",
 						  gst_flow_get_name (flowRet));
 		goto qbuf_failed;
 	}
@@ -2078,11 +2078,11 @@ select_timeout:
 	{
 		GST_ERROR_OBJECT (me, "pool_in - buffers:%d, queued:%d",
 						  me->pool_in->num_buffers, me->pool_in->num_queued);
-		gst_v4l2_buffer_pool_log_buf_status(me->pool_in);
+		gst_acm_v4l2_buffer_pool_log_buf_status(me->pool_in);
 		
 		GST_ERROR_OBJECT (me, "pool_out - buffers:%d, queued:%d",
 						  me->pool_out->num_buffers, me->pool_out->num_queued);
-		gst_v4l2_buffer_pool_log_buf_status(me->pool_out);
+		gst_acm_v4l2_buffer_pool_log_buf_status(me->pool_out);
 		
 		GST_ELEMENT_ERROR (me, STREAM, ENCODE, (NULL),
 			("timeout with select()"));
@@ -2118,13 +2118,13 @@ gst_acm_h264_enc_handle_out_frame_with_wait(GstAcmH264Enc * me)
 #endif
 
 	/* dequeue buffer	*/
-	flowRet = gst_v4l2_buffer_pool_dqbuf (me->pool_out, &v4l2buf_out);
+	flowRet = gst_acm_v4l2_buffer_pool_dqbuf (me->pool_out, &v4l2buf_out);
 	if (GST_FLOW_DQBUF_EAGAIN == flowRet) {
 		
 		/* 読み込みできる状態になるまで待ってから読み込む		*/
 #if DBG_LOG_PERF_SELECT_OUT
 		GST_INFO_OBJECT(me, "wait until enable dqbuf (pool_out)");
-		gst_v4l2_buffer_pool_log_buf_status(me->pool_out);
+		gst_acm_v4l2_buffer_pool_log_buf_status(me->pool_out);
 #endif
 		do {
 			FD_ZERO(&read_fds);
@@ -2143,9 +2143,9 @@ gst_acm_h264_enc_handle_out_frame_with_wait(GstAcmH264Enc * me)
 #endif
 		} while (r < 0 && (EINTR == errno || EAGAIN == errno));
 		if (r > 0) {
-			flowRet = gst_v4l2_buffer_pool_dqbuf(me->pool_out, &v4l2buf_out);
+			flowRet = gst_acm_v4l2_buffer_pool_dqbuf(me->pool_out, &v4l2buf_out);
 			if (GST_FLOW_OK != flowRet) {
-				GST_ERROR_OBJECT (me, "gst_v4l2_buffer_pool_dqbuf() returns %s",
+				GST_ERROR_OBJECT (me, "gst_acm_v4l2_buffer_pool_dqbuf() returns %s",
 								  gst_flow_get_name (flowRet));
 				goto dqbuf_failed;
 			}
@@ -2160,7 +2160,7 @@ gst_acm_h264_enc_handle_out_frame_with_wait(GstAcmH264Enc * me)
 		}
 	}
 	else if (GST_FLOW_OK != flowRet) {
-		GST_ERROR_OBJECT (me, "gst_v4l2_buffer_pool_dqbuf() returns %s",
+		GST_ERROR_OBJECT (me, "gst_acm_v4l2_buffer_pool_dqbuf() returns %s",
 						  gst_flow_get_name (flowRet));
 		goto dqbuf_failed;
 	}
@@ -2174,10 +2174,10 @@ gst_acm_h264_enc_handle_out_frame_with_wait(GstAcmH264Enc * me)
 			me->priv->num_outbuf_dequeued, me->priv->pre_encode_num);
 		g_assert (0 == gst_buffer_get_size(v4l2buf_out));
 		
-		flowRet = gst_v4l2_buffer_pool_qbuf (
+		flowRet = gst_acm_v4l2_buffer_pool_qbuf (
 			me->pool_out, v4l2buf_out, gst_buffer_get_size(v4l2buf_out));
 		if (GST_FLOW_OK != flowRet) {
-			GST_ERROR_OBJECT (me, "gst_v4l2_buffer_pool_qbuf() returns %s",
+			GST_ERROR_OBJECT (me, "gst_acm_v4l2_buffer_pool_qbuf() returns %s",
 							  gst_flow_get_name (flowRet));
 			goto qbuf_failed;
 		}
@@ -2221,11 +2221,11 @@ select_timeout:
 	{
 		GST_ERROR_OBJECT (me, "pool_in - buffers:%d, queued:%d",
 						  me->pool_in->num_buffers, me->pool_in->num_queued);
-		gst_v4l2_buffer_pool_log_buf_status(me->pool_in);
+		gst_acm_v4l2_buffer_pool_log_buf_status(me->pool_in);
 		
 		GST_ERROR_OBJECT (me, "pool_out - buffers:%d, queued:%d",
 						  me->pool_out->num_buffers, me->pool_out->num_queued);
-		gst_v4l2_buffer_pool_log_buf_status(me->pool_out);
+		gst_acm_v4l2_buffer_pool_log_buf_status(me->pool_out);
 		
 		GST_ELEMENT_ERROR (me, STREAM, ENCODE, (NULL),
 			("timeout with select()"));
@@ -2300,10 +2300,10 @@ gst_acm_h264_enc_handle_out_frame(GstAcmH264Enc * me,
 						  GST_TIME_ARGS (frame->pts));
 
 		/* enqueue buffer	*/
-		flowRet = gst_v4l2_buffer_pool_qbuf (
+		flowRet = gst_acm_v4l2_buffer_pool_qbuf (
 			me->pool_out, v4l2buf_out, gst_buffer_get_size(v4l2buf_out));
 		if (GST_FLOW_OK != flowRet) {
-			GST_ERROR_OBJECT (me, "gst_v4l2_buffer_pool_qbuf() returns %s",
+			GST_ERROR_OBJECT (me, "gst_acm_v4l2_buffer_pool_qbuf() returns %s",
 							  gst_flow_get_name (flowRet));
 			goto qbuf_failed;
 		}
@@ -2465,10 +2465,10 @@ gst_acm_h264_enc_handle_out_frame(GstAcmH264Enc * me,
 #endif
 
 	/* enqueue buffer	*/
-	flowRet = gst_v4l2_buffer_pool_qbuf (
+	flowRet = gst_acm_v4l2_buffer_pool_qbuf (
 			me->pool_out, v4l2buf_out, gst_buffer_get_size(v4l2buf_out));
 	if (GST_FLOW_OK != flowRet) {
-		GST_ERROR_OBJECT (me, "gst_v4l2_buffer_pool_qbuf() returns %s",
+		GST_ERROR_OBJECT (me, "gst_acm_v4l2_buffer_pool_qbuf() returns %s",
 						  gst_flow_get_name (flowRet));
 		goto qbuf_failed;
 	}
@@ -2500,10 +2500,10 @@ no_frame:
 		flowRet = GST_FLOW_OK;
 		
 		/* 正しく解放されるように、QBUF する		*/
-		flowRet = gst_v4l2_buffer_pool_qbuf (
+		flowRet = gst_acm_v4l2_buffer_pool_qbuf (
 			me->pool_out, v4l2buf_out, gst_buffer_get_size(v4l2buf_out));
 		if (GST_FLOW_OK != flowRet) {
-			GST_ERROR_OBJECT (me, "gst_v4l2_buffer_pool_qbuf() returns %s",
+			GST_ERROR_OBJECT (me, "gst_acm_v4l2_buffer_pool_qbuf() returns %s",
 							  gst_flow_get_name (flowRet));
 			goto qbuf_failed;
 		}

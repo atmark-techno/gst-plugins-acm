@@ -5,7 +5,7 @@
  *               2009 Texas Instruments, Inc - http://www.ti.com/
  *               2013 Atmark Techno, Inc.
  *
- * gstv4l2bufferpool.h V4L2 buffer pool class
+ * gstacmv4l2bufferpool.h V4L2 buffer pool class
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Library General Public
@@ -23,31 +23,31 @@
  * Boston, MA 02111-1307, USA.
  */
 
-#ifndef __GST_V4L2_BUFFER_POOL_H__
-#define __GST_V4L2_BUFFER_POOL_H__
+#ifndef __GST_ACM_V4L2_BUFFER_POOL_H__
+#define __GST_ACM_V4L2_BUFFER_POOL_H__
 
 #include <gst/gst.h>
 #include <linux/videodev2.h>
 #include "gstacmdmabufmeta.h"
 
-typedef struct _GstV4l2BufferPool GstV4l2BufferPool;
-typedef struct _GstV4l2BufferPoolClass GstV4l2BufferPoolClass;
-typedef struct _GstV4l2Meta GstV4l2Meta;
-typedef struct _GstV4l2InitParam GstV4l2InitParam;
+typedef struct _GstAcmV4l2BufferPool GstAcmV4l2BufferPool;
+typedef struct _GstAcmV4l2BufferPoolClass GstAcmV4l2BufferPoolClass;
+typedef struct _GstAcmV4l2Meta GstAcmV4l2Meta;
+typedef struct _GstAcmV4l2InitParam GstAcmV4l2InitParam;
 
-GST_DEBUG_CATEGORY_EXTERN (v4l2buffer_debug);
+GST_DEBUG_CATEGORY_EXTERN (acm_v4l2buffer_debug);
 
 G_BEGIN_DECLS
 
 
-#define GST_TYPE_V4L2_BUFFER_POOL      (gst_v4l2_buffer_pool_get_type())
-#define GST_IS_V4L2_BUFFER_POOL(obj)   (G_TYPE_CHECK_INSTANCE_TYPE ((obj), GST_TYPE_V4L2_BUFFER_POOL))
-#define GST_V4L2_BUFFER_POOL(obj)      (G_TYPE_CHECK_INSTANCE_CAST ((obj), GST_TYPE_V4L2_BUFFER_POOL, GstV4l2BufferPool))
-#define GST_V4L2_BUFFER_POOL_CAST(obj) ((GstV4l2BufferPool*)(obj))
+#define GST_TYPE_ACM_V4L2_BUFFER_POOL      (gst_acm_v4l2_buffer_pool_get_type())
+#define GST_IS_ACM_V4L2_BUFFER_POOL(obj)   (G_TYPE_CHECK_INSTANCE_TYPE ((obj), GST_TYPE_ACM_V4L2_BUFFER_POOL))
+#define GST_ACM_V4L2_BUFFER_POOL(obj)      (G_TYPE_CHECK_INSTANCE_CAST ((obj), GST_TYPE_ACM_V4L2_BUFFER_POOL, GstAcmV4l2BufferPool))
+#define GST_ACM_V4L2_BUFFER_POOL_CAST(obj) ((GstAcmV4l2BufferPool*)(obj))
 
 /* size of v4l2 buffer pool in streaming case */
-#define GST_V4L2_MAX_BUFFERS 16
-#define GST_V4L2_MIN_BUFFERS 1
+#define GST_ACM_V4L2_MAX_BUFFERS 16
+#define GST_ACM_V4L2_MIN_BUFFERS 1
 
 /* VIDIOC_DQBUF で、EAGAIN をエラー扱いしない	*/
 #define USE_GST_FLOW_DQBUF_EAGAIN	1
@@ -57,14 +57,14 @@ G_BEGIN_DECLS
 #endif
 
 typedef enum {
-	GST_V4L2_IO_AUTO    = 0,
-	GST_V4L2_IO_RW      = 1,
-	GST_V4L2_IO_MMAP    = 2,
-	GST_V4L2_IO_USERPTR = 3,
-	GST_V4L2_IO_DMABUF  = 4,
-} GstV4l2IOMode;
+	GST_ACM_V4L2_IO_AUTO    = 0,
+	GST_ACM_V4L2_IO_RW      = 1,
+	GST_ACM_V4L2_IO_MMAP    = 2,
+	GST_ACM_V4L2_IO_USERPTR = 3,
+	GST_ACM_V4L2_IO_DMABUF  = 4,
+} GstAcmV4l2IOMode;
 
-struct _GstV4l2Meta {
+struct _GstAcmV4l2Meta {
 	GstMeta meta;
 	
 	gpointer mem;
@@ -72,11 +72,11 @@ struct _GstV4l2Meta {
 };
 
 /* 初期化パラメータ	*/
-struct _GstV4l2InitParam
+struct _GstAcmV4l2InitParam
 {
 	gint video_fd;             
 	enum v4l2_buf_type type;   /* VIDEO_CAPTURE, VIDEO_OUTPUT */
-	GstV4l2IOMode mode;
+	GstAcmV4l2IOMode mode;
 	guint32 sizeimage;
 	guint init_num_buffers;
 	
@@ -86,11 +86,11 @@ struct _GstV4l2InitParam
 };
 
 /* クラス定義		*/
-struct _GstV4l2BufferPool
+struct _GstAcmV4l2BufferPool
 {
 	GstBufferPool parent;
 
-	GstV4l2InitParam init_param;
+	GstAcmV4l2InitParam init_param;
 
 	GstAllocator *allocator;
 	GstAllocationParams params;
@@ -106,44 +106,45 @@ struct _GstV4l2BufferPool
 	gint next_qbuf_index;
 };
 
-struct _GstV4l2BufferPoolClass
+struct _GstAcmV4l2BufferPoolClass
 {
 	GstBufferPoolClass parent_class;
 };
 
-GType gst_v4l2_meta_api_get_type (void);
-const GstMetaInfo * gst_v4l2_meta_get_info (void);
-#define GST_V4L2_META_GET(buf) ((GstV4l2Meta *)gst_buffer_get_meta(buf,gst_v4l2_meta_api_get_type()))
-#define GST_V4L2_META_ADD(buf) ((GstV4l2Meta *)gst_buffer_add_meta(buf,gst_v4l2_meta_get_info(),NULL))
+GType gst_acm_v4l2_meta_api_get_type (void);
+const GstMetaInfo * gst_acm_v4l2_meta_get_info (void);
+#define GST_ACM_V4L2_META_GET(buf) ((GstAcmV4l2Meta *)gst_buffer_get_meta(buf,gst_acm_v4l2_meta_api_get_type()))
+#define GST_ACM_V4L2_META_ADD(buf) ((GstAcmV4l2Meta *)gst_buffer_add_meta(buf,gst_acm_v4l2_meta_get_info(),NULL))
 
-GType gst_v4l2_buffer_pool_get_type (void);
+GType gst_acm_v4l2_buffer_pool_get_type (void);
 
-GstV4l2BufferPool*	gst_v4l2_buffer_pool_new(
-						GstV4l2InitParam *param, GstCaps *caps);
+GstAcmV4l2BufferPool*	gst_acm_v4l2_buffer_pool_new(
+						GstAcmV4l2InitParam *param, GstCaps *caps);
 
-GstFlowReturn		gst_v4l2_buffer_pool_acquire_buffer(
+GstFlowReturn		gst_acm_v4l2_buffer_pool_acquire_buffer(
 						GstBufferPool * pool, GstBuffer ** buffer,
 						GstBufferPoolAcquireParams * params);
 
-GstFlowReturn		gst_v4l2_buffer_pool_qbuf(
-						GstV4l2BufferPool * pool, GstBuffer * buf, gsize size);
+GstFlowReturn		gst_acm_v4l2_buffer_pool_qbuf(
+						GstAcmV4l2BufferPool * pool, GstBuffer * buf, gsize size);
 
-gboolean 			gst_v4l2_buffer_pool_is_ready_to_dqbuf(
-						GstV4l2BufferPool * pool);
+gboolean 			gst_acm_v4l2_buffer_pool_is_ready_to_dqbuf(
+						GstAcmV4l2BufferPool * pool);
 
-GstFlowReturn		gst_v4l2_buffer_pool_dqbuf(
-						GstV4l2BufferPool * pool, GstBuffer ** buffer);
+GstFlowReturn		gst_acm_v4l2_buffer_pool_dqbuf(
+						GstAcmV4l2BufferPool * pool, GstBuffer ** buffer);
 
-GstFlowReturn		gst_v4l2_buffer_pool_dqbuf_ex(
-						GstV4l2BufferPool * pool, GstBuffer ** buffer,
+GstFlowReturn		gst_acm_v4l2_buffer_pool_dqbuf_ex(
+						GstAcmV4l2BufferPool * pool, GstBuffer ** buffer,
 						guint32* bytesused);
 
 /* for debug */
-void 				gst_v4l2_buffer_pool_log_buf_status(GstV4l2BufferPool* pool);
+void 				gst_acm_v4l2_buffer_pool_log_buf_status(
+						GstAcmV4l2BufferPool* pool);
 
 G_END_DECLS
 
-#endif /*__GST_V4L2_BUFFER_POOL_H__ */
+#endif /* __GST_ACM_V4L2_BUFFER_POOL_H__ */
 
 /*
  * End of file

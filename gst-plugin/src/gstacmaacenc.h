@@ -22,7 +22,7 @@
 
 #include <gst/gst.h>
 #include <gst/audio/gstaudioencoder.h>
-#include "gstv4l2bufferpool.h"
+#include "gstacmv4l2bufferpool.h"
 
 G_BEGIN_DECLS
 
@@ -67,8 +67,8 @@ typedef struct _GstAcmAacEnc {
 	char *videodev;					/* property */
 	gint video_fd;
 	/* buffer pool */
-	GstV4l2BufferPool* pool_in;
-	GstV4l2BufferPool* pool_out;
+	GstAcmV4l2BufferPool* pool_in;
+	GstAcmV4l2BufferPool* pool_out;
 	
 	/* ACM aacenc */
 	gint output_bit_rate;			/* property */
