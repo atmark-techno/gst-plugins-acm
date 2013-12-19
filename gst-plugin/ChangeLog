@@ -1,9 +1,50 @@
 
+
+* 2013-12-19	kaz
+- JPEG ENC : 1st release
+ - 以下のパイプラインで動作確認済み
+    - JPEGエンコード（JPEG）
+     gst-launch-1.0 filesrc location=lena_std.png \
+     ! pngdec ! videoconvert \
+     ! acmjpegenc \
+     ! filesink location=png_to_jpeg.jpg
+
+    - JPEGエンコード（MJPEG）
+     gst-launch-1.0 filesrc location=mp4_h264_aac.mp4 \
+     ! qtdemux name=demux demux. ! queue ! avdec_h264 ! videoconvert \
+     ! acmjpegenc \
+     ! queue ! avimux ! filesink location=mjpeg.avi
+
+     gst-launch-1.0 filesrc location=mp4_h264_aac.mp4 \
+     ! qtdemux name=demux demux. ! queue ! avdec_h264 ! videoconvert \
+     ! acmjpegenc \
+     ! queue ! qtmux ! filesink location=mjpeg.mov
+
+
 * 2013-12-02	kaz
 - V4L2 : クラス名、メソッド名を変更
  v4l2src エレメントをパイプラインに使用した場合、クラス名が重複するため、以下のエラーが発生
    GLib-GObject-WARNING **: cannot register existing type `GstV4l2BufferPool'
  そこで、クラス名、メソッド名について、prefix を GstV4l2 から GstAcmV4l2 に変更
+
+ - パイプライン例
+    - USBカメラ（MP4コンテナ）
+     gst-launch-1.0 v4l2src device=/dev/video3 num-buffers=900 do-timestamp=TRUE \
+     ! video/x-raw, format=YUY2, framerate=30/1, width=640, height=480 \
+     ! videoconvert \
+     ! queue ! acmh264enc ! qtmux ! filesink location=webcam_acm.mp4
+
+    - USBカメラ + マイク（MP4コンテナ）
+     gst-launch-1.0 v4l2src device=/dev/video3 num-buffers=900 do-timestamp=TRUE \
+     ! video/x-raw, framerate=30/1, width=640, height=480 \
+     ! videoconvert \
+     ! queue ! acmh264enc ! queue ! mux. \
+     alsasrc device=hw:2 num-buffers=3300 do-timestamp=TRUE \
+     ! audio/x-raw, rate=16000, channels=1, format=S16LE \
+     ! audioconvert ! audioresample \
+     ! audio/x-raw, rate=44100, channels=1 \
+     ! queue ! acmaacenc ! queue ! mux. \
+     qtmux name=mux ! filesink location=../../../media_enc/webcam_and_mic.mp4
 
 
 * 2013-11-27	kaz
