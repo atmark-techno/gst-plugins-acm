@@ -153,7 +153,7 @@ GST_START_TEST (test_properties)
 	gint rate_control_mode;
 	gint max_GOP_length;
 	gint B_pic_mode;
-	gint x_offfset;
+	gint x_offset;
 	gint y_offset;
 
 	/* setup */
@@ -183,7 +183,7 @@ GST_START_TEST (test_properties)
 				  "rate-control-mode", 		&rate_control_mode,
 				  "max-gop-length", 		&max_GOP_length,
 				  "b-pic-mode", 			&B_pic_mode,
-				  "x-offset", 				&x_offfset,
+				  "x-offset", 				&x_offset,
 				  "y-offset", 				&y_offset,
 				  NULL);
 	fail_unless (g_str_equal (device, "/dev/video1"));
@@ -195,7 +195,7 @@ GST_START_TEST (test_properties)
 	fail_unless_equals_int (rate_control_mode, 0);
 	fail_unless_equals_int (max_GOP_length, 0);
 	fail_unless_equals_int (B_pic_mode, 0);
-	fail_unless_equals_int (x_offfset, 160);
+	fail_unless_equals_int (x_offset, 160);
 	fail_unless_equals_int (y_offset, 160);
 	g_free (device);
 	device = NULL;
@@ -224,7 +224,7 @@ GST_START_TEST (test_properties)
 				  "rate-control-mode", 		&rate_control_mode,
 				  "max-gop-length", 		&max_GOP_length,
 				  "b-pic-mode", 			&B_pic_mode,
-				  "x-offset", 				&x_offfset,
+				  "x-offset", 				&x_offset,
 				  "y-offset", 				&y_offset,
 				  NULL);
 	fail_unless (g_str_equal (device, "/dev/video2"));
@@ -236,7 +236,7 @@ GST_START_TEST (test_properties)
 	fail_unless_equals_int (rate_control_mode, 2);
 	fail_unless_equals_int (max_GOP_length, 120);
 	fail_unless_equals_int (B_pic_mode, 3);
-	fail_unless_equals_int (x_offfset, 0);
+	fail_unless_equals_int (x_offset, 0);
 	fail_unless_equals_int (y_offset, 0);
 	g_free (device);
 	device = NULL;

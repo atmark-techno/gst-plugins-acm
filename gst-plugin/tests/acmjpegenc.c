@@ -64,8 +64,8 @@ static GstPad *mysrcpad, *mysinkpad;
 #endif
 
 #define JPEG_CAPS_STRING "image/jpeg, " \
-	"width = (int) [ 16, 4088 ], " \
-	"height = (int) [ 16, 4088 ], " \
+	"width = (int) [ 16, 1920 ], " \
+	"height = (int) [ 16, 1080 ], " \
 	"framerate = (fraction) [ 0/1, MAX ]"
 
 /* output */
@@ -130,37 +130,51 @@ cleanup_acmjpegenc (GstElement * acmjpegenc)
 GST_START_TEST (test_properties)
 {
 	GstElement *acmjpegenc;
-	gchar *device = NULL;
-	gint quality;
-	
+	gchar 	*device = NULL;
+	gint 	quality;
+	gint 	x_offset;
+	gint 	y_offset;
+
 	/* setup */
 	acmjpegenc = setup_acmjpegenc ();
 
 	/* set and check properties */
 	g_object_set (G_OBJECT (acmjpegenc),
-				  "device", "/dev/video7",
-				  "quality", 50,
+				  "device", 		"/dev/video7",
+				  "quality", 		50,
+				  "x-offset",		160,
+				  "y-offset",		160,
 				  NULL);
 	g_object_get (acmjpegenc,
-				  "device", &device,
-				  "quality", &quality,
+				  "device", 		&device,
+				  "quality", 		&quality,
+				  "x-offset",		&x_offset,
+				  "y-offset",		&y_offset,
 				  NULL);
 	fail_unless (g_str_equal (device, "/dev/video7"));
 	fail_unless_equals_int (quality, 50);
+	fail_unless_equals_int (x_offset, 160);
+	fail_unless_equals_int (y_offset, 160);
 	g_free (device);
 	device = NULL;
 
 	/* new properties */
 	g_object_set (G_OBJECT (acmjpegenc),
-				  "device", "/dev/video9",
-				  "quality", 95,
+				  "device", 		"/dev/video9",
+				  "quality", 		95,
+				  "x-offset",		0,
+				  "y-offset",		0,
 				  NULL);
 	g_object_get (acmjpegenc,
-				  "device", &device,
-				  "quality", &quality,
+				  "device", 		&device,
+				  "quality", 		&quality,
+				  "x-offset",		&x_offset,
+				  "y-offset",		&y_offset,
 				  NULL);
 	fail_unless (g_str_equal (device, "/dev/video9"));
 	fail_unless_equals_int (quality, 95);
+	fail_unless_equals_int (x_offset, 0);
+	fail_unless_equals_int (y_offset, 0);
 	g_free (device);
 	device = NULL;
 
@@ -235,6 +249,100 @@ GST_START_TEST (test_input_img_size)
 	check_input_img_size(805, 600, FMT_NV16, GST_FLOW_NOT_NEGOTIATED);
 	check_input_img_size(800, 605, FMT_NV16, GST_FLOW_NOT_NEGOTIATED);
 	check_input_img_size(805, 605, FMT_NV16, GST_FLOW_NOT_NEGOTIATED);
+#endif
+}
+GST_END_TEST;
+
+/* combination of a property */
+static void
+check_property_comb_offset(gint width, gint height, gint fmt,
+	gint x_offset, gint y_offset, GstFlowReturn result)
+{
+	GstElement *acmjpegenc;
+	GstBuffer *buffer;
+	GstCaps *caps;
+	GstBuffer *outbuffer;
+
+//	g_print("check_property_comb_offset(%d, %d, %d, %d)\n",
+//			width, height, x_offset, y_offset);
+
+	/* setup */
+	acmjpegenc = setup_acmjpegenc ();
+	g_object_set (acmjpegenc,
+				  "x-offset",				x_offset,
+				  "y-offset",				y_offset,
+				  NULL);
+	gst_element_set_state (acmjpegenc, GST_STATE_PLAYING);
+
+	/* make caps */
+	caps = gst_caps_new_simple ("video/x-raw",
+								"width", G_TYPE_INT, width,
+								"height", G_TYPE_INT, height,
+								"framerate", GST_TYPE_FRACTION, 1, 1,
+								NULL);
+	if (FMT_NV12 == fmt) {
+		gst_caps_set_simple (caps, "format", G_TYPE_STRING, "NV12", NULL);
+	}
+#if SUPPORT_NV16
+	else if (FMT_NV16 == fmt) {
+		gst_caps_set_simple (caps, "format", G_TYPE_STRING, "NV16", NULL);
+	}
+#endif
+
+	fail_unless (gst_pad_set_caps (mysrcpad, caps));
+
+	/* create buffer */
+	fail_unless ((buffer = create_video_buffer (caps)) != NULL);
+
+	/* push buffer */
+	fail_unless (gst_pad_push (mysrcpad, buffer) == result);
+
+	/* release encoded data */
+	if (g_list_length (buffers) > 0) {
+		outbuffer = GST_BUFFER (buffers->data);
+		buffers = g_list_remove (buffers, outbuffer);
+		
+		ASSERT_BUFFER_REFCOUNT (outbuffer, "outbuffer", 1);
+		gst_buffer_unref (outbuffer);
+		outbuffer = NULL;
+	}
+
+	/* cleanup */
+	gst_caps_unref (caps);
+	gst_element_set_state (acmjpegenc, GST_STATE_NULL);
+	cleanup_acmjpegenc (acmjpegenc);
+}
+
+GST_START_TEST (test_property_comb_offset)
+{
+	/* NV12 - width - x_offset : 8pixel の倍数, 
+	 *        height - y_offset : 16pixel の倍数 
+	 */
+	check_property_comb_offset(640, 320, FMT_NV12, 320, 160,
+							   GST_FLOW_OK);
+	check_property_comb_offset(640, 320, FMT_NV12, 5, 160,
+							   GST_FLOW_NOT_NEGOTIATED);
+	check_property_comb_offset(640, 320, FMT_NV12, 320, 5,
+							   GST_FLOW_NOT_NEGOTIATED);
+	check_property_comb_offset(640, 320, FMT_NV12, 5, 5,
+							   GST_FLOW_NOT_NEGOTIATED);
+	check_property_comb_offset(640, 320, FMT_NV12, 641, 321,
+							   GST_FLOW_NOT_NEGOTIATED);
+
+#if SUPPORT_NV16	/* 結局 NV16 はエラーとなってしまうため、使用不可	*/
+	/* NV16 - width - x_offset : 8pixel の倍数, 
+	 *        height - y_offset : 8pixel の倍数  
+	 */
+	check_property_comb_offset(800, 600, FMT_NV16, 400, 280,
+							   GST_FLOW_OK);
+	check_property_comb_offset(800, 600, FMT_NV16, 5, 280,
+							   GST_FLOW_NOT_NEGOTIATED);
+	check_property_comb_offset(800, 600, FMT_NV16, 400, 5,
+							   GST_FLOW_NOT_NEGOTIATED);
+	check_property_comb_offset(800, 600, FMT_NV16, 5, 5,
+							   GST_FLOW_NOT_NEGOTIATED);
+	check_property_comb_offset(800, 600, FMT_NV16, 801, 601,
+							   GST_FLOW_NOT_NEGOTIATED);
 #endif
 }
 GST_END_TEST;
@@ -519,6 +627,7 @@ acmjpegenc_suite (void)
 	tcase_add_test (tc_chain, test_properties);
 
 	tcase_add_test (tc_chain, test_input_img_size);
+	tcase_add_test (tc_chain, test_property_comb_offset);
 
 	tcase_add_test (tc_chain, test_check_caps);
 

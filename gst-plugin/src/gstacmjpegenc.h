@@ -42,9 +42,13 @@ G_BEGIN_DECLS
 
 /* 入出力画素数	*/
 #define GST_ACMJPEGENC_WIDTH_MIN		16
-#define GST_ACMJPEGENC_WIDTH_MAX		4088
+#define GST_ACMJPEGENC_WIDTH_MAX		1920
 #define GST_ACMJPEGENC_HEIGHT_MIN		16
-#define GST_ACMJPEGENC_HEIGHT_MAX		4088
+#define GST_ACMJPEGENC_HEIGHT_MAX		1080
+#define GST_ACMJPEGENC_X_OFFSET_MIN		0
+#define GST_ACMJPEGENC_X_OFFSET_MAX		1920
+#define GST_ACMJPEGENC_Y_OFFSET_MIN		0
+#define GST_ACMJPEGENC_Y_OFFSET_MAX		1080
 
 /* JPEG品質 		*/
 #define GST_ACMJPEGENC_QUALITY_MIN		0
@@ -57,8 +61,8 @@ typedef struct _GstAcmJpegEnc {
 	GstVideoEncoder element;
 
 	/* input video caps */
-	gint input_width;	/* 16〜4088画素	*/
-	gint input_height;	/* 16〜4088画素	*/
+	gint input_width;	/* 16〜1920画素	*/
+	gint input_height;	/* 16〜1080画素	*/
 	gint input_format;
 
 	/* video state */
@@ -78,6 +82,8 @@ typedef struct _GstAcmJpegEnc {
 
 	/* ACM jpegenc */
 	gint jpeg_quality;				/* property */
+	gint32 x_offset;				/* property */
+	gint32 y_offset;				/* property */
 
 	/*< private >*/
 	GstAcmJpegEncPrivate *priv;

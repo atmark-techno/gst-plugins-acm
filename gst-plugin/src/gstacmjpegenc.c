@@ -66,6 +66,8 @@
 # define DEFAULT_OUT_WIDTH				0
 # define DEFAULT_OUT_HEIGHT				0
 #endif
+#define DEFAULT_X_OFFSET				0
+#define DEFAULT_Y_OFFSET				0
 
 /* select() の timeout 時間 */
 #define SELECT_TIMEOUT_MSEC				1000
@@ -135,6 +137,8 @@ enum
 	PROP_OUT_WIDTH,
 	PROP_OUT_HEIGHT,
 #endif
+	PROP_X_OFFSET,
+	PROP_Y_OFFSET,
 };
 
 /* pad template caps for source and sink pads.	*/
@@ -149,15 +153,15 @@ GST_STATIC_PAD_TEMPLATE ("sink",
 	GST_STATIC_CAPS (
 		"video/x-raw, "
 		"format = (string) { NV12 }, "
-		"width = (int) [ 16, 4088 ], "
-		"height = (int) [ 16, 4088 ], "
+		"width = (int) [ 16, 1920 ], "
+		"height = (int) [ 16, 1080 ], "
 		"framerate = (fraction) [ 0/1, MAX ] "
 #if SUPPORT_NV16
 		"; "
 		"video/x-raw, "
 		"format = (string) { NV16 }, "
-		"width = (int) [ 16, 4088 ], "
-		"height = (int) [ 16, 4088 ], "
+		"width = (int) [ 16, 1920 ], "
+		"height = (int) [ 16, 1080 ], "
 		"framerate = (fraction) [ 0/1, MAX ] "
 #endif
 	)
@@ -169,8 +173,8 @@ GST_STATIC_PAD_TEMPLATE ("src",
     GST_PAD_ALWAYS,
     GST_STATIC_CAPS (
 		"image/jpeg, "
-		"width = (int) [ 16, 4088 ], "
-		"height = (int) [ 16, 4088 ], "
+		"width = (int) [ 16, 1920 ], "
+		"height = (int) [ 16, 1080 ], "
 		"framerate = (fraction) [ 0/1, MAX ]"
 	)
 );
@@ -236,6 +240,12 @@ gst_acm_jpeg_enc_set_property (GObject * object, guint prop_id,
 		me->output_height = g_value_get_int (value);
 		break;
 #endif
+	case PROP_X_OFFSET:
+		me->x_offset = g_value_get_int (value);
+		break;
+	case PROP_Y_OFFSET:
+		me->y_offset = g_value_get_int (value);
+		break;
 	default:
 		G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
 		break;
@@ -263,6 +273,12 @@ gst_acm_jpeg_enc_get_property (GObject * object, guint prop_id,
 		g_value_set_int (value, me->output_height);
 		break;
 #endif
+	case PROP_X_OFFSET:
+		g_value_set_int (value, me->x_offset);
+		break;
+	case PROP_Y_OFFSET:
+		g_value_set_int (value, me->y_offset);
+		break;
 	default:
 		G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
 		break;
@@ -307,6 +323,18 @@ gst_acm_jpeg_enc_class_init (GstAcmJpegEncClass * klass)
 			GST_ACMJPEGENC_HEIGHT_MIN, GST_ACMJPEGENC_HEIGHT_MAX,
 			DEFAULT_OUT_HEIGHT, G_PARAM_READWRITE));
 #endif
+
+	g_object_class_install_property (gobject_class, PROP_X_OFFSET,
+		g_param_spec_int ("x-offset", "X Offset",
+			"X Offset of output image. (0 is unspecified)",
+			GST_ACMJPEGENC_X_OFFSET_MIN, GST_ACMJPEGENC_X_OFFSET_MAX,
+			DEFAULT_X_OFFSET, G_PARAM_READWRITE));
+
+	g_object_class_install_property (gobject_class, PROP_Y_OFFSET,
+		g_param_spec_int ("y-offset", "Y Offset",
+			"Y Offset of output image. (0 is unspecified)",
+			GST_ACMJPEGENC_Y_OFFSET_MIN, GST_ACMJPEGENC_Y_OFFSET_MAX,
+			DEFAULT_Y_OFFSET, G_PARAM_READWRITE));
 
 	gst_element_class_add_pad_template (element_class,
 			gst_static_pad_template_get (&src_template_factory));
@@ -357,6 +385,8 @@ gst_acm_jpeg_enc_init (GstAcmJpegEnc * me)
 	/* property	*/
 	me->videodev = NULL;
 	me->jpeg_quality = -1;
+	me->x_offset = -1;
+	me->y_offset = -1;
 }
 
 static void
@@ -522,7 +552,7 @@ gst_acm_jpeg_enc_set_format (GstVideoEncoder * enc, GstVideoCodecState * state)
 		goto illegal_caps;
 	}
 
-	/* 画像サイズチェック （HWエンコーダーの制限事項）
+	/* 入力画像サイズチェック （HWエンコーダーの制限事項）
 	 * width : 8pixel の倍数
 	 * height : YUV420 の場合 16pixel の倍数、YUV422 の場合 8pixel の倍数
 	 */
@@ -577,6 +607,73 @@ gst_acm_jpeg_enc_set_format (GstVideoEncoder * enc, GstVideoCodecState * state)
 	me->output_width = me->input_width;
 	me->output_height = me->input_height;
 #endif
+	if (me->x_offset < /* not <= */ 0) {
+		me->x_offset = DEFAULT_X_OFFSET;
+	}
+	if (me->y_offset < /* not <= */ 0) {
+		me->y_offset = DEFAULT_Y_OFFSET;
+	}
+	if (me->x_offset >= me->input_width) {
+		GST_ERROR_OBJECT (me, "invalid x-offset.");
+		
+		goto invalid_offset;
+	}
+	if (me->y_offset >= me->input_height) {
+		GST_ERROR_OBJECT (me, "invalid y-offset.");
+		
+		goto invalid_offset;
+	}
+	{
+		/* オフセットを適用した入力画像サイズチェック （HWエンコーダーの制限事項）
+		 * width : 8pixel の倍数
+		 * height : YUV420 の場合 16pixel の倍数、YUV422 の場合 8pixel の倍数
+		 */
+		gint off_width = me->input_width - me->x_offset;
+		gint off_height = me->input_height - me->y_offset;
+
+		if (0 != off_width % 8) {
+			GST_ERROR_OBJECT (me,
+				"image width (with x-offset) must be a multiple of 8 pixels.");
+			
+			goto invalid_offset;
+		}
+		if (V4L2_PIX_FMT_NV12 == me->input_format) {
+			if (0 != off_height % 16) {
+				GST_ERROR_OBJECT (me,
+					"image height (with y-offset) must be a multiple of 16 pixels. (when YUV420 format)");
+				
+				goto invalid_offset;
+			}
+		}
+#if SUPPORT_NV16
+		else if (V4L2_PIX_FMT_NV16 == me->input_format) {
+			if (0 != off_height % 8) {
+				GST_ERROR_OBJECT (me,
+					"image height (with y-offset) must be a multiple of 8 pixels. (when YUV422 format)");
+				
+				goto invalid_offset;
+			}
+		}
+#endif
+	}
+	me->output_width -= me->x_offset;
+	me->output_height -= me->y_offset;
+
+	/* 出力画像幅および高さ : 4の倍数であること	*/
+	if (me->x_offset > 0 || me->y_offset > 0) {
+		if (0 != me->output_width % 4) {
+			GST_ERROR_OBJECT (me,
+				"output width must be a multiple of 4 pixels.");
+
+			goto invalid_offset;
+		}
+		if (0 != me->output_height % 4) {
+			GST_ERROR_OBJECT (me,
+				"output height must be a multiple of 4 pixels.");
+
+			goto invalid_offset;
+		}
+	}
 
 	/* Creates a new output state with the specified fmt, width and height
 	 * and Negotiate with downstream elements.
@@ -586,7 +683,11 @@ gst_acm_jpeg_enc_set_format (GstVideoEncoder * enc, GstVideoCodecState * state)
     gst_structure_set (structure, "width", G_TYPE_INT, me->output_width, NULL);
     gst_structure_set (structure, "height", G_TYPE_INT, me->output_height, NULL);
 
+	GST_VIDEO_INFO_WIDTH (vinfo) = me->output_width;
+	GST_VIDEO_INFO_HEIGHT (vinfo) = me->output_height;
 	output_state = gst_video_encoder_set_output_state (enc, outcaps, state);
+	GST_VIDEO_INFO_WIDTH (vinfo) = me->input_width;
+	GST_VIDEO_INFO_HEIGHT (vinfo) = me->input_height;
 
 	if (! gst_video_encoder_negotiate (enc)) {
 		goto negotiate_faile;
@@ -629,6 +730,13 @@ not_support_image_size:
 	{
 		GST_ELEMENT_ERROR (me, STREAM, ENCODE, (NULL),
 			("input image size is not support."));
+		ret = FALSE;
+		goto out;
+	}
+invalid_offset:
+	{
+		GST_ELEMENT_ERROR (me, STREAM, ENCODE, (NULL),
+			("invalid offset."));
 		ret = FALSE;
 		goto out;
 	}
@@ -817,6 +925,7 @@ gst_acm_jpeg_enc_init_encoder (GstAcmJpegEnc * me)
 	GstAcmV4l2InitParam v4l2InitParam;
 	struct v4l2_format fmt;
 	struct v4l2_control ctrl;
+	guint offset;
 	guint in_buf_size, out_buf_size;
 
 	GST_INFO_OBJECT (me, "JPEGENC INITIALIZE ACM ENCODER...");
@@ -824,6 +933,9 @@ gst_acm_jpeg_enc_init_encoder (GstAcmJpegEnc * me)
 	/* buffer size : YUV422 or YUV420	*/
 	in_buf_size = me->input_width * me->input_height * 3;
 	out_buf_size = me->input_width * me->input_height * 3;
+
+	/* offset	*/
+	offset = me->input_width * me->y_offset + me->x_offset;
 
 	/* setup encode parameter		*/
 	GST_INFO_OBJECT (me, "JPEGENC INIT PARAM:");
@@ -834,6 +946,9 @@ gst_acm_jpeg_enc_init_encoder (GstAcmJpegEnc * me)
 	GST_INFO_OBJECT (me, " jpeg_quality:%d", me->jpeg_quality);
 	GST_INFO_OBJECT (me, " output_width:%d", me->output_width);
 	GST_INFO_OBJECT (me, " output_height:%d", me->output_height);
+	GST_INFO_OBJECT (me, " x_offset:%d", me->x_offset);
+	GST_INFO_OBJECT (me, " y_offset:%d", me->y_offset);
+	GST_INFO_OBJECT (me, " offset:%d", offset);
 
 	/* Set format for output (encoder input) */
 	memset(&fmt, 0, sizeof(struct v4l2_format));
@@ -851,6 +966,7 @@ gst_acm_jpeg_enc_init_encoder (GstAcmJpegEnc * me)
 	}
 	fmt.fmt.pix.sizeimage = fmt.fmt.pix.bytesperline * me->input_height;
 #endif
+	fmt.fmt.pix.priv = offset;
 	r = gst_acm_v4l2_ioctl(me->video_fd, VIDIOC_S_FMT, &fmt);
 	if (r < 0) {
 		GST_ERROR_OBJECT(me, "failed ioctl - VIDIOC_S_FMT (OUTPUT)");
