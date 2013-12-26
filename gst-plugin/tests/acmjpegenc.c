@@ -67,12 +67,21 @@ static GstPad *mysrcpad, *mysinkpad;
 	"width = (int) [ 16, 1920 ], " \
 	"height = (int) [ 16, 1080 ], " \
 	"framerate = (fraction) [ 0/1, MAX ]"
+/* for use offset */
+#define JPEG_STRIDE_CAPS_STRING "image/jpeg, " \
+	"width = (int) 160, " \
+	"height = (int) 160, " \
+	"framerate = (fraction) [ 0/1, MAX ] "
 
 /* output */
 static GstStaticPadTemplate sinktemplate = GST_STATIC_PAD_TEMPLATE ("sink",
 	GST_PAD_SINK,
 	GST_PAD_ALWAYS,
 	GST_STATIC_CAPS (JPEG_CAPS_STRING));
+static GstStaticPadTemplate sinktemplate_stride = GST_STATIC_PAD_TEMPLATE ("sink",
+	GST_PAD_SINK,
+	GST_PAD_ALWAYS,
+	GST_STATIC_CAPS (JPEG_STRIDE_CAPS_STRING));
 
 /* input */
 static GstStaticPadTemplate srctemplate = GST_STATIC_PAD_TEMPLATE ("src",
@@ -92,7 +101,7 @@ static char g_output_data_file_path[PATH_MAX];
 
 /* setup */
 static GstElement *
-setup_acmjpegenc (void)
+setup_acmjpegenc (GstStaticPadTemplate *sinktempl)
 {
 	GstElement *acmjpegenc;
 
@@ -103,7 +112,7 @@ setup_acmjpegenc (void)
 	mysrcpad = gst_check_setup_src_pad (acmjpegenc, &srctemplate);
 	g_print ("pass : gst_check_setup_src_pad()\n");
 	
-	mysinkpad = gst_check_setup_sink_pad (acmjpegenc, &sinktemplate);
+	mysinkpad = gst_check_setup_sink_pad (acmjpegenc, sinktempl);
 	g_print ("pass : gst_check_setup_sink_pad()\n");
 	
 	gst_pad_set_active (mysrcpad, TRUE);
@@ -136,7 +145,7 @@ GST_START_TEST (test_properties)
 	gint 	y_offset;
 
 	/* setup */
-	acmjpegenc = setup_acmjpegenc ();
+	acmjpegenc = setup_acmjpegenc (&sinktemplate);
 
 	/* set and check properties */
 	g_object_set (G_OBJECT (acmjpegenc),
@@ -193,7 +202,7 @@ check_input_img_size(gint width, gint height, gint fmt, GstFlowReturn result)
 	GstBuffer *outbuffer;
 
 	/* setup */
-	acmjpegenc = setup_acmjpegenc ();
+	acmjpegenc = setup_acmjpegenc (&sinktemplate);
 	gst_element_set_state (acmjpegenc, GST_STATE_PLAYING);
 
 	/* make caps */
@@ -267,7 +276,7 @@ check_property_comb_offset(gint width, gint height, gint fmt,
 //			width, height, x_offset, y_offset);
 
 	/* setup */
-	acmjpegenc = setup_acmjpegenc ();
+	acmjpegenc = setup_acmjpegenc (&sinktemplate_stride);
 	g_object_set (acmjpegenc,
 				  "x-offset",				x_offset,
 				  "y-offset",				y_offset,
@@ -327,7 +336,7 @@ GST_START_TEST (test_property_comb_offset)
 	check_property_comb_offset(640, 320, FMT_NV12, 5, 5,
 							   GST_FLOW_NOT_NEGOTIATED);
 	check_property_comb_offset(640, 320, FMT_NV12, 641, 321,
-							   GST_FLOW_NOT_NEGOTIATED);
+							   GST_FLOW_OK);
 
 #if SUPPORT_NV16	/* 結局 NV16 はエラーとなってしまうため、使用不可	*/
 	/* NV16 - width - x_offset : 8pixel の倍数, 
@@ -342,7 +351,7 @@ GST_START_TEST (test_property_comb_offset)
 	check_property_comb_offset(800, 600, FMT_NV16, 5, 5,
 							   GST_FLOW_NOT_NEGOTIATED);
 	check_property_comb_offset(800, 600, FMT_NV16, 801, 601,
-							   GST_FLOW_NOT_NEGOTIATED);
+							   GST_FLOW_OK);
 #endif
 }
 GST_END_TEST;
@@ -357,7 +366,7 @@ GST_START_TEST (test_check_caps)
 	int i, num_buffers;
 	
 	/* setup */
-	acmjpegenc = setup_acmjpegenc ();
+	acmjpegenc = setup_acmjpegenc (&sinktemplate);
 	fail_unless (gst_element_set_state (acmjpegenc, GST_STATE_PLAYING)
 				 == GST_STATE_CHANGE_SUCCESS, "could not set to playing");
 
@@ -527,7 +536,7 @@ check_encode(gint srcfmt, gint quality)
 	GstCaps *srccaps;
 
 	/* setup */
-	acmjpegenc = setup_acmjpegenc ();
+	acmjpegenc = setup_acmjpegenc (&sinktemplate);
 	g_object_set (G_OBJECT (acmjpegenc),
 				  "quality", quality,
 				  NULL);
