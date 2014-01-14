@@ -28,6 +28,9 @@ override_dh_auto_install:
 	cp -pf src/.libs/libgstacmaacdec.so debian/${PACKAGE}/usr/lib/${DEB_HOST_MULTIARCH}/gstreamer-1.0/
 	cp -pf src/.libs/libgstacmfbdevsink.so debian/${PACKAGE}/usr/lib/${DEB_HOST_MULTIARCH}/gstreamer-1.0/
 	cp -pf src/.libs/libgstacmh264dec.so debian/${PACKAGE}/usr/lib/${DEB_HOST_MULTIARCH}/gstreamer-1.0/
+	cp -pf src/.libs/libgstacmaacenc.so debian/${PACKAGE}/usr/lib/${DEB_HOST_MULTIARCH}/gstreamer-1.0/
+	cp -pf src/.libs/libgstacmh264enc.so debian/${PACKAGE}/usr/lib/${DEB_HOST_MULTIARCH}/gstreamer-1.0/
+	cp -pf src/.libs/libgstacmjpegenc.so debian/${PACKAGE}/usr/lib/${DEB_HOST_MULTIARCH}/gstreamer-1.0/
 
 override_dh_clean:
 	dh_clean
