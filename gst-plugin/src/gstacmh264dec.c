@@ -232,6 +232,12 @@ GST_STATIC_PAD_TEMPLATE ("src",
     GST_PAD_ALWAYS,
     GST_STATIC_CAPS (
 		"video/x-raw, "
+		"format = (string) RGB16, "
+		"width = (int)[80, 1920], "
+		"height = (int)[80, 1080], "
+		"framerate = (fraction) [ 0/1, MAX ]"
+		"; "
+		"video/x-raw, "
 		"format = (string) RGB, "
 		"width = (int)[80, 1920], "
 		"height = (int)[80, 1080], "
@@ -925,6 +931,10 @@ gst_acm_h264_dec_set_format (GstVideoDecoder * dec, GstVideoCodecState * state)
 			else if (g_str_equal (s, "RGB")) {
 				me->out_video_fmt = GST_VIDEO_FORMAT_RGB;
 				me->output_format = GST_ACMH264DEC_OUT_FMT_RGB24;
+			}
+			else if (g_str_equal (s, "RGB16")) {
+				me->out_video_fmt = GST_VIDEO_FORMAT_RGB16;
+				me->output_format = GST_ACMH264DEC_OUT_FMT_RGB565;
 			}
 		}
 	}
@@ -2135,6 +2145,9 @@ gst_acm_h264_dec_init_decoder (GstAcmH264Dec * me)
 	case GST_ACMH264DEC_OUT_FMT_RGB24:
 		out_frame_size = me->width * me->height * 3;
 		break;
+	case GST_ACMH264DEC_OUT_FMT_RGB565:
+		out_frame_size = me->width * me->height * 2;
+		break;
 	default:
 		g_assert_not_reached ();
 		break;
@@ -2155,6 +2168,10 @@ gst_acm_h264_dec_init_decoder (GstAcmH264Dec * me)
 	case GST_ACMH264DEC_OUT_FMT_RGB24:
 		bytesperline = me->frame_stride * 3;
 		offset = (me->frame_y_offset * bytesperline) + (me->frame_x_offset * 3);
+		break;
+	case GST_ACMH264DEC_OUT_FMT_RGB565:
+		bytesperline = me->frame_stride * 2;
+		offset = (me->frame_y_offset * bytesperline) + (me->frame_x_offset * 2);
 		break;
 	default:
 		g_assert_not_reached ();
