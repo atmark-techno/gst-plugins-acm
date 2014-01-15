@@ -90,7 +90,7 @@ static GstStaticPadTemplate srctemplate = GST_STATIC_PAD_TEMPLATE ("src",
 	GST_STATIC_CAPS (YUV420_CAPS_STRING));
 
 /* number of the buffers which push */
-#define PUSH_BUFFERS	10
+#define PUSH_BUFFERS	5
 
 /* chain function of sink pad */
 static GstPadChainFunction g_sink_base_chain = NULL;
@@ -640,11 +640,10 @@ acmjpegenc_suite (void)
 
 	tcase_add_test (tc_chain, test_check_caps);
 
-#if 0	// TODO : 量子化テーブルが設定できない不具合が修正されたら確認を実施
 	tcase_add_test (tc_chain, test_encode_yuv420_30);
 	tcase_add_test (tc_chain, test_encode_yuv420_60);
 	tcase_add_test (tc_chain, test_encode_yuv420_90);
-#endif
+
 #if SUPPORT_NV16
 	tcase_add_test (tc_chain, test_encode_yuv422_30);
 	tcase_add_test (tc_chain, test_encode_yuv422_60);
