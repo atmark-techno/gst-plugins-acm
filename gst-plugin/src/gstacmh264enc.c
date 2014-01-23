@@ -995,11 +995,19 @@ gst_acm_h264_enc_set_format (GstVideoEncoder * enc, GstVideoCodecState * state)
 			break;
 		}
 	}
+	/* max_frame_size : bit_rate ~ 5,000,000 Byte */
 	if (me->max_frame_size < (me->bit_rate / 8) /* byte */) {
 		GST_WARNING_OBJECT (me,
-			"max-frame-size: %u is less than bitrate: %u (%u byte)",
-			me->max_frame_size, me->bit_rate, me->bit_rate / 8);
+			"max-frame-size: %u is less than bitrate: %u (%u byte), force to %u",
+			me->max_frame_size, me->bit_rate, me->bit_rate / 8, (me->bit_rate / 8));
 		me->max_frame_size = (me->bit_rate / 8); /* byte */
+	}
+	if (me->max_frame_size > GST_ACMH264ENC_MAX_FRAME_SIZE_MAX) {
+		GST_WARNING_OBJECT (me,
+			"max-frame-size: %u is more than %u, force to %u",
+			me->max_frame_size, GST_ACMH264ENC_MAX_FRAME_SIZE_MAX,
+			GST_ACMH264ENC_MAX_FRAME_SIZE_MAX);
+		me->max_frame_size = GST_ACMH264ENC_MAX_FRAME_SIZE_MAX;
 	}
 	if (me->frame_rate_resolution < /* not <= */ 0) {
 		me->frame_rate_resolution = vinfo->fps_n;

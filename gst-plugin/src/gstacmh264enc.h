@@ -88,6 +88,9 @@ enum {
 #define GST_ACMH264ENC_MAX_GOP_LENGTH_MIN		0
 #define GST_ACMH264ENC_MAX_GOP_LENGTH_MAX		120
 
+/* 1フレームあたりの最大エンコードサイズ(バイト)		*/
+#define GST_ACMH264ENC_MAX_FRAME_SIZE_MAX		5000000
+
 /* Bピクチャモード		*/
 enum {
 	GST_ACMH264ENC_B_PIC_MODE_UNKNOWN = -1,

@@ -2,6 +2,12 @@
 
 * 2013-12-23	kaz
 - H264 ENC
+ - max-frame-size の範囲チェック追加
+     (bit_rate / 8) ~ 5,000,000 Byte
+
+
+* 2013-12-23	kaz
+- H264 ENC
  - b-pic-mode > 0 の場合は、rate-control-mode は、1 または 2 のみ設定可能
     1) プロパティのデフォルト値の変更
      b-pic-mode = 3, rate-control-mode = 1
