@@ -419,7 +419,7 @@ gst_acm_h264_enc_class_init (GstAcmH264EncClass * klass)
 	
 	g_object_class_install_property (gobject_class, PROP_DEVICE,
 		g_param_spec_string ("device", "device",
-			"The video device eg: /dev/video0 "
+			"The video device eg: /dev/video0. "
 			"default device is calculate from driver name.",
 			DEFAULT_VIDEO_DEVICE, G_PARAM_READWRITE));
 
@@ -433,19 +433,22 @@ gst_acm_h264_enc_class_init (GstAcmH264EncClass * klass)
 
 	g_object_class_install_property (gobject_class, PROP_BIT_RATE,
 		g_param_spec_int ("bitrate", "Bitrate (bps)",
-			"Average Bitrate (ABR) in bits/sec. (0 is unspecified)",
+			"Average Bitrate (ABR) in bits/sec. "
+			"default bitrate is calculate automatically.",
 			GST_ACMH264ENC_BITRATE_MIN, GST_ACMH264ENC_BITRATE_MAX,
 			DEFAULT_BITRATE, G_PARAM_READWRITE));
 
 	g_object_class_install_property (gobject_class, PROP_MAX_FRAME_SIZE,
 		g_param_spec_int ("max-frame-size", "Max Frame Size",
-			"Max frame encode size in bytes. (0 is unspecified)",
+			"Max frame encode size in bytes. "
+			"default size is calculate automatically.",
 			DEFAULT_MAX_FRAME_SIZE /* GST_ACMH264ENC_MAXFRAMESIZE_MIN */, GST_ACMH264ENC_MAXFRAMESIZE_MAX,
 			DEFAULT_MAX_FRAME_SIZE, G_PARAM_READWRITE));
 
 	g_object_class_install_property (gobject_class, PROP_RATE_CONTROL_MODE,
 		g_param_spec_int ("rate-control-mode", "Rate control mode",
-			"0:CBR (with skip picture), 1:CDR (with non skip picture), 2:VBR",
+			"0:CBR (with skip picture), 1:CDR (with non skip picture), 2:VBR. "
+			"default mode is calculate automatically.",
 			GST_ACMH264ENC_RATE_CONTROL_MODE_CBR_SKIP, GST_ACMH264ENC_RATE_CONTROL_MODE_VBR_NON_SKIP,
 			DEFAULT_RATE_CONTROL_MODE, G_PARAM_READWRITE));
 
@@ -463,13 +466,13 @@ gst_acm_h264_enc_class_init (GstAcmH264EncClass * klass)
 
 	g_object_class_install_property (gobject_class, PROP_X_OFFSET,
 		g_param_spec_int ("x-offset", "X Offset",
-			"X Offset of output video. (0 is unspecified)",
+			"X Offset of output video. (default is unspecified)",
 			GST_ACMH264ENC_X_OFFSET_MIN, GST_ACMH264ENC_X_OFFSET_MAX,
 			DEFAULT_X_OFFSET, G_PARAM_READWRITE));
 	
 	g_object_class_install_property (gobject_class, PROP_Y_OFFSET,
 		g_param_spec_int ("y-offset", "Y Offset",
-			"Y Offset of output video. (0 is unspecified)",
+			"Y Offset of output video. (default is unspecified)",
 			GST_ACMH264ENC_Y_OFFSET_MIN, GST_ACMH264ENC_Y_OFFSET_MAX,
 			DEFAULT_Y_OFFSET, G_PARAM_READWRITE));
 
@@ -541,8 +544,8 @@ gst_acm_h264_enc_init (GstAcmH264Enc * me)
 	me->rate_control_mode = -1;
 	me->frame_rate_resolution = -1;
 	me->frame_rate_tick = -1;
-	me->max_GOP_length = -1;
-	me->B_pic_mode = -1;
+	me->max_GOP_length = DEFAULT_MAX_GOP_LENGTH;
+	me->B_pic_mode = DEFAULT_B_PIC_MODE;
 	me->x_offset = -1;
 	me->y_offset = -1;
 }
@@ -1014,12 +1017,6 @@ gst_acm_h264_enc_set_format (GstVideoEncoder * enc, GstVideoCodecState * state)
 	}
 	if (me->frame_rate_tick < /* not <= */ 0) {
 		me->frame_rate_tick = vinfo->fps_d;
-	}
-	if (me->max_GOP_length < /* not <= */ 0) {
-		me->max_GOP_length = DEFAULT_MAX_GOP_LENGTH;
-	}
-	if (me->B_pic_mode < /* not <= */ 0) {
-		me->B_pic_mode = DEFAULT_B_PIC_MODE;
 	}
 	if (me->x_offset < /* not <= */ 0) {
 		me->x_offset = DEFAULT_X_OFFSET;

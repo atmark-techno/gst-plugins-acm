@@ -275,7 +275,7 @@ gst_acm_jpeg_enc_class_init (GstAcmJpegEncClass * klass)
 	
 	g_object_class_install_property (gobject_class, PROP_DEVICE,
 		g_param_spec_string ("device", "device",
-			"The video device eg: /dev/video0 "
+			"The video device eg: /dev/video0. "
 			"default device is calculate from driver name.",
 			DEFAULT_VIDEO_DEVICE, G_PARAM_READWRITE));
 
@@ -287,13 +287,13 @@ gst_acm_jpeg_enc_class_init (GstAcmJpegEncClass * klass)
 
 	g_object_class_install_property (gobject_class, PROP_X_OFFSET,
 		g_param_spec_int ("x-offset", "X Offset",
-			"X Offset of output image. (0 is unspecified)",
+			"X Offset of output image. (default is unspecified)",
 			GST_ACMJPEGENC_X_OFFSET_MIN, GST_ACMJPEGENC_X_OFFSET_MAX,
 			DEFAULT_X_OFFSET, G_PARAM_READWRITE));
 
 	g_object_class_install_property (gobject_class, PROP_Y_OFFSET,
 		g_param_spec_int ("y-offset", "Y Offset",
-			"Y Offset of output image. (0 is unspecified)",
+			"Y Offset of output image. (default is unspecified)",
 			GST_ACMJPEGENC_Y_OFFSET_MIN, GST_ACMJPEGENC_Y_OFFSET_MAX,
 			DEFAULT_Y_OFFSET, G_PARAM_READWRITE));
 
@@ -346,7 +346,7 @@ gst_acm_jpeg_enc_init (GstAcmJpegEnc * me)
 
 	/* property	*/
 	me->videodev = NULL;
-	me->jpeg_quality = -1;
+	me->jpeg_quality = DEFAULT_JPEG_QUALITY;
 	me->x_offset = -1;
 	me->y_offset = -1;
 }
@@ -603,9 +603,6 @@ gst_acm_jpeg_enc_set_format (GstVideoEncoder * enc, GstVideoCodecState * state)
 				}
 			}
 		}
-	}
-	if (me->jpeg_quality < /* not <= */ 0) {
-		me->jpeg_quality = DEFAULT_JPEG_QUALITY;
 	}
 	if (me->output_width <= 0) {
 		me->output_width = me->input_width;

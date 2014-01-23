@@ -500,13 +500,13 @@ gst_acm_aac_enc_class_init (GstAcmAacEncClass * klass)
 
 	g_object_class_install_property (gobject_class, PROP_DEVICE,
 		g_param_spec_string ("device", "device",
-			"The video device eg: /dev/video0 "
+			"The video device eg: /dev/video0. "
 			"default device is calculate from driver name.",
 			DEFAULT_VIDEO_DEVICE, G_PARAM_READWRITE));
 
 	g_object_class_install_property (gobject_class, PROP_BITRATE,
 		g_param_spec_int ("bitrate", "Bitrate (bps)",
-			"Average Bitrate (ABR) in bits/sec."
+			"Average Bitrate (ABR) in bits/sec. "
 			"default bitrate is calculate from sample rate.",
 			GST_ACMAACENC_BITRATE_MIN, GST_ACMAACENC_BITRATE_MAX,
 			DEFAULT_BITRATE, G_PARAM_READWRITE));
@@ -569,7 +569,7 @@ gst_acm_aac_enc_init (GstAcmAacEnc * me)
 	me->videodev = NULL;
 	me->output_bit_rate = -1; /* not DEFAULT_BITRATE */
 	me->output_format = -1; /* not DEFAULT_OUT_FORMAT */
-	me->enable_cbr = -1; /* not DEFAULT_ENABLE_CBR */
+	me->enable_cbr = DEFAULT_ENABLE_CBR;
 	me->dual_monaural = DEFAULT_DUAL_MONAURAL;
 }
 
@@ -796,16 +796,13 @@ gst_acm_aac_enc_set_format (GstAudioEncoder * enc, GstAudioInfo * info)
 	if (caps) {
 		gst_caps_unref (caps);
 	}
-	
+
 	/* エンコードパラメータの決定	*/
 	if (me->output_bit_rate <= 0) {
 		me->output_bit_rate = default_bit_rate(info->rate);
 	}
 	if (me->output_format < /* not <= */ 0) {
 		me->output_format = DEFAULT_OUT_FORMAT;
-	}
-	if (me->enable_cbr < /* not <= */ 0) {
-		me->enable_cbr = DEFAULT_ENABLE_CBR;
 	}
 
 	/* プレエンコード回数の決定	*/
@@ -867,54 +864,72 @@ gst_acm_aac_enc_set_format (GstAudioEncoder * enc, GstAudioInfo * info)
 	if (46009 <= me->sample_rate) {
 		// 48,000 Hz
 		if (me->output_bit_rate < 70000 || 288000 < me->output_bit_rate) {
+			GST_ERROR_OBJECT (me, "bitrate must be 70000 ~ 288000");
+
 			goto invalid_bitrate;
 		}
 	}
 	else if (37566 <= me->sample_rate) {
 		// 44,100 Hz
 		if (me->output_bit_rate < 64000 || 264600 < me->output_bit_rate) {
+			GST_ERROR_OBJECT (me, "bitrate must be 64000 ~ 264600");
+
 			goto invalid_bitrate;
 		}
 	}
 	else if (27713 <= me->sample_rate) {
 		// 32,000 Hz
 		if (me->output_bit_rate < 46500 || 192000 < me->output_bit_rate) {
+			GST_ERROR_OBJECT (me, "bitrate must be 46500 ~ 192000");
+
 			goto invalid_bitrate;
 		}
 	}
 	else if (23004 <= me->sample_rate) {
 		// 24,000 Hz
 		if (me->output_bit_rate < 35000 || 144000 < me->output_bit_rate) {
+			GST_ERROR_OBJECT (me, "bitrate must be 35000 ~ 144000");
+			
 			goto invalid_bitrate;
 		}
 	}
 	else if (18783 <= me->sample_rate) {
 		// 22,050 Hz
 		if (me->output_bit_rate < 32000 || 132300 < me->output_bit_rate) {
+			GST_ERROR_OBJECT (me, "bitrate must be 32000 ~ 132300");
+			
 			goto invalid_bitrate;
 		}
 	}
 	else if (13856 <= me->sample_rate) {
 		// 16,000 Hz
 		if (me->output_bit_rate < 23250 || 96000 < me->output_bit_rate) {
+			GST_ERROR_OBJECT (me, "bitrate must be 23250 ~ 96000");
+			
 			goto invalid_bitrate;
 		}
 	}
 	else if (11502 <= me->sample_rate) {
 		// 12,000 Hz
 		if (me->output_bit_rate < 24000 || 72000 < me->output_bit_rate) {
+			GST_ERROR_OBJECT (me, "bitrate must be 24000 ~ 72000");
+			
 			goto invalid_bitrate;
 		}
 	}
 	else if (9391 <= me->sample_rate) {
 		// 11,025 Hz
 		if (me->output_bit_rate < 22000 || 66150 < me->output_bit_rate) {
+			GST_ERROR_OBJECT (me, "bitrate must be 22000 ~ 66150");
+			
 			goto invalid_bitrate;
 		}
 	}
 	else {
 		// 8,000 Hz
 		if (me->output_bit_rate < 16000 || 48000 < me->output_bit_rate) {
+			GST_ERROR_OBJECT (me, "bitrate must be 16000 ~ 48000");
+			
 			goto invalid_bitrate;
 		}
 	}
