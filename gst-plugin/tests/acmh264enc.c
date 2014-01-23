@@ -36,6 +36,7 @@
 
 #define USE_STRIDE_PROP					0
 
+#define WRITE_OUTPUT_BUF				0
 
 /* For ease of programming we use globals to keep refs for our floating
  * src and sink pads we create; otherwise we always have to do get_pad,
@@ -99,6 +100,28 @@ static GstPadChainFunction g_sink_base_chain = NULL;
 /* output data file path */
 static char g_output_data_file_path[PATH_MAX];
 
+#if WRITE_OUTPUT_BUF
+/* util */
+static void
+write_output_buf(GstBuffer *buffer, char* path)
+{
+	static int index = 0;
+	gint i;
+	GstMapInfo map;
+	
+	FILE* fp = fopen(path, "w");
+	fail_unless (NULL != fp);
+	if (fp) {
+		gst_buffer_map (buffer, &map, GST_MAP_READ);
+		for (i = 0; i < map.size; i++) {
+			fputc(map.data[i], fp);
+		}
+		gst_buffer_unmap (buffer, &map);
+		fclose(fp);
+		g_print("%s wrote.\n", path);
+	}
+}
+#endif
 
 /* setup */
 static GstElement *
@@ -569,6 +592,9 @@ test_encode_sink_chain(GstPad * pad, GstObject * parent, GstBuffer * buf)
 		sprintf(file, g_output_data_file_path, g_nOutputBuffers);
 		g_print("%s\n", file);
 
+#if WRITE_OUTPUT_BUF
+		write_output_buf(outbuffer, file);
+#else
 		get_data(file, &size, &p, &fd);
 
 //		g_print("%d - %d\n", gst_buffer_get_size (outbuffer), size);
@@ -579,6 +605,7 @@ test_encode_sink_chain(GstPad * pad, GstObject * parent, GstBuffer * buf)
 
 		fail_unless (0 == munmap(p, size));
 		close(fd);
+#endif
 
 		buffers = g_list_remove (buffers, outbuffer);
 		ASSERT_BUFFER_REFCOUNT (outbuffer, "outbuffer", 1);
@@ -632,7 +659,7 @@ input_buffers(int num_bufs, char* data_path)
 }
 
 static void
-check_encode_avc(gint B_pic_mode, gint max_GOP_length)
+check_encode_avc(gint B_pic_mode, gint max_GOP_length, gint rate_control_mode)
 {
 	GstElement *acmh264enc;
 	GstCaps *srccaps;
@@ -642,6 +669,7 @@ check_encode_avc(gint B_pic_mode, gint max_GOP_length)
 	g_object_set (acmh264enc,
 				  "b-pic-mode",				B_pic_mode,
 				  "max-gop-length",			max_GOP_length,
+				  "rate-control-mode",		rate_control_mode,
 				  NULL);
 	fail_unless (gst_element_set_state (acmh264enc, GST_STATE_PLAYING)
 				 == GST_STATE_CHANGE_SUCCESS, "could not set to playing");
@@ -651,8 +679,8 @@ check_encode_avc(gint B_pic_mode, gint max_GOP_length)
 								GST_DEBUG_FUNCPTR (test_encode_sink_chain));
 	g_nOutputBuffers = 0;
 	
-	sprintf(g_output_data_file_path, "data/h264_enc/avc_propset%02d%02d/",
-			B_pic_mode, max_GOP_length);
+	sprintf(g_output_data_file_path, "data/h264_enc/avc_propset%02d%02d%02d/",
+			B_pic_mode, max_GOP_length, rate_control_mode);
 	strcat(g_output_data_file_path, "h264_%03d.data");
 	
 	/* set src caps */
@@ -670,7 +698,7 @@ check_encode_avc(gint B_pic_mode, gint max_GOP_length)
 }
 
 static void
-check_encode_bs(gint B_pic_mode, gint max_GOP_length)
+check_encode_bs(gint B_pic_mode, gint max_GOP_length, gint rate_control_mode)
 {
 	GstElement *acmh264enc;
 	GstCaps *srccaps;
@@ -680,6 +708,7 @@ check_encode_bs(gint B_pic_mode, gint max_GOP_length)
 	g_object_set (acmh264enc,
 				  "b-pic-mode",				B_pic_mode,
 				  "max-gop-length",			max_GOP_length,
+				  "rate-control-mode",		rate_control_mode,
 				  NULL);
 	fail_unless (gst_element_set_state (acmh264enc, GST_STATE_PLAYING)
 				 == GST_STATE_CHANGE_SUCCESS, "could not set to playing");
@@ -689,8 +718,8 @@ check_encode_bs(gint B_pic_mode, gint max_GOP_length)
 								GST_DEBUG_FUNCPTR (test_encode_sink_chain));
 	g_nOutputBuffers = 0;
 
-	sprintf(g_output_data_file_path, "data/h264_enc/bs_propset%02d%02d/",
-			B_pic_mode, max_GOP_length);
+	sprintf(g_output_data_file_path, "data/h264_enc/bs_propset%02d%02d%02d/",
+			B_pic_mode, max_GOP_length, rate_control_mode);
 	strcat(g_output_data_file_path, "h264_%03d.data");
 	
 	/* set src caps */
@@ -707,135 +736,349 @@ check_encode_bs(gint B_pic_mode, gint max_GOP_length)
 	gst_caps_unref (srccaps);
 }
 
-GST_START_TEST (test_encode_avc0000)
+/* B_pic_mode=0, max_GOP_length=0 */
+GST_START_TEST (test_encode_avc000000)
 {
-	check_encode_avc(0, 0);
+	check_encode_avc(0, 0, 0);
 }
 GST_END_TEST;
 
-GST_START_TEST (test_encode_avc0001)
+GST_START_TEST (test_encode_avc000001)
 {
-	check_encode_avc(0, 1);
+	check_encode_avc(0, 0, 1);
 }
 GST_END_TEST;
 
-GST_START_TEST (test_encode_avc0002)
+GST_START_TEST (test_encode_avc000002)
 {
-	check_encode_avc(0, 2);
+	check_encode_avc(0, 0, 2);
 }
 GST_END_TEST;
 
-GST_START_TEST (test_encode_avc0003)
+/* B_pic_mode=0, max_GOP_length=1 */
+GST_START_TEST (test_encode_avc000100)
 {
-	check_encode_avc(0, 3);
+	check_encode_avc(0, 1, 0);
 }
 GST_END_TEST;
 
-GST_START_TEST (test_encode_avc0015)
+GST_START_TEST (test_encode_avc000101)
 {
-	check_encode_avc(0, 15);
+	check_encode_avc(0, 1, 1);
 }
 GST_END_TEST;
 
-GST_START_TEST (test_encode_avc0102)
+GST_START_TEST (test_encode_avc000102)
 {
-	check_encode_avc(1, 2);
+	check_encode_avc(0, 1, 2);
 }
 GST_END_TEST;
 
-GST_START_TEST (test_encode_avc0103)
+/* B_pic_mode=0, max_GOP_length=2 */
+GST_START_TEST (test_encode_avc000200)
 {
-	check_encode_avc(1, 3);
+	check_encode_avc(0, 2, 0);
 }
 GST_END_TEST;
 
-GST_START_TEST (test_encode_avc0115)
+GST_START_TEST (test_encode_avc000201)
 {
-	check_encode_avc(1, 15);
+	check_encode_avc(0, 2, 1);
 }
 GST_END_TEST;
 
-GST_START_TEST (test_encode_avc0203)
+GST_START_TEST (test_encode_avc000202)
 {
-	check_encode_avc(2, 3);
+	check_encode_avc(0, 2, 2);
 }
 GST_END_TEST;
 
-GST_START_TEST (test_encode_avc0215)
+/* B_pic_mode=0, max_GOP_length=3 */
+GST_START_TEST (test_encode_avc000300)
 {
-	check_encode_avc(2, 15);
+	check_encode_avc(0, 3, 0);
 }
 GST_END_TEST;
 
-GST_START_TEST (test_encode_avc0315)
+GST_START_TEST (test_encode_avc000301)
 {
-	check_encode_avc(3, 15);
+	check_encode_avc(0, 3, 1);
 }
 GST_END_TEST;
 
-GST_START_TEST (test_encode_bs0000)
+GST_START_TEST (test_encode_avc000302)
 {
-	check_encode_bs(0, 0);
+	check_encode_avc(0, 3, 2);
 }
 GST_END_TEST;
 
-GST_START_TEST (test_encode_bs0001)
+/* B_pic_mode=0, max_GOP_length=15 */
+GST_START_TEST (test_encode_avc001500)
 {
-	check_encode_bs(0, 1);
+	check_encode_avc(0, 15, 0);
 }
 GST_END_TEST;
 
-GST_START_TEST (test_encode_bs0002)
+GST_START_TEST (test_encode_avc001501)
 {
-	check_encode_bs(0, 2);
+	check_encode_avc(0, 15, 1);
 }
 GST_END_TEST;
 
-GST_START_TEST (test_encode_bs0003)
+GST_START_TEST (test_encode_avc001502)
 {
-	check_encode_bs(0, 3);
+	check_encode_avc(0, 15, 2);
 }
 GST_END_TEST;
 
-GST_START_TEST (test_encode_bs0015)
+/* B_pic_mode=1, max_GOP_length=2 */
+GST_START_TEST (test_encode_avc010201)
 {
-	check_encode_bs(0, 15);
+	check_encode_avc(1, 2, 1);
 }
 GST_END_TEST;
 
-GST_START_TEST (test_encode_bs0102)
+GST_START_TEST (test_encode_avc010202)
 {
-	check_encode_bs(1, 2);
+	check_encode_avc(1, 2, 2);
 }
 GST_END_TEST;
 
-GST_START_TEST (test_encode_bs0103)
+/* B_pic_mode=1, max_GOP_length=3 */
+GST_START_TEST (test_encode_avc010301)
 {
-	check_encode_bs(1, 3);
+	check_encode_avc(1, 3, 1);
 }
 GST_END_TEST;
 
-GST_START_TEST (test_encode_bs0115)
+GST_START_TEST (test_encode_avc010302)
 {
-	check_encode_bs(1, 15);
+	check_encode_avc(1, 3, 2);
 }
 GST_END_TEST;
 
-GST_START_TEST (test_encode_bs0203)
+/* B_pic_mode=1, max_GOP_length=15 */
+GST_START_TEST (test_encode_avc011501)
 {
-	check_encode_bs(2, 3);
+	check_encode_avc(1, 15, 1);
 }
 GST_END_TEST;
 
-GST_START_TEST (test_encode_bs0215)
+GST_START_TEST (test_encode_avc011502)
 {
-	check_encode_bs(2, 15);
+	check_encode_avc(1, 15, 2);
 }
 GST_END_TEST;
 
-GST_START_TEST (test_encode_bs0315)
+/* B_pic_mode=2, max_GOP_length=3 */
+GST_START_TEST (test_encode_avc020301)
 {
-	check_encode_bs(3, 15);
+	check_encode_avc(2, 3, 1);
+}
+GST_END_TEST;
+
+GST_START_TEST (test_encode_avc020302)
+{
+	check_encode_avc(2, 3, 2);
+}
+GST_END_TEST;
+
+/* B_pic_mode=2, max_GOP_length=15 */
+GST_START_TEST (test_encode_avc021501)
+{
+	check_encode_avc(2, 15, 1);
+}
+GST_END_TEST;
+
+GST_START_TEST (test_encode_avc021502)
+{
+	check_encode_avc(2, 15, 2);
+}
+GST_END_TEST;
+
+/* B_pic_mode=3, max_GOP_length=15 */
+GST_START_TEST (test_encode_avc031501)
+{
+	check_encode_avc(3, 15, 1);
+}
+GST_END_TEST;
+
+GST_START_TEST (test_encode_avc031502)
+{
+	check_encode_avc(3, 15, 2);
+}
+GST_END_TEST;
+
+/* B_pic_mode=0, max_GOP_length=0 */
+GST_START_TEST (test_encode_bs000000)
+{
+	check_encode_bs(0, 0, 0);
+}
+GST_END_TEST;
+
+GST_START_TEST (test_encode_bs000001)
+{
+	check_encode_bs(0, 0, 1);
+}
+GST_END_TEST;
+
+GST_START_TEST (test_encode_bs000002)
+{
+	check_encode_bs(0, 0, 2);
+}
+GST_END_TEST;
+
+/* B_pic_mode=0, max_GOP_length=1 */
+GST_START_TEST (test_encode_bs000100)
+{
+	check_encode_bs(0, 1, 0);
+}
+GST_END_TEST;
+
+GST_START_TEST (test_encode_bs000101)
+{
+	check_encode_bs(0, 1, 1);
+}
+GST_END_TEST;
+
+GST_START_TEST (test_encode_bs000102)
+{
+	check_encode_bs(0, 1, 2);
+}
+GST_END_TEST;
+
+/* B_pic_mode=0, max_GOP_length=2 */
+GST_START_TEST (test_encode_bs000200)
+{
+	check_encode_bs(0, 2, 0);
+}
+GST_END_TEST;
+
+GST_START_TEST (test_encode_bs000201)
+{
+	check_encode_bs(0, 2, 1);
+}
+GST_END_TEST;
+
+GST_START_TEST (test_encode_bs000202)
+{
+	check_encode_bs(0, 2, 2);
+}
+GST_END_TEST;
+
+/* B_pic_mode=0, max_GOP_length=3 */
+GST_START_TEST (test_encode_bs000300)
+{
+	check_encode_bs(0, 3, 0);
+}
+GST_END_TEST;
+
+GST_START_TEST (test_encode_bs000301)
+{
+	check_encode_bs(0, 3, 1);
+}
+GST_END_TEST;
+
+GST_START_TEST (test_encode_bs000302)
+{
+	check_encode_bs(0, 3, 2);
+}
+GST_END_TEST;
+
+/* B_pic_mode=0, max_GOP_length=15 */
+GST_START_TEST (test_encode_bs001500)
+{
+	check_encode_bs(0, 15, 0);
+}
+GST_END_TEST;
+
+GST_START_TEST (test_encode_bs001501)
+{
+	check_encode_bs(0, 15, 1);
+}
+GST_END_TEST;
+
+GST_START_TEST (test_encode_bs001502)
+{
+	check_encode_bs(0, 15, 2);
+}
+GST_END_TEST;
+
+/* B_pic_mode=1, max_GOP_length=2 */
+GST_START_TEST (test_encode_bs010201)
+{
+	check_encode_bs(1, 2, 1);
+}
+GST_END_TEST;
+
+GST_START_TEST (test_encode_bs010202)
+{
+	check_encode_bs(1, 2, 2);
+}
+GST_END_TEST;
+
+/* B_pic_mode=1, max_GOP_length=3 */
+GST_START_TEST (test_encode_bs010301)
+{
+	check_encode_bs(1, 3, 1);
+}
+GST_END_TEST;
+
+GST_START_TEST (test_encode_bs010302)
+{
+	check_encode_bs(1, 3, 2);
+}
+GST_END_TEST;
+
+/* B_pic_mode=1, max_GOP_length=15 */
+GST_START_TEST (test_encode_bs011501)
+{
+	check_encode_bs(1, 15, 1);
+}
+GST_END_TEST;
+
+GST_START_TEST (test_encode_bs011502)
+{
+	check_encode_bs(1, 15, 2);
+}
+GST_END_TEST;
+
+/* B_pic_mode=2, max_GOP_length=3 */
+GST_START_TEST (test_encode_bs020301)
+{
+	check_encode_bs(2, 3, 1);
+}
+GST_END_TEST;
+
+GST_START_TEST (test_encode_bs020302)
+{
+	check_encode_bs(2, 3, 2);
+}
+GST_END_TEST;
+
+/* B_pic_mode=2, max_GOP_length=15 */
+GST_START_TEST (test_encode_bs021501)
+{
+	check_encode_bs(2, 15, 1);
+}
+GST_END_TEST;
+
+GST_START_TEST (test_encode_bs021502)
+{
+	check_encode_bs(2, 15, 2);
+}
+GST_END_TEST;
+
+/* B_pic_mode=3, max_GOP_length=15 */
+GST_START_TEST (test_encode_bs031501)
+{
+	check_encode_bs(3, 15, 1);
+}
+GST_END_TEST;
+
+GST_START_TEST (test_encode_bs031502)
+{
+	check_encode_bs(3, 15, 2);
 }
 GST_END_TEST;
 
@@ -858,38 +1101,70 @@ acmh264enc_suite (void)
 
 	/* avc */
 	/* B_pic_mode:0	*/
-	tcase_add_test (tc_chain, test_encode_avc0000);
-	tcase_add_test (tc_chain, test_encode_avc0001);
-	tcase_add_test (tc_chain, test_encode_avc0002);
-	tcase_add_test (tc_chain, test_encode_avc0003);
-	tcase_add_test (tc_chain, test_encode_avc0015);
+	tcase_add_test (tc_chain, test_encode_avc000000);
+	tcase_add_test (tc_chain, test_encode_avc000001);
+	tcase_add_test (tc_chain, test_encode_avc000002);
+	tcase_add_test (tc_chain, test_encode_avc000100);
+	tcase_add_test (tc_chain, test_encode_avc000101);
+	tcase_add_test (tc_chain, test_encode_avc000102);
+	tcase_add_test (tc_chain, test_encode_avc000200);
+	tcase_add_test (tc_chain, test_encode_avc000201);
+	tcase_add_test (tc_chain, test_encode_avc000202);
+	tcase_add_test (tc_chain, test_encode_avc000300);
+	tcase_add_test (tc_chain, test_encode_avc000301);
+	tcase_add_test (tc_chain, test_encode_avc000302);
+	tcase_add_test (tc_chain, test_encode_avc001500);
+	tcase_add_test (tc_chain, test_encode_avc001501);
+	tcase_add_test (tc_chain, test_encode_avc001502);
 	/* B_pic_mode:1	*/
-	tcase_add_test (tc_chain, test_encode_avc0102);
-	tcase_add_test (tc_chain, test_encode_avc0103);
-	tcase_add_test (tc_chain, test_encode_avc0115);
+	tcase_add_test (tc_chain, test_encode_avc010201);
+	tcase_add_test (tc_chain, test_encode_avc010202);
+	tcase_add_test (tc_chain, test_encode_avc010301);
+	tcase_add_test (tc_chain, test_encode_avc010302);
+	tcase_add_test (tc_chain, test_encode_avc011501);
+	tcase_add_test (tc_chain, test_encode_avc011502);
 	/* B_pic_mode:2	*/
-	tcase_add_test (tc_chain, test_encode_avc0203);
-	tcase_add_test (tc_chain, test_encode_avc0215);
+	tcase_add_test (tc_chain, test_encode_avc020301);
+	tcase_add_test (tc_chain, test_encode_avc020302);
+	tcase_add_test (tc_chain, test_encode_avc021501);
+	tcase_add_test (tc_chain, test_encode_avc021502);
 	/* B_pic_mode:3	*/
-	tcase_add_test (tc_chain, test_encode_avc0315);
+	tcase_add_test (tc_chain, test_encode_avc031501);
+	tcase_add_test (tc_chain, test_encode_avc031502);
 
 	/* byte-stream */
 	/* B_pic_mode:0	*/
-	tcase_add_test (tc_chain, test_encode_bs0000);
-	tcase_add_test (tc_chain, test_encode_bs0001);
-	tcase_add_test (tc_chain, test_encode_bs0002);
-	tcase_add_test (tc_chain, test_encode_bs0003);
-	tcase_add_test (tc_chain, test_encode_bs0015);
+	tcase_add_test (tc_chain, test_encode_bs000000);
+	tcase_add_test (tc_chain, test_encode_bs000001);
+	tcase_add_test (tc_chain, test_encode_bs000002);
+	tcase_add_test (tc_chain, test_encode_bs000100);
+	tcase_add_test (tc_chain, test_encode_bs000101);
+	tcase_add_test (tc_chain, test_encode_bs000102);
+	tcase_add_test (tc_chain, test_encode_bs000200);
+	tcase_add_test (tc_chain, test_encode_bs000201);
+	tcase_add_test (tc_chain, test_encode_bs000202);
+	tcase_add_test (tc_chain, test_encode_bs000300);
+	tcase_add_test (tc_chain, test_encode_bs000301);
+	tcase_add_test (tc_chain, test_encode_bs000302);
+	tcase_add_test (tc_chain, test_encode_bs001500);
+	tcase_add_test (tc_chain, test_encode_bs001501);
+	tcase_add_test (tc_chain, test_encode_bs001502);
 	/* B_pic_mode:1	*/
-	tcase_add_test (tc_chain, test_encode_bs0102);
-	tcase_add_test (tc_chain, test_encode_bs0103);
-	tcase_add_test (tc_chain, test_encode_bs0115);
+	tcase_add_test (tc_chain, test_encode_bs010201);
+	tcase_add_test (tc_chain, test_encode_bs010202);
+	tcase_add_test (tc_chain, test_encode_bs010301);
+	tcase_add_test (tc_chain, test_encode_bs010302);
+	tcase_add_test (tc_chain, test_encode_bs011501);
+	tcase_add_test (tc_chain, test_encode_bs011502);
 	/* B_pic_mode:2	*/
-	tcase_add_test (tc_chain, test_encode_bs0203);
-	tcase_add_test (tc_chain, test_encode_bs0215);
+	tcase_add_test (tc_chain, test_encode_bs020301);
+	tcase_add_test (tc_chain, test_encode_bs020302);
+	tcase_add_test (tc_chain, test_encode_bs021501);
+	tcase_add_test (tc_chain, test_encode_bs021502);
 	/* B_pic_mode:3	*/
-	tcase_add_test (tc_chain, test_encode_bs0315);
-	
+	tcase_add_test (tc_chain, test_encode_bs031501);
+	tcase_add_test (tc_chain, test_encode_bs031502);
+
 	return s;
 }
 

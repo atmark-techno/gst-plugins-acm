@@ -86,7 +86,7 @@ enum {
 #endif
 #define DEFAULT_BITRATE					8000000		/* default 8Mbps */
 #define DEFAULT_MAX_FRAME_SIZE			0
-#define DEFAULT_RATE_CONTROL_MODE		GST_ACMH264ENC_RATE_CONTROL_MODE_CBR_SKIP
+#define DEFAULT_RATE_CONTROL_MODE		GST_ACMH264ENC_RATE_CONTROL_MODE_CBR_NON_SKIP
 #define DEFAULT_FRAME_RATE_RESOLUTION	24000
 #define DEFAULT_FRAME_RATE_TICK			800
 #define DEFAULT_MAX_GOP_LENGTH			30	/* 推奨値		*/
@@ -1029,6 +1029,16 @@ gst_acm_h264_enc_set_format (GstVideoEncoder * enc, GstVideoCodecState * state)
 		goto invalid_stride;
 	}
 #endif
+
+	/* b-pic-mode > 0 の場合は、rate-control-mode は、1 または 2 のみ設定可能 */
+	if ((me->B_pic_mode > GST_ACMH264ENC_B_PIC_MODE_0_B_PIC)
+		&& (GST_ACMH264ENC_RATE_CONTROL_MODE_CBR_SKIP == me->rate_control_mode)) {
+		GST_ERROR_OBJECT (me,
+			"force rate-control-mode to %d, because (b-pic-mode > 0)",
+			GST_ACMH264ENC_RATE_CONTROL_MODE_CBR_NON_SKIP);
+
+		me->rate_control_mode = GST_ACMH264ENC_RATE_CONTROL_MODE_CBR_NON_SKIP;
+	}
 
 	/* 最大 GOP 長のチェック */
 	if (me->max_GOP_length <= me->B_pic_mode) {

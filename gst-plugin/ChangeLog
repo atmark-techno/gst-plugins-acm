@@ -1,5 +1,18 @@
 
 
+* 2013-12-23	kaz
+- H264 ENC
+ - b-pic-mode > 0 の場合は、rate-control-mode は、1 または 2 のみ設定可能
+    1) プロパティのデフォルト値の変更
+     b-pic-mode = 3, rate-control-mode = 1
+
+    2) プロパティ b-pic-mode （および rate-control-mode）が指定された場合の動作
+     (b-pic-mode > 0) && (rate-control-mode == 0) であれば、
+     rate-control-mode = 1 に変更して、acmドライバに設定する。
+     （エラーとはせず、同じ CBR だが、スキップありから、スキップなし
+     に変更して、acmドライバに設定する）
+
+
 * 2013-12-20	kaz
 - JPEG ENC : 入力オフセット指定に対応
 
