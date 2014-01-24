@@ -283,19 +283,19 @@ gst_acm_jpeg_enc_class_init (GstAcmJpegEncClass * klass)
 		g_param_spec_int ("quality", "Quality",
 			"Quality of JPEG encoding",
 			GST_ACMJPEGENC_QUALITY_MIN, GST_ACMJPEGENC_QUALITY_MAX,
-			DEFAULT_JPEG_QUALITY, G_PARAM_READWRITE));
+			DEFAULT_JPEG_QUALITY, G_PARAM_READWRITE | G_PARAM_LAX_VALIDATION));
 
 	g_object_class_install_property (gobject_class, PROP_X_OFFSET,
 		g_param_spec_int ("x-offset", "X Offset",
-			"X Offset of output image. (default is unspecified)",
+			"X Offset of output image.",
 			GST_ACMJPEGENC_X_OFFSET_MIN, GST_ACMJPEGENC_X_OFFSET_MAX,
-			DEFAULT_X_OFFSET, G_PARAM_READWRITE));
+			DEFAULT_X_OFFSET, G_PARAM_READWRITE | G_PARAM_LAX_VALIDATION));
 
 	g_object_class_install_property (gobject_class, PROP_Y_OFFSET,
 		g_param_spec_int ("y-offset", "Y Offset",
-			"Y Offset of output image. (default is unspecified)",
+			"Y Offset of output image.",
 			GST_ACMJPEGENC_Y_OFFSET_MIN, GST_ACMJPEGENC_Y_OFFSET_MAX,
-			DEFAULT_Y_OFFSET, G_PARAM_READWRITE));
+			DEFAULT_Y_OFFSET, G_PARAM_READWRITE | G_PARAM_LAX_VALIDATION));
 
 	gst_element_class_add_pad_template (element_class,
 			gst_static_pad_template_get (&src_template_factory));
@@ -347,8 +347,8 @@ gst_acm_jpeg_enc_init (GstAcmJpegEnc * me)
 	/* property	*/
 	me->videodev = NULL;
 	me->jpeg_quality = DEFAULT_JPEG_QUALITY;
-	me->x_offset = -1;
-	me->y_offset = -1;
+	me->x_offset = DEFAULT_X_OFFSET;
+	me->y_offset = DEFAULT_Y_OFFSET;
 }
 
 static void
@@ -609,12 +609,6 @@ gst_acm_jpeg_enc_set_format (GstVideoEncoder * enc, GstVideoCodecState * state)
 	}
 	if (me->output_height <= 0) {
 		me->output_height = me->input_height;
-	}
-	if (me->x_offset < /* not <= */ 0) {
-		me->x_offset = DEFAULT_X_OFFSET;
-	}
-	if (me->y_offset < /* not <= */ 0) {
-		me->y_offset = DEFAULT_Y_OFFSET;
 	}
 
 	/* オフセットの境界チェック	*/

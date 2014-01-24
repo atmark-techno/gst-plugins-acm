@@ -32,6 +32,34 @@
 	 min より小さい場合 min に切り上げ
 	 max より大きい場合 max に切り下げ
 
+- AAC ENC : プロパティの仕様修正
+ - bitrate : default=0 min=0 max=288,000
+	 min より小さい場合 min に切り上げ
+	 max より大きい場合 max に切り下げ
+	 0 が指定されたときは推奨値を計算
+     指定された値か計算した値について、入力 PCM のサンプリング周波数に基づいて、
+	 有効範囲チェックを行い、範囲外であればエラーとする
+
+ - enable-cbr : default=0(VBR) min=0(VBR) max=1(CBR)
+	 min より小さい場合 default の値を設定
+	 max より大きい場合 default の値を設定
+
+ - dual-monaural : default=FALSE
+	 TRUE または FALSE 以外の値が指定された場合はエラーとする
+
+- JPEG ENC : プロパティの仕様修正
+ - quality : default=75 min=0 max=100
+	 min より小さい場合 min に切り上げ
+	 max より大きい場合 max に切り下げ
+
+ - x-offset : default=0 min=0 max=1920
+	 min より小さい場合 min に切り上げ
+	 max より大きい場合 max に切り下げ
+
+ - y-offset : default=0 min=0 max=1080
+	 min より小さい場合 min に切り上げ
+	 max より大きい場合 max に切り下げ
+
 
 * 2013-12-23	kaz
 - H264 ENC

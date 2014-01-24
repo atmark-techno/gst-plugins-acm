@@ -68,7 +68,7 @@
 
 /* エンコーダー初期化パラメータのデフォルト値	*/
 #define DEFAULT_VIDEO_DEVICE			"/dev/video0"
-#define DEFAULT_BITRATE					64000
+#define DEFAULT_BITRATE					0
 #define DEFAULT_OUT_FORMAT				ACM_AAC_BS_FORMAT_ADTS
 #define DEFAULT_ENABLE_CBR				GST_ACMAACENC_ENABLE_CBR_FALSE /* VBR */
 #define DEFAULT_DUAL_MONAURAL			FALSE
@@ -507,9 +507,9 @@ gst_acm_aac_enc_class_init (GstAcmAacEncClass * klass)
 	g_object_class_install_property (gobject_class, PROP_BITRATE,
 		g_param_spec_int ("bitrate", "Bitrate (bps)",
 			"Average Bitrate (ABR) in bits/sec. "
-			"default bitrate is calculate from sample rate.",
+			"0 is unspecified (calculate automatically).",
 			GST_ACMAACENC_BITRATE_MIN, GST_ACMAACENC_BITRATE_MAX,
-			DEFAULT_BITRATE, G_PARAM_READWRITE));
+			DEFAULT_BITRATE, G_PARAM_READWRITE | G_PARAM_LAX_VALIDATION));
 
 	g_object_class_install_property (gobject_class, PROP_ENABLE_CBR,
 		g_param_spec_int ("enable-cbr", "Enable CBR",
@@ -567,7 +567,7 @@ gst_acm_aac_enc_init (GstAcmAacEnc * me)
 
 	/* property	*/
 	me->videodev = NULL;
-	me->output_bit_rate = -1; /* not DEFAULT_BITRATE */
+	me->output_bit_rate = DEFAULT_BITRATE; /* not DEFAULT_BITRATE */
 	me->output_format = -1; /* not DEFAULT_OUT_FORMAT */
 	me->enable_cbr = DEFAULT_ENABLE_CBR;
 	me->dual_monaural = DEFAULT_DUAL_MONAURAL;

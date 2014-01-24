@@ -263,6 +263,216 @@ GST_START_TEST (test_properties)
 }
 GST_END_TEST;
 
+/* property default value */
+GST_START_TEST (test_property_default)
+{
+	GstElement *acmaacenc;
+	GstBuffer *buffer;
+	GstCaps *caps;
+	GstBuffer *outbuffer;
+	gchar *device;
+	gint bit_rate;
+	gint enable_cbr;
+	gboolean dual_monaural;
+
+	/* setup */
+	acmaacenc = setup_acmaacenc (IN_CH_2, FMT_RAW);
+	gst_element_set_state (acmaacenc, GST_STATE_PLAYING);
+
+	/* make caps */
+	caps = gst_caps_from_string (AUDIO_2CH_CAPS_STRING);
+	fail_unless (gst_pad_set_caps (mysrcpad, caps));
+
+	/* create buffer */
+	fail_unless ((buffer = create_audio_buffer (caps)) != NULL);
+
+	/* push buffer */
+	fail_unless (gst_pad_push (mysrcpad, buffer) == GST_FLOW_OK);
+
+	/* release encoded data */
+	if (g_list_length (buffers) > 0) {
+		outbuffer = GST_BUFFER (buffers->data);
+		buffers = g_list_remove (buffers, outbuffer);
+		
+		ASSERT_BUFFER_REFCOUNT (outbuffer, "outbuffer", 1);
+		gst_buffer_unref (outbuffer);
+		outbuffer = NULL;
+	}
+
+	/* check default value */
+	g_object_get (acmaacenc,
+				  "device", 		&device,
+				  "bitrate", 		&bit_rate,
+				  "enable-cbr", 	&enable_cbr,
+				  "dual-monaural", 	&dual_monaural,
+				  NULL);
+	fail_unless (0 == strncmp(device, "/dev/video", 10));
+	/* 推奨値を計算 */
+	fail_unless_equals_int (bit_rate, 64000);
+	fail_unless_equals_int (enable_cbr, 0);
+	fail_unless (FALSE == dual_monaural);
+	g_free (device);
+	device = NULL;
+
+	/* cleanup */
+	gst_caps_unref (caps);
+	gst_element_set_state (acmaacenc, GST_STATE_NULL);
+	cleanup_acmaacenc (acmaacenc);
+}
+GST_END_TEST;
+
+/* property range (min) : */
+GST_START_TEST (test_property_range_min)
+{
+	GstElement *acmaacenc;
+	GstBuffer *buffer;
+	GstCaps *caps;
+	GstBuffer *outbuffer;
+	gint bit_rate;
+	gint enable_cbr;
+
+	/* setup */
+	acmaacenc = setup_acmaacenc (IN_CH_2, FMT_RAW);
+
+	/* TRUE または FALSE 以外の値が指定された場合はエラー
+	 * gst-launch では、gst_parse_element_set() にてエラーとなる
+	 */
+	ASSERT_WARNING(
+		g_object_set (acmaacenc,
+				  "dual-monaural", 	-1,
+				  NULL);
+	);
+
+	/* less than min */
+	ASSERT_WARNING(
+		g_object_set (acmaacenc,
+				  "bitrate", 		-1,
+				  "enable-cbr", 	-1,
+				  NULL)
+	);
+
+	gst_element_set_state (acmaacenc, GST_STATE_PLAYING);
+
+	/* make caps */
+	caps = gst_caps_from_string (AUDIO_2CH_CAPS_STRING);
+	fail_unless (gst_pad_set_caps (mysrcpad, caps));
+
+	/* create buffer */
+	fail_unless ((buffer = create_audio_buffer (caps)) != NULL);
+
+	/* push buffer */
+	fail_unless (gst_pad_push (mysrcpad, buffer) == GST_FLOW_OK);
+
+	/* release encoded data */
+	if (g_list_length (buffers) > 0) {
+		outbuffer = GST_BUFFER (buffers->data);
+		buffers = g_list_remove (buffers, outbuffer);
+		
+		ASSERT_BUFFER_REFCOUNT (outbuffer, "outbuffer", 1);
+		gst_buffer_unref (outbuffer);
+		outbuffer = NULL;
+	}
+
+	/* check property */
+	g_object_get (acmaacenc,
+				  "bitrate", 		&bit_rate,
+				  "enable-cbr", 	&enable_cbr,
+				  NULL);
+	/* minより小さい場合minに切り上げ。0 になるので推奨値を計算 */
+	fail_unless_equals_int (bit_rate, 64000);
+	/* minより小さい場合defaultの値を設定 */
+	fail_unless_equals_int (enable_cbr, 0);
+
+	/* cleanup */
+	gst_caps_unref (caps);
+	gst_element_set_state (acmaacenc, GST_STATE_NULL);
+	cleanup_acmaacenc (acmaacenc);
+}
+GST_END_TEST;
+
+/* property range (max) : */
+GST_START_TEST (test_property_range_max)
+{
+	GstElement *acmaacenc;
+	GstBuffer *buffer;
+	GstCaps *caps;
+	GstBuffer *outbuffer;
+	gint bit_rate;
+	gint enable_cbr;
+
+	/* setup */
+	acmaacenc = setup_acmaacenc (IN_CH_2, FMT_RAW);
+
+	/* TRUE または FALSE 以外の値が指定された場合はエラー 
+	 * gst-launch では、gst_parse_element_set() にてエラーとなる
+	 */
+	ASSERT_WARNING(
+		g_object_set (acmaacenc,
+				  "dual-monaural", 	2,
+				  NULL)
+	);
+
+	/* more than max */
+	ASSERT_WARNING(
+		g_object_set (acmaacenc,
+				  "enable-cbr", 	1 + 1,
+				  NULL)
+	);
+
+	gst_element_set_state (acmaacenc, GST_STATE_PLAYING);
+
+	/* make caps */
+	caps = gst_caps_from_string (AUDIO_2CH_CAPS_STRING);
+	fail_unless (gst_pad_set_caps (mysrcpad, caps));
+
+	/* create buffer */
+	fail_unless ((buffer = create_audio_buffer (caps)) != NULL);
+
+	/* push buffer */
+	fail_unless (gst_pad_push (mysrcpad, buffer) == GST_FLOW_OK);
+
+	/* release encoded data */
+	if (g_list_length (buffers) > 0) {
+		outbuffer = GST_BUFFER (buffers->data);
+		buffers = g_list_remove (buffers, outbuffer);
+		
+		ASSERT_BUFFER_REFCOUNT (outbuffer, "outbuffer", 1);
+		gst_buffer_unref (outbuffer);
+		outbuffer = NULL;
+	}
+
+	/* check property */
+	g_object_get (acmaacenc,
+				  "enable-cbr", 	&enable_cbr,
+				  NULL);
+	/* maxより大きい場合defaultの値を設定 */
+	fail_unless_equals_int (enable_cbr, 0);
+
+	/* cleanup */
+	gst_caps_unref (caps);
+	gst_element_set_state (acmaacenc, GST_STATE_NULL);
+	cleanup_acmaacenc (acmaacenc);
+
+	/*
+	 * ビットレートは入力 PCM のサンプリング周波数に基づいてチェックが行われるため別途チェック
+	 */
+	/* setup */
+	acmaacenc = setup_acmaacenc (IN_CH_2, FMT_RAW);
+
+	/* more than max */
+	g_object_set (acmaacenc,
+				  "bitrate", 	288000 + 1,
+				  NULL);
+	g_object_get (acmaacenc,
+				  "bitrate",	&bit_rate,
+				  NULL);
+	fail_unless_equals_int (bit_rate, 288000);
+
+	/* cleanup	*/
+	cleanup_acmaacenc (acmaacenc);
+}
+GST_END_TEST;
+
 /* Combination of a property */
 static void
 check_property_combination(gint sample_rate, gint bit_rate, GstFlowReturn result)
@@ -280,7 +490,7 @@ check_property_combination(gint sample_rate, gint bit_rate, GstFlowReturn result
 	gst_element_set_state (acmaacenc, GST_STATE_PLAYING);
 	
 	/* make caps */
-	caps = gst_caps_from_string (AUDIO_1CH_CAPS_STRING);
+	caps = gst_caps_from_string (AUDIO_2CH_CAPS_STRING);
 	gst_caps_set_simple (caps, "rate", G_TYPE_INT, sample_rate, NULL);
 	fail_unless (gst_pad_set_caps (mysrcpad, caps));
 	
@@ -952,6 +1162,9 @@ acmaacenc_suite (void)
 	suite_add_tcase (s, tc_chain);
 
 	tcase_add_test (tc_chain, test_properties);
+	tcase_add_test (tc_chain, test_property_default);
+	tcase_add_test (tc_chain, test_property_range_min);
+	tcase_add_test (tc_chain, test_property_range_max);
 	tcase_add_test (tc_chain, test_property_combination);
 
 	tcase_add_test (tc_chain, test_check_caps);

@@ -192,6 +192,210 @@ GST_START_TEST (test_properties)
 }
 GST_END_TEST;
 
+/* property default value */
+GST_START_TEST (test_property_default)
+{
+	GstElement *acmjpegenc;
+	GstBuffer *buffer;
+	GstCaps *caps;
+	GstBuffer *outbuffer;
+	gchar 	*device = NULL;
+	gint 	quality;
+	gint 	x_offset;
+	gint 	y_offset;
+
+	/* setup */
+	acmjpegenc = setup_acmjpegenc (&sinktemplate);
+	gst_element_set_state (acmjpegenc, GST_STATE_PLAYING);
+
+	/* make caps */
+	caps = gst_caps_from_string (YUV420_CAPS_STRING);
+	fail_unless (gst_pad_set_caps (mysrcpad, caps));
+
+	/* create buffer */
+	fail_unless ((buffer = create_video_buffer (caps)) != NULL);
+
+	/* push buffer */
+	fail_unless (gst_pad_push (mysrcpad, buffer) == GST_FLOW_OK);
+
+	/* release encoded data */
+	if (g_list_length (buffers) > 0) {
+		outbuffer = GST_BUFFER (buffers->data);
+		buffers = g_list_remove (buffers, outbuffer);
+		
+		ASSERT_BUFFER_REFCOUNT (outbuffer, "outbuffer", 1);
+		gst_buffer_unref (outbuffer);
+		outbuffer = NULL;
+	}
+
+	/* check default value */
+	g_object_get (acmjpegenc,
+				  "device", 		&device,
+				  "quality", 		&quality,
+				  "x-offset",		&x_offset,
+				  "y-offset",		&y_offset,
+				  NULL);
+	fail_unless (0 == strncmp(device, "/dev/video", 10));
+	fail_unless_equals_int (quality, 75);
+	fail_unless_equals_int (x_offset, 0);
+	fail_unless_equals_int (y_offset, 0);
+	g_free (device);
+	device = NULL;
+
+	/* cleanup */
+	gst_caps_unref (caps);
+	gst_element_set_state (acmjpegenc, GST_STATE_NULL);
+	cleanup_acmjpegenc (acmjpegenc);
+}
+GST_END_TEST;
+
+/* property range (min) : */
+GST_START_TEST (test_property_range_min)
+{
+	GstElement *acmjpegenc;
+	GstBuffer *buffer;
+	GstCaps *caps;
+	GstBuffer *outbuffer;
+	gint 	quality;
+	gint 	x_offset;
+	gint 	y_offset;
+
+	/* setup */
+	acmjpegenc = setup_acmjpegenc (&sinktemplate);
+
+	/* less than min */
+	g_object_set (acmjpegenc,
+				  "quality", 		-1,
+				  "x-offset",		-1,
+				  "y-offset",		-1,
+				  NULL);
+
+	gst_element_set_state (acmjpegenc, GST_STATE_PLAYING);
+
+	/* make caps */
+	caps = gst_caps_from_string (YUV420_CAPS_STRING);
+	fail_unless (gst_pad_set_caps (mysrcpad, caps));
+
+	/* create buffer */
+	fail_unless ((buffer = create_video_buffer (caps)) != NULL);
+
+	/* push buffer */
+	fail_unless (gst_pad_push (mysrcpad, buffer) == GST_FLOW_OK);
+
+	/* release encoded data */
+	if (g_list_length (buffers) > 0) {
+		outbuffer = GST_BUFFER (buffers->data);
+		buffers = g_list_remove (buffers, outbuffer);
+		
+		ASSERT_BUFFER_REFCOUNT (outbuffer, "outbuffer", 1);
+		gst_buffer_unref (outbuffer);
+		outbuffer = NULL;
+	}
+
+	/* check property */
+	g_object_get (acmjpegenc,
+				  "quality", 		&quality,
+				  "x-offset",		&x_offset,
+				  "y-offset",		&y_offset,
+				  NULL);
+	/* minより小さい場合minに切り上げ */
+	fail_unless_equals_int (quality, 0);
+	/* minより小さい場合minに切り上げ */
+	fail_unless_equals_int (x_offset, 0);
+	/* minより小さい場合minに切り上げ */
+	fail_unless_equals_int (y_offset, 0);
+
+	/* cleanup */
+	gst_caps_unref (caps);
+	gst_element_set_state (acmjpegenc, GST_STATE_NULL);
+	cleanup_acmjpegenc (acmjpegenc);
+}
+GST_END_TEST;
+
+/* property range (max) : */
+GST_START_TEST (test_property_range_max)
+{
+	GstElement *acmjpegenc;
+	GstBuffer *buffer;
+	GstCaps *caps;
+	GstBuffer *outbuffer;
+	gint 	quality;
+	gint 	x_offset;
+	gint 	y_offset;
+
+	/* setup */
+	acmjpegenc = setup_acmjpegenc (&sinktemplate);
+
+	/* more than max */
+	g_object_set (acmjpegenc,
+				  "quality", 		100 + 1,
+				  "x-offset",		1920 + 1,
+				  "y-offset",		1080 + 1,
+				  NULL);
+
+	gst_element_set_state (acmjpegenc, GST_STATE_PLAYING);
+
+	/* make caps */
+	caps = gst_caps_from_string (YUV420_CAPS_STRING);
+	fail_unless (gst_pad_set_caps (mysrcpad, caps));
+
+	/* create buffer */
+	fail_unless ((buffer = create_video_buffer (caps)) != NULL);
+
+	/* push buffer */
+	fail_unless (gst_pad_push (mysrcpad, buffer) == GST_FLOW_OK);
+
+	/* release encoded data */
+	if (g_list_length (buffers) > 0) {
+		outbuffer = GST_BUFFER (buffers->data);
+		buffers = g_list_remove (buffers, outbuffer);
+		
+		ASSERT_BUFFER_REFCOUNT (outbuffer, "outbuffer", 1);
+		gst_buffer_unref (outbuffer);
+		outbuffer = NULL;
+	}
+
+	/* check property */
+	g_object_get (acmjpegenc,
+				  "quality", 		&quality,
+				  "x-offset",		&x_offset,
+				  "y-offset",		&y_offset,
+				  NULL);
+	/* maxより大きい場合maxに切り下げ */
+	fail_unless_equals_int (quality, 100);
+	/* maxより大きい場合maxに切り下げ */
+	fail_unless_equals_int (x_offset, 0);	/* not 1920 */
+	/* maxより大きい場合maxに切り下げ */
+	fail_unless_equals_int (y_offset, 0);	/* not 1080 */
+
+	/* cleanup */
+	gst_caps_unref (caps);
+	gst_element_set_state (acmjpegenc, GST_STATE_NULL);
+	cleanup_acmjpegenc (acmjpegenc);
+
+	/*
+	 * オフセットは入力画像サイズとのチェックが行われるため別途チェック
+	 */
+	/* setup */
+	acmjpegenc = setup_acmjpegenc (&sinktemplate);
+
+	/* more than max */
+	g_object_set (acmjpegenc,
+				  "x-offset",				1920 + 1,
+				  "y-offset",				1080 + 1,
+				  NULL);
+	g_object_get (acmjpegenc,
+				  "x-offset", 				&x_offset,
+				  "y-offset", 				&y_offset,
+				  NULL);
+	fail_unless_equals_int (x_offset, 1920);
+	fail_unless_equals_int (y_offset, 1080);
+
+	/* cleanup	*/
+	cleanup_acmjpegenc (acmjpegenc);
+}
+GST_END_TEST;
+
 /* input image's width and height	*/
 static void
 check_input_img_size(gint width, gint height, gint fmt, GstFlowReturn result)
@@ -634,6 +838,9 @@ acmjpegenc_suite (void)
 	suite_add_tcase (s, tc_chain);
 
 	tcase_add_test (tc_chain, test_properties);
+	tcase_add_test (tc_chain, test_property_default);
+	tcase_add_test (tc_chain, test_property_range_min);
+	tcase_add_test (tc_chain, test_property_range_max);
 
 	tcase_add_test (tc_chain, test_input_img_size);
 	tcase_add_test (tc_chain, test_property_comb_offset);

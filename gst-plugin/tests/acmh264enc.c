@@ -301,7 +301,6 @@ GST_START_TEST (test_property_default)
 
 	/* release encoded data */
 	if (g_list_length (buffers) > 0) {
-		g_print ("num_buffers : %d\n", g_list_length (buffers));
 		outbuffer = GST_BUFFER (buffers->data);
 		buffers = g_list_remove (buffers, outbuffer);
 		
@@ -329,6 +328,8 @@ GST_START_TEST (test_property_default)
 	fail_unless_equals_int (B_pic_mode, 3);
 	fail_unless_equals_int (x_offset, 0);
 	fail_unless_equals_int (y_offset, 0);
+	g_free (device);
+	device = NULL;
 
 	/* cleanup */
 	gst_caps_unref (caps);
@@ -381,7 +382,6 @@ GST_START_TEST (test_property_range_min)
 
 	/* release encoded data */
 	if (g_list_length (buffers) > 0) {
-		g_print ("num_buffers : %d\n", g_list_length (buffers));
 		outbuffer = GST_BUFFER (buffers->data);
 		buffers = g_list_remove (buffers, outbuffer);
 		
@@ -511,7 +511,6 @@ GST_START_TEST (test_property_range_max)
 
 	/* release encoded data */
 	if (g_list_length (buffers) > 0) {
-		g_print ("num_buffers : %d\n", g_list_length (buffers));
 		outbuffer = GST_BUFFER (buffers->data);
 		buffers = g_list_remove (buffers, outbuffer);
 		
