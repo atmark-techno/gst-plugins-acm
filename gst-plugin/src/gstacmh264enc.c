@@ -86,7 +86,7 @@ enum {
 #endif
 #define DEFAULT_BITRATE					8000000		/* default 8Mbps */
 #define DEFAULT_MAX_FRAME_SIZE			0
-#define DEFAULT_RATE_CONTROL_MODE		GST_ACMH264ENC_RATE_CONTROL_MODE_CBR_NON_SKIP
+#define DEFAULT_RATE_CONTROL_MODE		GST_ACMH264ENC_RATE_CONTROL_MODE_VBR_NON_SKIP
 #define DEFAULT_FRAME_RATE_RESOLUTION	24000
 #define DEFAULT_FRAME_RATE_TICK			800
 #define DEFAULT_MAX_GOP_LENGTH			30	/* 推奨値		*/
@@ -433,22 +433,20 @@ gst_acm_h264_enc_class_init (GstAcmH264EncClass * klass)
 
 	g_object_class_install_property (gobject_class, PROP_BIT_RATE,
 		g_param_spec_int ("bitrate", "Bitrate (bps)",
-			"Average Bitrate (ABR) in bits/sec. "
-			"default bitrate is calculate automatically.",
+			"Average Bitrate (ABR) in bits/sec. ",
 			GST_ACMH264ENC_BITRATE_MIN, GST_ACMH264ENC_BITRATE_MAX,
-			DEFAULT_BITRATE, G_PARAM_READWRITE));
+			DEFAULT_BITRATE, G_PARAM_READWRITE | G_PARAM_LAX_VALIDATION));
 
 	g_object_class_install_property (gobject_class, PROP_MAX_FRAME_SIZE,
 		g_param_spec_int ("max-frame-size", "Max Frame Size",
 			"Max frame encode size in bytes. "
-			"default size is calculate automatically.",
-			DEFAULT_MAX_FRAME_SIZE /* GST_ACMH264ENC_MAXFRAMESIZE_MIN */, GST_ACMH264ENC_MAXFRAMESIZE_MAX,
-			DEFAULT_MAX_FRAME_SIZE, G_PARAM_READWRITE));
+			"0 is unspecified (calculate automatically).",
+			GST_ACMH264ENC_MAXFRAMESIZE_MIN, GST_ACMH264ENC_MAXFRAMESIZE_MAX,
+			DEFAULT_MAX_FRAME_SIZE, G_PARAM_READWRITE | G_PARAM_LAX_VALIDATION));
 
 	g_object_class_install_property (gobject_class, PROP_RATE_CONTROL_MODE,
 		g_param_spec_int ("rate-control-mode", "Rate control mode",
-			"0:CBR (with skip picture), 1:CDR (with non skip picture), 2:VBR. "
-			"default mode is calculate automatically.",
+			"0:CBR (with skip picture), 1:CDR (with non skip picture), 2:VBR. ",
 			GST_ACMH264ENC_RATE_CONTROL_MODE_CBR_SKIP, GST_ACMH264ENC_RATE_CONTROL_MODE_VBR_NON_SKIP,
 			DEFAULT_RATE_CONTROL_MODE, G_PARAM_READWRITE));
 
@@ -456,7 +454,7 @@ gst_acm_h264_enc_class_init (GstAcmH264EncClass * klass)
 		g_param_spec_int ("max-gop-length", "Max GOP length",
 			"Max GOP length.",
 			GST_ACMH264ENC_MAX_GOP_LENGTH_MIN, GST_ACMH264ENC_MAX_GOP_LENGTH_MAX,
-			DEFAULT_MAX_GOP_LENGTH, G_PARAM_READWRITE));
+			DEFAULT_MAX_GOP_LENGTH, G_PARAM_READWRITE | G_PARAM_LAX_VALIDATION));
 
 	g_object_class_install_property (gobject_class, PROP_B_PIC_MODE,
 		g_param_spec_int ("b-pic-mode", "B picture mode",
@@ -466,15 +464,15 @@ gst_acm_h264_enc_class_init (GstAcmH264EncClass * klass)
 
 	g_object_class_install_property (gobject_class, PROP_X_OFFSET,
 		g_param_spec_int ("x-offset", "X Offset",
-			"X Offset of output video. (default is unspecified)",
+			"X Offset of output video.",
 			GST_ACMH264ENC_X_OFFSET_MIN, GST_ACMH264ENC_X_OFFSET_MAX,
-			DEFAULT_X_OFFSET, G_PARAM_READWRITE));
+			DEFAULT_X_OFFSET, G_PARAM_READWRITE | G_PARAM_LAX_VALIDATION));
 	
 	g_object_class_install_property (gobject_class, PROP_Y_OFFSET,
 		g_param_spec_int ("y-offset", "Y Offset",
-			"Y Offset of output video. (default is unspecified)",
+			"Y Offset of output video.",
 			GST_ACMH264ENC_Y_OFFSET_MIN, GST_ACMH264ENC_Y_OFFSET_MAX,
-			DEFAULT_Y_OFFSET, G_PARAM_READWRITE));
+			DEFAULT_Y_OFFSET, G_PARAM_READWRITE | G_PARAM_LAX_VALIDATION));
 
 	gst_element_class_add_pad_template (element_class,
 			gst_static_pad_template_get (&src_template_factory));
@@ -539,15 +537,15 @@ gst_acm_h264_enc_init (GstAcmH264Enc * me)
 #if USE_STRIDE_PROP
 	me->stride = -1;
 #endif
-	me->bit_rate = -1;
-	me->max_frame_size = -1;
-	me->rate_control_mode = -1;
+	me->bit_rate = DEFAULT_BITRATE;
+	me->max_frame_size = DEFAULT_MAX_FRAME_SIZE;
+	me->rate_control_mode = DEFAULT_RATE_CONTROL_MODE;
 	me->frame_rate_resolution = -1;
 	me->frame_rate_tick = -1;
 	me->max_GOP_length = DEFAULT_MAX_GOP_LENGTH;
 	me->B_pic_mode = DEFAULT_B_PIC_MODE;
-	me->x_offset = -1;
-	me->y_offset = -1;
+	me->x_offset = DEFAULT_X_OFFSET;
+	me->y_offset = DEFAULT_Y_OFFSET;
 }
 
 static void
@@ -976,12 +974,6 @@ gst_acm_h264_enc_set_format (GstVideoEncoder * enc, GstVideoCodecState * state)
 		me->stride = me->input_width;
 	}
 #endif
-	if (me->bit_rate < /* not <= */ 0) {
-		me->bit_rate = DEFAULT_BITRATE;
-	}
-	if (me->rate_control_mode < /* not <= */ 0) {
-		me->rate_control_mode = DEFAULT_RATE_CONTROL_MODE;
-	}
 	if (me->max_frame_size <= 0) {
 		switch (me->rate_control_mode) {
 		case GST_ACMH264ENC_RATE_CONTROL_MODE_CBR_SKIP:
@@ -1005,24 +997,18 @@ gst_acm_h264_enc_set_format (GstVideoEncoder * enc, GstVideoCodecState * state)
 			me->max_frame_size, me->bit_rate, me->bit_rate / 8, (me->bit_rate / 8));
 		me->max_frame_size = (me->bit_rate / 8); /* byte */
 	}
-	if (me->max_frame_size > GST_ACMH264ENC_MAX_FRAME_SIZE_MAX) {
+	if (me->max_frame_size > GST_ACMH264ENC_MAXFRAMESIZE_MAX) {
 		GST_WARNING_OBJECT (me,
 			"max-frame-size: %u is more than %u, force to %u",
-			me->max_frame_size, GST_ACMH264ENC_MAX_FRAME_SIZE_MAX,
-			GST_ACMH264ENC_MAX_FRAME_SIZE_MAX);
-		me->max_frame_size = GST_ACMH264ENC_MAX_FRAME_SIZE_MAX;
+			me->max_frame_size, GST_ACMH264ENC_MAXFRAMESIZE_MAX,
+			GST_ACMH264ENC_MAXFRAMESIZE_MAX);
+		me->max_frame_size = GST_ACMH264ENC_MAXFRAMESIZE_MAX;
 	}
 	if (me->frame_rate_resolution < /* not <= */ 0) {
 		me->frame_rate_resolution = vinfo->fps_n;
 	}
 	if (me->frame_rate_tick < /* not <= */ 0) {
 		me->frame_rate_tick = vinfo->fps_d;
-	}
-	if (me->x_offset < /* not <= */ 0) {
-		me->x_offset = DEFAULT_X_OFFSET;
-	}
-	if (me->y_offset < /* not <= */ 0) {
-		me->y_offset = DEFAULT_Y_OFFSET;
 	}
 
 #if USE_STRIDE_PROP

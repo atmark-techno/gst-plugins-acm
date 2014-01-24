@@ -269,6 +269,310 @@ GST_START_TEST (test_properties)
 }
 GST_END_TEST;
 
+/* property default value */
+GST_START_TEST (test_property_default)
+{
+	GstElement *acmh264enc;
+	GstBuffer *buffer;
+	GstCaps *caps;
+	GstBuffer *outbuffer;
+	gchar *device;
+	gint32 bit_rate;
+	gint32 max_frame_size;
+	gint rate_control_mode;
+	gint max_GOP_length;
+	gint B_pic_mode;
+	gint x_offset;
+	gint y_offset;
+
+	/* setup */
+	acmh264enc = setup_acmh264enc (&sinktemplate_avc);
+	gst_element_set_state (acmh264enc, GST_STATE_PLAYING);
+
+	/* make caps */
+	caps = gst_caps_from_string (VIDEO_CAPS_STRING);
+	fail_unless (gst_pad_set_caps (mysrcpad, caps));
+
+	/* create buffer */
+	fail_unless ((buffer = create_video_buffer (caps)) != NULL);
+
+	/* push buffer */
+	fail_unless (gst_pad_push (mysrcpad, buffer) == GST_FLOW_OK);
+
+	/* release encoded data */
+	if (g_list_length (buffers) > 0) {
+		g_print ("num_buffers : %d\n", g_list_length (buffers));
+		outbuffer = GST_BUFFER (buffers->data);
+		buffers = g_list_remove (buffers, outbuffer);
+		
+		ASSERT_BUFFER_REFCOUNT (outbuffer, "outbuffer", 1);
+		gst_buffer_unref (outbuffer);
+		outbuffer = NULL;
+	}
+
+	/* check default value */
+	g_object_get (acmh264enc,
+				  "device", 				&device,
+				  "bitrate", 				&bit_rate,
+				  "max-frame-size", 		&max_frame_size,
+				  "rate-control-mode", 		&rate_control_mode,
+				  "max-gop-length", 		&max_GOP_length,
+				  "b-pic-mode", 			&B_pic_mode,
+				  "x-offset", 				&x_offset,
+				  "y-offset", 				&y_offset,
+				  NULL);
+	fail_unless (0 == strncmp(device, "/dev/video", 10));
+	fail_unless_equals_int (bit_rate, 8000000);
+	fail_unless_equals_int (max_frame_size, (bit_rate * 2 / 8));
+	fail_unless_equals_int (rate_control_mode, 2);
+	fail_unless_equals_int (max_GOP_length, 30);
+	fail_unless_equals_int (B_pic_mode, 3);
+	fail_unless_equals_int (x_offset, 0);
+	fail_unless_equals_int (y_offset, 0);
+
+	/* cleanup */
+	gst_caps_unref (caps);
+	gst_element_set_state (acmh264enc, GST_STATE_NULL);
+	cleanup_acmh264enc (acmh264enc);
+}
+GST_END_TEST;
+
+/* property range (min) : */
+GST_START_TEST (test_property_range_min)
+{
+	GstElement *acmh264enc;
+	GstBuffer *buffer;
+	GstCaps *caps;
+	GstBuffer *outbuffer;
+	gint32 bit_rate;
+	gint32 max_frame_size;
+	gint rate_control_mode;
+	gint max_GOP_length;
+	gint B_pic_mode;
+	gint x_offset;
+	gint y_offset;
+
+	/* setup */
+	acmh264enc = setup_acmh264enc (&sinktemplate_avc);
+
+	/* less than min */
+	ASSERT_WARNING(
+		g_object_set (acmh264enc,
+				  "bitrate", 				16000 - 1,
+				  "max-frame-size",			1,
+				  "rate-control-mode", 		-1,
+				  "b-pic-mode",				-1,
+				  "x-offset",				-1,
+				  "y-offset",				-1,
+				  NULL)
+	);
+
+	gst_element_set_state (acmh264enc, GST_STATE_PLAYING);
+
+	/* make caps */
+	caps = gst_caps_from_string (VIDEO_CAPS_STRING);
+	fail_unless (gst_pad_set_caps (mysrcpad, caps));
+
+	/* create buffer */
+	fail_unless ((buffer = create_video_buffer (caps)) != NULL);
+
+	/* push buffer */
+	fail_unless (gst_pad_push (mysrcpad, buffer) == GST_FLOW_OK);
+
+	/* release encoded data */
+	if (g_list_length (buffers) > 0) {
+		g_print ("num_buffers : %d\n", g_list_length (buffers));
+		outbuffer = GST_BUFFER (buffers->data);
+		buffers = g_list_remove (buffers, outbuffer);
+		
+		ASSERT_BUFFER_REFCOUNT (outbuffer, "outbuffer", 1);
+		gst_buffer_unref (outbuffer);
+		outbuffer = NULL;
+	}
+
+	/* check property */
+	g_object_get (acmh264enc,
+				  "bitrate", 				&bit_rate,
+				  "max-frame-size", 		&max_frame_size,
+				  "rate-control-mode", 		&rate_control_mode,
+				  "b-pic-mode", 			&B_pic_mode,
+				  "x-offset", 				&x_offset,
+				  "y-offset", 				&y_offset,
+				  NULL);
+	/* minより小さい場合minに切り上げ */
+	fail_unless_equals_int (bit_rate, 16000);
+	/* bitrate/8より小さい場合、bitrate/8に切り上げ */
+	fail_unless_equals_int (max_frame_size, bit_rate / 8);
+	/* minより小さい場合defaultの値を設定 */
+	fail_unless_equals_int (rate_control_mode, 2);
+	/* minより小さい場合defaultの値を設定 */
+	fail_unless_equals_int (B_pic_mode, 3);
+	/* minより小さい場合minに切り上げ */
+	fail_unless_equals_int (x_offset, 0);
+	/* minより小さい場合minに切り上げ */
+	fail_unless_equals_int (y_offset, 0);
+
+	/* cleanup */
+	gst_caps_unref (caps);
+	gst_element_set_state (acmh264enc, GST_STATE_NULL);
+	cleanup_acmh264enc (acmh264enc);
+
+	/* 
+	 * max-gop-length は b-pic-mode より大きくなくてはならないため別途チェック 
+	 */
+	/* setup */
+	acmh264enc = setup_acmh264enc (&sinktemplate_avc);
+	
+	/* less than min */
+	g_object_set (acmh264enc,
+				  "max-gop-length",			-1,
+				  "b-pic-mode",				0,
+				  NULL);
+	
+	gst_element_set_state (acmh264enc, GST_STATE_PLAYING);
+	
+	/* make caps */
+	caps = gst_caps_from_string (VIDEO_CAPS_STRING);
+	fail_unless (gst_pad_set_caps (mysrcpad, caps));
+	
+	/* create buffer */
+	fail_unless ((buffer = create_video_buffer (caps)) != NULL);
+	
+	/* push buffer */
+	fail_unless (gst_pad_push (mysrcpad, buffer) == GST_FLOW_OK);
+	
+	/* release encoded data */
+	if (g_list_length (buffers) > 0) {
+		g_print ("num_buffers : %d\n", g_list_length (buffers));
+		outbuffer = GST_BUFFER (buffers->data);
+		buffers = g_list_remove (buffers, outbuffer);
+		
+		ASSERT_BUFFER_REFCOUNT (outbuffer, "outbuffer", 1);
+		gst_buffer_unref (outbuffer);
+		outbuffer = NULL;
+	}
+	
+	/* check property */
+	g_object_get (acmh264enc,
+				  "max-gop-length", 		&max_GOP_length,
+				  NULL);
+	/* minより小さい場合minに切り上げ */
+	fail_unless_equals_int (max_GOP_length, 0);
+	
+	/* cleanup */
+	gst_caps_unref (caps);
+	gst_element_set_state (acmh264enc, GST_STATE_NULL);
+	cleanup_acmh264enc (acmh264enc);
+}
+GST_END_TEST;
+
+/* property range (max) : */
+GST_START_TEST (test_property_range_max)
+{
+	GstElement *acmh264enc;
+	GstBuffer *buffer;
+	GstCaps *caps;
+	GstBuffer *outbuffer;
+	gint32 bit_rate;
+	gint32 max_frame_size;
+	gint rate_control_mode;
+	gint max_GOP_length;
+	gint B_pic_mode;
+	gint x_offset;
+	gint y_offset;
+
+	/* setup */
+	acmh264enc = setup_acmh264enc (&sinktemplate_avc);
+
+	/* more than max */
+	ASSERT_WARNING(
+		g_object_set (acmh264enc,
+				  "bitrate", 				40000000 + 1,
+				  "max-frame-size",			5000000 + 1,
+				  "rate-control-mode", 		2 + 1,
+				  "max-gop-length",			120 + 1,
+				  "b-pic-mode",				3 + 1,
+				  "x-offset",				1920 + 1,
+				  "y-offset",				1080 + 1,
+				  NULL)
+	);
+
+	gst_element_set_state (acmh264enc, GST_STATE_PLAYING);
+
+	/* make caps */
+	caps = gst_caps_from_string (VIDEO_CAPS_STRING);
+	fail_unless (gst_pad_set_caps (mysrcpad, caps));
+
+	/* create buffer */
+	fail_unless ((buffer = create_video_buffer (caps)) != NULL);
+
+	/* push buffer */
+	fail_unless (gst_pad_push (mysrcpad, buffer) == GST_FLOW_OK);
+
+	/* release encoded data */
+	if (g_list_length (buffers) > 0) {
+		g_print ("num_buffers : %d\n", g_list_length (buffers));
+		outbuffer = GST_BUFFER (buffers->data);
+		buffers = g_list_remove (buffers, outbuffer);
+		
+		ASSERT_BUFFER_REFCOUNT (outbuffer, "outbuffer", 1);
+		gst_buffer_unref (outbuffer);
+		outbuffer = NULL;
+	}
+
+	/* check property */
+	g_object_get (acmh264enc,
+				  "bitrate", 				&bit_rate,
+				  "max-frame-size", 		&max_frame_size,
+				  "rate-control-mode", 		&rate_control_mode,
+				  "max-gop-length", 		&max_GOP_length,
+				  "b-pic-mode", 			&B_pic_mode,
+				  "x-offset", 				&x_offset,
+				  "y-offset", 				&y_offset,
+				  NULL);
+	/* maxより大きい場合maxに切り下げ */
+	fail_unless_equals_int (bit_rate, 40000000);
+	/* 5,000,000より大きい場合、5,000,000に切り下げ */
+	fail_unless_equals_int (max_frame_size, 5000000);
+	/* maxより大きい場合defaultの値を設定 */
+	fail_unless_equals_int (rate_control_mode, 2);
+	/* maxより大きい場合maxに切り下げ */
+	fail_unless_equals_int (max_GOP_length, 120);
+	/* maxより大きい場合defaultの値を設定 */
+	fail_unless_equals_int (B_pic_mode, 3);
+	/* maxより大きい場合maxに切り下げ */
+	fail_unless_equals_int (x_offset, 0);	/* not 1920 */
+	/* maxより大きい場合maxに切り下げ */
+	fail_unless_equals_int (y_offset, 0);	/* not 1080 */
+
+	/* cleanup */
+	gst_caps_unref (caps);
+	gst_element_set_state (acmh264enc, GST_STATE_NULL);
+	cleanup_acmh264enc (acmh264enc);
+
+	/*
+	 * オフセットは入力画像サイズとのチェックが行われるため別途チェック
+	 */
+	/* setup */
+	acmh264enc = setup_acmh264enc (&sinktemplate_avc);
+	
+	/* more than max */
+	g_object_set (acmh264enc,
+				  "x-offset",				1920 + 1,
+				  "y-offset",				1080 + 1,
+				  NULL);
+	g_object_get (acmh264enc,
+				  "x-offset", 				&x_offset,
+				  "y-offset", 				&y_offset,
+				  NULL);
+	fail_unless_equals_int (x_offset, 1920);
+	fail_unless_equals_int (y_offset, 1080);
+
+	/* cleanup	*/
+	cleanup_acmh264enc (acmh264enc);
+}
+GST_END_TEST;
+
 /* Combination of a property */
 static void
 check_property_comb_gop(gint max_GOP_length, gint B_pic_mode, GstFlowReturn result)
@@ -1093,6 +1397,9 @@ acmh264enc_suite (void)
 	suite_add_tcase (s, tc_chain);
 
 	tcase_add_test (tc_chain, test_properties);
+	tcase_add_test (tc_chain, test_property_default);
+	tcase_add_test (tc_chain, test_property_range_min);
+	tcase_add_test (tc_chain, test_property_range_max);
 	tcase_add_test (tc_chain, test_property_comb_gop);
 	tcase_add_test (tc_chain, test_property_comb_input_size);
 	tcase_add_test (tc_chain, test_property_comb_offset);

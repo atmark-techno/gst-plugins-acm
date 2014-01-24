@@ -65,7 +65,7 @@ enum {
 #define GST_ACMH264ENC_BITRATE_MAX		40000000
 
 /* 1フレームあたりの最大エンコードサイズ */
-#define GST_ACMH264ENC_MAXFRAMESIZE_MIN		(GST_ACMH264ENC_BITRATE_MIN / 8)
+#define GST_ACMH264ENC_MAXFRAMESIZE_MIN		0
 #define GST_ACMH264ENC_MAXFRAMESIZE_MAX		5000000
 
 /* レート制御モード	*/
@@ -87,9 +87,6 @@ enum {
 /* 最大 GOP 長		*/
 #define GST_ACMH264ENC_MAX_GOP_LENGTH_MIN		0
 #define GST_ACMH264ENC_MAX_GOP_LENGTH_MAX		120
-
-/* 1フレームあたりの最大エンコードサイズ(バイト)		*/
-#define GST_ACMH264ENC_MAX_FRAME_SIZE_MAX		5000000
 
 /* Bピクチャモード		*/
 enum {

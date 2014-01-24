@@ -1,5 +1,38 @@
 
 
+* 2013-12-24	kaz
+- H264 ENC : プロパティの仕様修正
+ - bitrate : default=8,000,000 min=16,000 max=40,000,000
+     min より小さい場合 min に切り上げ
+	 max より大きい場合 max に切り下げ
+
+ - max-frame-size : default=0 min=0 max=5,000,000
+	 0 が指定されたときは推奨値を計算
+	 指定された値か計算した値が bitrate/8 より小さい場合、bitrate/8 に切り上げ
+	 指定された値か計算した値が 5,000,000 より大きい場合、5,000,000 に切り下げ
+
+ - rate-control-mode : default=2(VBR, no skip) min=0(CBR, skip) max=2(VBR, no skip)
+	 b-pic-modeが !0 のとき 0(CBR, skip) が指定されたら 1(CBR, no skip) に変更
+	 min より小さい場合 default の値を設定
+	 max より大きい場合 default の値を設定
+
+ - max-gop-length : default=30 min=0 max=120
+	 min より小さい場合 min に切り上げ
+	 max より大きい場合 max に切り下げ
+
+ - b-pic-mode : default=3 min=0 max=3
+	 min より小さい場合 default の値を設定
+	 max より大きい場合 default の値を設定
+
+ - x-offset : default=0 min=0 max=1920
+	 min より小さい場合 min に切り上げ
+	 max より大きい場合 max に切り下げ
+
+ - y-offset : default=0 min=0 max=1080
+	 min より小さい場合 min に切り上げ
+	 max より大きい場合 max に切り下げ
+
+
 * 2013-12-23	kaz
 - H264 ENC
  - max-frame-size の範囲チェック追加
