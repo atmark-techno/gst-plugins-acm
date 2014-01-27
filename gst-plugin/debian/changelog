@@ -1,3 +1,11 @@
+gst-plugins-at-acm (1.0.0) UNRELEASED; urgency=low
+
+  * acm*enc: Fix property's default value and range
+  * acmh264dec: Add RGB16 format for src capability
+  * acmjpegenc: Support for output width and height capabilities
+
+ -- Daisuke Mizobuchi <mizo@atmark-techno.com>  Mon, 27 Jan 2014 19:12:59 +0900
+
 gst-plugins-at-acm (0.10.0) UNRELEASED; urgency=low
 
   * Add new plugins: acmaacenc, acmh264enc, acmjpegenc
