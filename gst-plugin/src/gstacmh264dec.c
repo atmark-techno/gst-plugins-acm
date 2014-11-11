@@ -1269,8 +1269,6 @@ gst_acm_h264_dec_handle_frame (GstVideoDecoder * dec,
 	struct timeval tv;
 	GstBuffer *v4l2buf_out = NULL;
 	struct v4l2_buffer* v4l2buf_in = NULL;
-	gint i, n;
-	gboolean isHandledOutFrame = FALSE;
 	guint32 bytesused = 0;
 
 	/* Seek が行われた際は、gst_video_decoder_reset() により、dec->priv->frames が、
@@ -1349,178 +1347,98 @@ gst_acm_h264_dec_handle_frame (GstVideoDecoder * dec,
 		goto out;
 	}
 
-	/* デコード済みデータが取得できるなら全て処理	*/
-	for (i = 0, n = me->pool_out->num_buffers; i < n; i++) {
-		ret = gst_acm_v4l2_buffer_pool_dqbuf_ex (me->pool_out, &v4l2buf_out, &bytesused);
-		if (GST_FLOW_OK == ret) {
-			if (! me->is_got_decoded_1stframe) {
-				me->is_got_decoded_1stframe = TRUE;
-				GST_INFO_OBJECT (me, "got 1st decoded frame at frame no:%d",
-								 frame->system_frame_number);
+
+	if (me->num_inbuf_acquired < DEFAULT_NUM_BUFFERS_IN) {
+		v4l2buf_in = get_v4l2buf_in(me);
+		ret = gst_acm_h264_dec_handle_in_frame(me, v4l2buf_in, frame->input_buffer);
+		if (GST_FLOW_OK != ret) {
+			goto handle_in_failed;
+		}
+		goto out;
+	}
+
+	while(1){
+
+		FD_ZERO(&read_fds);
+		FD_ZERO(&write_fds);
+		FD_SET(me->video_fd, &read_fds);
+		FD_SET(me->video_fd, &write_fds);
+		tv.tv_sec = 10;
+		tv.tv_usec = 0;
+		r = select(me->video_fd +1, &read_fds, &write_fds, NULL, &tv);
+
+		if (r == -1 && (errno == EINTR || errno == EAGAIN)) {
+			continue;
+		}
+		else if (r < 0) {
+			goto select_failed;
+		}
+		else if (r == 0) {
+			GST_INFO_OBJECT(me, "select() timeout");
+			goto select_timeout;
+		}
+
+		if (FD_ISSET(me->video_fd, &read_fds)){
+			ret = gst_acm_v4l2_buffer_pool_dqbuf_ex(me->pool_out,&v4l2buf_out, &bytesused);
+			if (GST_FLOW_OK != ret) {
+				goto dqbuf_failed;
 			}
-			isHandledOutFrame = TRUE;
+
 			/* H.264のMMCO(Memory Management Control Operation)の機能で、
 			 * DPB(Decoded Picture Buffer)から削除される場合がある。
 			 * この際、出力不可フラグが設定され、bytesused がゼロになる。
 			 * この出力は、down stream に流さず、無視する。
 			 */
 			if (0 == bytesused) {
-				GST_WARNING_OBJECT(me, "drop frame(1) by bytesused(0) at %d", i + 1);
+				GST_WARNING_OBJECT(me, "drop frame by bytesused(0)");
 				gst_acm_v4l2_buffer_pool_qbuf(me->pool_out,
 					v4l2buf_out, gst_buffer_get_size(v4l2buf_out));
-				n++;	/* drop した分 loop 数を増やす	*/
-				
 				continue;
 			}
-
 #if USE_THREAD
 			g_atomic_int_dec_and_test (&(me->priv->in_out_frame_count));
 #else
 			me->priv->in_out_frame_count--;
 #endif
-			
+
 			ret = gst_acm_h264_dec_handle_out_frame(me, v4l2buf_out, NULL);
 			if (GST_FLOW_OK != ret) {
 				if (GST_FLOW_FLUSHING == ret) {
 					GST_DEBUG_OBJECT(me, "FLUSHING - continue.");
-					
+
 					/* エラーとせず、m2mデバイスへのデータ入力は行う	*/
 				}
 				else {
 					goto handle_out_failed;
 				}
 			}
+
+			continue;
+
 		}
-		else if (GST_FLOW_DQBUF_EAGAIN == ret) {
-			/* まだデコード済みフレームが取れないので、次回に処理を回す		*/
-			ret = GST_FLOW_OK;
-			break;
-		}
-		else {
-			goto dqbuf_failed;
-		}
-	}
+		if (FD_ISSET(me->video_fd, &write_fds)){
 
-	if (me->is_got_decoded_1stframe && ! isHandledOutFrame) {
-		if (DEFAULT_NUM_BUFFERS_IN == queued_buf_status_of_input(me)) {
-			/* 初回デコード済みフレームを取得済みで、入力用キューが満杯の時、
-			 * 1 フレームを、読み込みできる状態になるまで待ってから読み込む
-			 */
-			do {
-				do {
-					FD_ZERO(&read_fds);
-					FD_SET(me->video_fd, &read_fds);
-					tv.tv_sec = 0;
-					tv.tv_usec = SELECT_TIMEOUT_MSEC * 1000;
-					r = select(me->video_fd + 1, &read_fds, NULL, NULL, &tv);
-				} while (r == -1 && (errno == EINTR || errno == EAGAIN));
-				if (r > 0) {
-					ret = gst_acm_v4l2_buffer_pool_dqbuf_ex(me->pool_out,
-							&v4l2buf_out, &bytesused);
-					if (GST_FLOW_OK != ret) {
-						GST_ERROR_OBJECT (me, "gst_acm_v4l2_buffer_pool_dqbuf() returns %s",
-										  gst_flow_get_name (ret));
-						goto dqbuf_failed;
-					}
-				}
-				else if (r < 0) {
-					goto select_failed;
-				}
-				else if (0 == r) {
-					/* timeoutしたらエラー	*/
-					GST_INFO_OBJECT(me, "select() for output is timeout");
-					goto select_timeout;
-				}
-
-				/* H.264のMMCO(Memory Management Control Operation)の機能で、
-				 * DPB(Decoded Picture Buffer)から削除される場合がある。
-				 * この際、出力不可フラグが設定され、bytesused がゼロになる。
-				 * この出力は、down stream に流さず、無視する。
-				 */
-				if (0 == bytesused) {
-					GST_WARNING_OBJECT(me, "drop frame(2) by bytesused(0)");
-					gst_acm_v4l2_buffer_pool_qbuf(me->pool_out,
-						v4l2buf_out, gst_buffer_get_size(v4l2buf_out));
-					
-					break;
-				}
-
-#if USE_THREAD
-				g_atomic_int_dec_and_test (&(me->priv->in_out_frame_count));
-#else
-				me->priv->in_out_frame_count--;
-#endif
-				
-				ret = gst_acm_h264_dec_handle_out_frame(me, v4l2buf_out, NULL);
-				if (GST_FLOW_OK != ret) {
-					if (GST_FLOW_FLUSHING == ret) {
-						GST_DEBUG_OBJECT(me, "FLUSHING - continue.");
-						
-						/* エラーとせず、m2mデバイスへのデータ入力は行う	*/
-						break;
-					}
-					goto handle_out_failed;
-				}
-			} while (FALSE);
-		}
-	}
-
-	/* 入力		*/
-	/* dequeue buffer	*/
-	if (me->num_inbuf_acquired < DEFAULT_NUM_BUFFERS_IN) {
-		v4l2buf_in = get_v4l2buf_in(me);
-	}
-	else {
-		v4l2buf_in = &(me->priv->input_vbuffer[0]);
-		memset (v4l2buf_in, 0x00, sizeof (struct v4l2_buffer));
-		v4l2buf_in->type = V4L2_BUF_TYPE_VIDEO_OUTPUT;
-		v4l2buf_in->memory = V4L2_MEMORY_USERPTR;
-		r = gst_acm_v4l2_ioctl (me->video_fd, VIDIOC_DQBUF, v4l2buf_in);
-		if (r < 0) {
-			if (EAGAIN == errno) {
-				/* 書き込みができる状態になるまで待ってから書き込む		*/
-				do {
-					FD_ZERO(&write_fds);
-					FD_SET(me->video_fd, &write_fds);
-					/* no timeout	*/
-					tv.tv_sec = 10;
-					tv.tv_usec = 0;
-					r = select(me->video_fd + 1, NULL, &write_fds, NULL, &tv);
-				} while (r == -1 && (errno == EINTR || errno == EAGAIN));
-				if (r > 0) {
-					memset (v4l2buf_in, 0x00, sizeof (struct v4l2_buffer));
-					v4l2buf_in->type = V4L2_BUF_TYPE_VIDEO_OUTPUT;
-					v4l2buf_in->memory = V4L2_MEMORY_USERPTR;
-					r = gst_acm_v4l2_ioctl (me->video_fd, VIDIOC_DQBUF, v4l2buf_in);
-					if (r < 0) {
-						GST_ERROR_OBJECT (me, "failed VIDIOC_DQBUF for input");
-
-						goto dqbuf_failed;
-					}
-				}
-				else if (r < 0) {
-					goto select_failed;
-				}
-				else if (0 == r) {
-					GST_ERROR_OBJECT (me, "select() for input is timeout");
-					goto select_timeout;
-				}
-			}
-			else {
+			v4l2buf_in = &(me->priv->input_vbuffer[0]);
+			memset (v4l2buf_in, 0x00, sizeof (struct v4l2_buffer));
+			v4l2buf_in->type = V4L2_BUF_TYPE_VIDEO_OUTPUT;
+			v4l2buf_in->memory = V4L2_MEMORY_USERPTR;
+			r = gst_acm_v4l2_ioctl (me->video_fd, VIDIOC_DQBUF, v4l2buf_in);
+			if (r < 0) {
 				goto dqbuf_failed;
 			}
+
+			ret = gst_acm_h264_dec_handle_in_frame(me, v4l2buf_in, frame->input_buffer);
+			if (GST_FLOW_OK != ret) {
+				goto handle_in_failed;
+			}
+#if USE_THREAD
+			g_atomic_int_inc (&(me->priv->in_out_frame_count));
+#else
+			me->priv->in_out_frame_count++;
+#endif
+			break;
 		}
 	}
-
-	ret = gst_acm_h264_dec_handle_in_frame(me, v4l2buf_in, frame->input_buffer);
-	if (GST_FLOW_OK != ret) {
-		goto handle_in_failed;
-	}
-#if USE_THREAD
-	g_atomic_int_inc (&(me->priv->in_out_frame_count));
-#else
-	me->priv->in_out_frame_count++;
-#endif
 
 out:
 	gst_buffer_unref(frame->input_buffer);
