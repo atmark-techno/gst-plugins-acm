@@ -107,7 +107,6 @@
 # define DBG_MEASURE_PERF_SELECT_IN		0
 # define DBG_MEASURE_PERF_SELECT_OUT	0
 # define DBG_MEASURE_PERF_FINISH_FRAME	0
-# define DBG_MEASURE_PERF_DQ_OUT		0
 # define DBG_MEASURE_PERF_Q_IN			0
 #endif
 
@@ -1358,9 +1357,6 @@ gst_acm_h264_dec_handle_frame (GstVideoDecoder * dec,
 #if DBG_MEASURE_PERF_SELECT_IN || DBG_MEASURE_PERF_SELECT_OUT
 	double time_start, time_end;
 #endif
-#if DBG_MEASURE_PERF_DQ_OUT
-	static double interval_time_start_dq_out = 0, interval_time_end_dq_out = 0;
-#endif
 
 #if DBG_LOG_PERF_CHAIN
 	GST_INFO_OBJECT (me, "# H264DEC-CHAIN HANDLE FRMAE START");
@@ -1506,16 +1502,6 @@ gst_acm_h264_dec_handle_frame (GstVideoDecoder * dec,
 #if 0	/* for debug */
 			GST_INFO_OBJECT (me, "got decoded frame %d", i + 1);
 #endif
-#if DBG_MEASURE_PERF_DQ_OUT
-			interval_time_end_dq_out = gettimeofday_sec();
-			if (interval_time_start_dq_out > 0) {
-//				if ((interval_time_end - interval_time_start) > 0.022) {
-				GST_INFO_OBJECT(me, "dequeued_out(1) at(ms) : %10.10f",
-					(interval_time_end_dq_out - interval_time_start_dq_out)*1e+3);
-//				}
-			}
-			interval_time_start_dq_out = gettimeofday_sec();
-#endif
 			/* H.264のMMCO(Memory Management Control Operation)の機能で、
 			 * DPB(Decoded Picture Buffer)から削除される場合がある。
 			 * この際、出力不可フラグが設定され、bytesused がゼロになる。
@@ -1620,16 +1606,6 @@ gst_acm_h264_dec_handle_frame (GstVideoDecoder * dec,
 					GST_INFO_OBJECT(me, "select() for output is timeout");
 					goto select_timeout;
 				}
-#if DBG_MEASURE_PERF_DQ_OUT
-				interval_time_end_dq_out = gettimeofday_sec();
-				if (interval_time_start_dq_out > 0) {
-//					if ((interval_time_end - interval_time_start) > 0.022) {
-						GST_INFO_OBJECT(me, "dequeued_out(2) at(ms) : %10.10f",
-							(interval_time_end_dq_out - interval_time_start_dq_out)*1e+3);
-//					}
-				}
-				interval_time_start_dq_out = gettimeofday_sec();
-#endif
 
 				/* H.264のMMCO(Memory Management Control Operation)の機能で、
 				 * DPB(Decoded Picture Buffer)から削除される場合がある。
