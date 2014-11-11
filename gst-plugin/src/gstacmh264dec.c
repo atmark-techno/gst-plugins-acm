@@ -95,7 +95,6 @@
 
 /* デバッグログ出力フラグ		*/
 #define DBG_LOG_PERF_SELECT_IN		0
-#define DBG_LOG_PERF_PUSH			0
 #define DBG_LOG_PERF_SELECT_OUT		0
 #define DBG_LOG_INTERLACED			0
 
@@ -1365,13 +1364,7 @@ gst_acm_h264_dec_handle_frame (GstVideoDecoder * dec,
 
 	/* デコード済みデータが取得できるなら全て処理	*/
 	for (i = 0, n = me->pool_out->num_buffers; i < n; i++) {
-#if DBG_LOG_PERF_PUSH
-		GST_INFO_OBJECT (me, "H264DEC-PUSH DQBUF START");
-#endif
 		ret = gst_acm_v4l2_buffer_pool_dqbuf_ex (me->pool_out, &v4l2buf_out, &bytesused);
-#if DBG_LOG_PERF_PUSH
-		GST_INFO_OBJECT (me, "H264DEC-PUSH DQBUF END");
-#endif
 		if (GST_FLOW_OK == ret) {
 			if (! me->is_got_decoded_1stframe) {
 				me->is_got_decoded_1stframe = TRUE;
@@ -1399,13 +1392,7 @@ gst_acm_h264_dec_handle_frame (GstVideoDecoder * dec,
 			me->priv->in_out_frame_count--;
 #endif
 			
-#if DBG_LOG_PERF_PUSH
-			GST_INFO_OBJECT (me, "H264DEC-PUSH HANDLE OUT START");
-#endif
 			ret = gst_acm_h264_dec_handle_out_frame(me, v4l2buf_out, NULL);
-#if DBG_LOG_PERF_PUSH
-			GST_INFO_OBJECT (me, "H264DEC-PUSH HANDLE OUT END");
-#endif
 			if (GST_FLOW_OK != ret) {
 				if (GST_FLOW_FLUSHING == ret) {
 					GST_DEBUG_OBJECT(me, "FLUSHING - continue.");
@@ -1418,9 +1405,6 @@ gst_acm_h264_dec_handle_frame (GstVideoDecoder * dec,
 			}
 		}
 		else if (GST_FLOW_DQBUF_EAGAIN == ret) {
-#if DBG_LOG_PERF_PUSH
-			GST_INFO_OBJECT (me, "H264DEC-PUSH DQBUF EAGAIN at %d", i + 1);
-#endif
 			/* まだデコード済みフレームが取れないので、次回に処理を回す		*/
 			ret = GST_FLOW_OK;
 			break;
@@ -1440,9 +1424,6 @@ gst_acm_h264_dec_handle_frame (GstVideoDecoder * dec,
 			gst_acm_v4l2_buffer_pool_log_buf_status(me->pool_out);
 #endif
 			do {
-#if DBG_LOG_PERF_PUSH
-				GST_INFO_OBJECT (me, "H264DEC-PUSH SELECT START");
-#endif
 				do {
 					FD_ZERO(&read_fds);
 					FD_SET(me->video_fd, &read_fds);
@@ -1460,13 +1441,7 @@ gst_acm_h264_dec_handle_frame (GstVideoDecoder * dec,
 					GST_INFO_OBJECT(me, " total %10.10f", g_time_total_select_out);
 #endif
 				} while (r == -1 && (errno == EINTR || errno == EAGAIN));
-#if DBG_LOG_PERF_PUSH
-				GST_INFO_OBJECT (me, "H264DEC-PUSH SELECT END");
-#endif
 				if (r > 0) {
-#if DBG_LOG_PERF_PUSH
-					GST_INFO_OBJECT (me, "H264DEC-PUSH DQBUF RESTART");
-#endif
 					ret = gst_acm_v4l2_buffer_pool_dqbuf_ex(me->pool_out,
 							&v4l2buf_out, &bytesused);
 					if (GST_FLOW_OK != ret) {
@@ -1503,9 +1478,6 @@ gst_acm_h264_dec_handle_frame (GstVideoDecoder * dec,
 				me->priv->in_out_frame_count--;
 #endif
 				
-#if DBG_LOG_PERF_PUSH
-				GST_INFO_OBJECT (me, "H264DEC-PUSH HANDLE OUT START");
-#endif
 				ret = gst_acm_h264_dec_handle_out_frame(me, v4l2buf_out, NULL);
 				if (GST_FLOW_OK != ret) {
 					if (GST_FLOW_FLUSHING == ret) {
@@ -1516,9 +1488,6 @@ gst_acm_h264_dec_handle_frame (GstVideoDecoder * dec,
 					}
 					goto handle_out_failed;
 				}
-#if DBG_LOG_PERF_PUSH
-				GST_INFO_OBJECT (me, "H264DEC-PUSH HANDLE OUT END");
-#endif
 			} while (FALSE);
 		}
 	}
@@ -2444,9 +2413,6 @@ gst_acm_h264_dec_handle_out_frame(GstAcmH264Dec * me,
 		}
 
 		/* down stream へ バッファを push	*/
-#if DBG_LOG_PERF_PUSH
-		GST_INFO_OBJECT (me, "H264DEC-PUSH finish_frame START");
-#endif
 		if (! me->priv->using_fb_dmabuf) {
 			if (GST_VIDEO_DECODER(me)->input_segment.rate > 0.0) {
 				displayingBuf = gst_buffer_ref(v4l2buf_out);
@@ -2493,9 +2459,6 @@ gst_acm_h264_dec_handle_out_frame(GstAcmH264Dec * me,
 			
 			goto finish_frame_failed;
 		}
-#if DBG_LOG_PERF_PUSH
-		GST_INFO_OBJECT (me, "H264DEC-PUSH finish_frame END");
-#endif
 
 		/* ディスプレイ表示中のバッファは ref して保持し、次のバッファを表示した後、
 		 * unref してデバイスに queue する。
