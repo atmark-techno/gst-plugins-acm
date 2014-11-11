@@ -94,7 +94,6 @@
 #define USE_THREAD					0
 
 /* デバッグログ出力フラグ		*/
-#define DBG_LOG_PERF_CHAIN			0
 #define DBG_LOG_PERF_SELECT_IN		0
 #define DBG_LOG_PERF_PUSH			0
 #define DBG_LOG_PERF_SELECT_OUT		0
@@ -1358,9 +1357,6 @@ gst_acm_h264_dec_handle_frame (GstVideoDecoder * dec,
 	double time_start, time_end;
 #endif
 
-#if DBG_LOG_PERF_CHAIN
-	GST_INFO_OBJECT (me, "# H264DEC-CHAIN HANDLE FRMAE START");
-#endif
 
 
 #if 0
@@ -1648,9 +1644,6 @@ gst_acm_h264_dec_handle_frame (GstVideoDecoder * dec,
 
 	/* 入力		*/
 	/* dequeue buffer	*/
-#if DBG_LOG_PERF_CHAIN
-	GST_INFO_OBJECT (me, "H264DEC-CHAIN DQBUF START");
-#endif
 	if (me->num_inbuf_acquired < DEFAULT_NUM_BUFFERS_IN) {
 		v4l2buf_in = get_v4l2buf_in(me);
 	}
@@ -1666,9 +1659,6 @@ gst_acm_h264_dec_handle_frame (GstVideoDecoder * dec,
 				GST_INFO_OBJECT(me, "wait until enable dqbuf (pool_in)");
 #endif
 				/* 書き込みができる状態になるまで待ってから書き込む		*/
-#if DBG_LOG_PERF_CHAIN
-				GST_INFO_OBJECT (me, "H264DEC-CHAIN SELECT IN START");
-#endif
 #if 0	/* for debug */
 				GST_INFO_OBJECT (me, "pool_out - buffers:%d, allocated:%d, queued:%d",
 								 me->pool_out->num_buffers,
@@ -1695,9 +1685,6 @@ gst_acm_h264_dec_handle_frame (GstVideoDecoder * dec,
 					GST_INFO_OBJECT(me, " total %10.10f", g_time_total_select_in);
 #endif
 				} while (r == -1 && (errno == EINTR || errno == EAGAIN));
-#if DBG_LOG_PERF_CHAIN
-				GST_INFO_OBJECT (me, "H264DEC-CHAIN SELECT IN END");
-#endif
 				if (r > 0) {
 					memset (v4l2buf_in, 0x00, sizeof (struct v4l2_buffer));
 					v4l2buf_in->type = V4L2_BUF_TYPE_VIDEO_OUTPUT;
@@ -1722,9 +1709,6 @@ gst_acm_h264_dec_handle_frame (GstVideoDecoder * dec,
 			}
 		}
 	}
-#if DBG_LOG_PERF_CHAIN
-	GST_INFO_OBJECT (me, "H264DEC-CHAIN DQBUF END");
-#endif
 
 	ret = gst_acm_h264_dec_handle_in_frame(me, v4l2buf_in, frame->input_buffer);
 	if (GST_FLOW_OK != ret) {
@@ -1737,9 +1721,6 @@ gst_acm_h264_dec_handle_frame (GstVideoDecoder * dec,
 #endif
 
 out:
-#if DBG_LOG_PERF_CHAIN
-	GST_INFO_OBJECT (me, "# H264DEC-CHAIN HANDLE FRMAE END");
-#endif
 #if 0	/* for debug	*/
 	GST_INFO_OBJECT(me, "inbuf size=%d, ref:%d",
 					gst_buffer_get_size(frame->input_buffer),
@@ -2465,17 +2446,11 @@ gst_acm_h264_dec_handle_in_frame(GstAcmH264Dec * me,
 	}
 	interval_time_start_q_in = gettimeofday_sec();
 #endif
-#if DBG_LOG_PERF_CHAIN
-	GST_INFO_OBJECT (me, "H264DEC-CHAIN QBUF START");
-#endif
 	r = gst_acm_v4l2_ioctl (me->video_fd, VIDIOC_QBUF, v4l2buf_in);
 	gst_buffer_unmap(inbuf, &map);
 	if (r < 0) {
 		goto qbuf_failed;
 	}
-#if DBG_LOG_PERF_CHAIN
-	GST_INFO_OBJECT (me, "H264DEC-CHAIN QBUF END");
-#endif
 
 out:
 	return ret;
