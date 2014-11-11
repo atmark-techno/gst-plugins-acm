@@ -102,8 +102,6 @@
 /* select() による待ち時間の計測		*/
 #define DBG_MEASURE_PERF				0
 #if DBG_MEASURE_PERF
-# define DBG_MEASURE_PERF_SELECT_IN		0
-# define DBG_MEASURE_PERF_SELECT_OUT	0
 # define DBG_MEASURE_PERF_FINISH_FRAME	0
 # define DBG_MEASURE_PERF_Q_IN			0
 #endif
@@ -117,12 +115,6 @@ gettimeofday_sec()
 	gettimeofday(&t, NULL);
 	return (double)t.tv_sec + (double)t.tv_usec * 1e-6;
 }
-#endif
-#if DBG_MEASURE_PERF_SELECT_IN
-static double g_time_total_select_in = 0;
-#endif
-#if DBG_MEASURE_PERF_SELECT_OUT
-static double g_time_total_select_out = 0;
 #endif
 
 
@@ -1282,9 +1274,6 @@ gst_acm_h264_dec_handle_frame (GstVideoDecoder * dec,
 	gint i, n;
 	gboolean isHandledOutFrame = FALSE;
 	guint32 bytesused = 0;
-#if DBG_MEASURE_PERF_SELECT_IN || DBG_MEASURE_PERF_SELECT_OUT
-	double time_start, time_end;
-#endif
 
 	/* Seek が行われた際は、gst_video_decoder_reset() により、dec->priv->frames が、
 	 * 空になる。
@@ -1429,17 +1418,7 @@ gst_acm_h264_dec_handle_frame (GstVideoDecoder * dec,
 					FD_SET(me->video_fd, &read_fds);
 					tv.tv_sec = 0;
 					tv.tv_usec = SELECT_TIMEOUT_MSEC * 1000;
-#if DBG_MEASURE_PERF_SELECT_OUT
-					time_start = gettimeofday_sec();
-#endif
 					r = select(me->video_fd + 1, &read_fds, NULL, NULL, &tv);
-#if DBG_MEASURE_PERF_SELECT_OUT
-					time_end = gettimeofday_sec();
-					GST_INFO_OBJECT(me, " select() out : %10.10f at %d",
-						time_end - time_start, frame->system_frame_number);
-					g_time_total_select_out += (time_end - time_start);
-					GST_INFO_OBJECT(me, " total %10.10f", g_time_total_select_out);
-#endif
 				} while (r == -1 && (errno == EINTR || errno == EAGAIN));
 				if (r > 0) {
 					ret = gst_acm_v4l2_buffer_pool_dqbuf_ex(me->pool_out,
@@ -1515,16 +1494,7 @@ gst_acm_h264_dec_handle_frame (GstVideoDecoder * dec,
 					/* no timeout	*/
 					tv.tv_sec = 10;
 					tv.tv_usec = 0;
-#if DBG_MEASURE_PERF_SELECT_IN
-					time_start = gettimeofday_sec();
-#endif
 					r = select(me->video_fd + 1, NULL, &write_fds, NULL, &tv);
-#if DBG_MEASURE_PERF_SELECT_IN
-					time_end = gettimeofday_sec();
-					GST_INFO_OBJECT(me, " select() in %10.10f", time_end - time_start);
-					g_time_total_select_in += (time_end - time_start);
-					GST_INFO_OBJECT(me, " total %10.10f", g_time_total_select_in);
-#endif
 				} while (r == -1 && (errno == EINTR || errno == EAGAIN));
 				if (r > 0) {
 					memset (v4l2buf_in, 0x00, sizeof (struct v4l2_buffer));
