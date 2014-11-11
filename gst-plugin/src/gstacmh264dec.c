@@ -94,8 +94,6 @@
 #define USE_THREAD					0
 
 /* デバッグログ出力フラグ		*/
-#define DBG_LOG_PERF_SELECT_IN		0
-#define DBG_LOG_PERF_SELECT_OUT		0
 #define DBG_LOG_INTERLACED			0
 
 
@@ -1408,10 +1406,6 @@ gst_acm_h264_dec_handle_frame (GstVideoDecoder * dec,
 			/* 初回デコード済みフレームを取得済みで、入力用キューが満杯の時、
 			 * 1 フレームを、読み込みできる状態になるまで待ってから読み込む
 			 */
-#if DBG_LOG_PERF_SELECT_OUT
-			GST_INFO_OBJECT(me, "wait until enable dqbuf (pool_out)");
-			gst_acm_v4l2_buffer_pool_log_buf_status(me->pool_out);
-#endif
 			do {
 				do {
 					FD_ZERO(&read_fds);
@@ -1484,9 +1478,6 @@ gst_acm_h264_dec_handle_frame (GstVideoDecoder * dec,
 		r = gst_acm_v4l2_ioctl (me->video_fd, VIDIOC_DQBUF, v4l2buf_in);
 		if (r < 0) {
 			if (EAGAIN == errno) {
-#if DBG_LOG_PERF_SELECT_IN
-				GST_INFO_OBJECT(me, "wait until enable dqbuf (pool_in)");
-#endif
 				/* 書き込みができる状態になるまで待ってから書き込む		*/
 				do {
 					FD_ZERO(&write_fds);
