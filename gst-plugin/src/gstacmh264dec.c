@@ -1330,6 +1330,17 @@ negotiate_failed:
 	}
 }
 
+static struct v4l2_buffer *get_v4l2buf_in(GstAcmH264Dec *me)
+{
+	struct v4l2_buffer *v4l2buf_in;
+
+	GST_INFO_OBJECT(me, "acquire_buffer : %d", me->num_inbuf_acquired);
+	v4l2buf_in = &(me->priv->input_vbuffer[me->num_inbuf_acquired]);
+	me->num_inbuf_acquired++;
+
+	return v4l2buf_in;
+}
+
 static GstFlowReturn
 gst_acm_h264_dec_handle_frame (GstVideoDecoder * dec,
     GstVideoCodecFrame * frame)
@@ -1433,10 +1444,7 @@ gst_acm_h264_dec_handle_frame (GstVideoDecoder * dec,
 		if (0 == me->spspps_size) {
 			GST_INFO_OBJECT(me, "could not insert SPS/PPS to frame");
 
-			/* 初回の入力		*/
-			GST_INFO_OBJECT(me, "acquire_buffer : %d", me->num_inbuf_acquired);
-			v4l2buf_in = &(me->priv->input_vbuffer[me->num_inbuf_acquired]);
-			me->num_inbuf_acquired++;
+			v4l2buf_in = get_v4l2buf_in(me);
 
 			ret = gst_acm_h264_dec_handle_in_frame(me, v4l2buf_in, frame->input_buffer);
 			if (GST_FLOW_OK != ret) {
@@ -1474,9 +1482,7 @@ gst_acm_h264_dec_handle_frame (GstVideoDecoder * dec,
 			gst_buffer_unmap (frame->input_buffer, &map);
 			
 			/* 初回の入力		*/
-			GST_INFO_OBJECT(me, "acquire_buffer : %d", me->num_inbuf_acquired);
-			v4l2buf_in = &(me->priv->input_vbuffer[me->num_inbuf_acquired]);
-			me->num_inbuf_acquired++;
+			v4l2buf_in = get_v4l2buf_in(me);
 
 			ret = gst_acm_h264_dec_handle_in_frame(me, v4l2buf_in, buf_dst);
 			if (GST_FLOW_OK != ret) {
@@ -1684,11 +1690,7 @@ gst_acm_h264_dec_handle_frame (GstVideoDecoder * dec,
 	GST_INFO_OBJECT (me, "H264DEC-CHAIN DQBUF START");
 #endif
 	if (me->num_inbuf_acquired < DEFAULT_NUM_BUFFERS_IN) {
-		GST_INFO_OBJECT(me, "acquire_buffer : %d", me->num_inbuf_acquired);
-		
-		v4l2buf_in = &(me->priv->input_vbuffer[me->num_inbuf_acquired]);
-		
-		me->num_inbuf_acquired++;
+		v4l2buf_in = get_v4l2buf_in(me);
 	}
 	else {
 		v4l2buf_in = &(me->priv->input_vbuffer[0]);
