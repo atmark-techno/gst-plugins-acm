@@ -106,7 +106,6 @@
 #if DBG_MEASURE_PERF
 # define DBG_MEASURE_PERF_SELECT_IN		0
 # define DBG_MEASURE_PERF_SELECT_OUT	0
-# define DBG_MEASURE_PERF_HANDLE_FRAME	0
 # define DBG_MEASURE_PERF_FINISH_FRAME	0
 # define DBG_MEASURE_PERF_DQ_OUT		0
 # define DBG_MEASURE_PERF_Q_IN			0
@@ -1356,9 +1355,6 @@ gst_acm_h264_dec_handle_frame (GstVideoDecoder * dec,
 	gint i, n;
 	gboolean isHandledOutFrame = FALSE;
 	guint32 bytesused = 0;
-#if DBG_MEASURE_PERF_HANDLE_FRAME
-	static double interval_time_start = 0, interval_time_end = 0;
-#endif
 #if DBG_MEASURE_PERF_SELECT_IN || DBG_MEASURE_PERF_SELECT_OUT
 	double time_start, time_end;
 #endif
@@ -1370,16 +1366,6 @@ gst_acm_h264_dec_handle_frame (GstVideoDecoder * dec,
 	GST_INFO_OBJECT (me, "# H264DEC-CHAIN HANDLE FRMAE START");
 #endif
 
-#if DBG_MEASURE_PERF_HANDLE_FRAME
-	interval_time_end = gettimeofday_sec();
-	if (interval_time_start > 0) {
-//		if ((interval_time_end - interval_time_start) > 0.022) {
-			GST_INFO_OBJECT(me, "handle_frame() at(ms) : %10.10f",
-							(interval_time_end - interval_time_start)*1e+3);
-//		}
-	}
-	interval_time_start = gettimeofday_sec();
-#endif
 
 #if 0
     GST_DEBUG_OBJECT (me, "H264DEC HANDLE FRMAE - size:%d, ref:%d ...",
