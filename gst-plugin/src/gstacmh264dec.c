@@ -1464,6 +1464,7 @@ gst_acm_h264_dec_sink_event (GstVideoDecoder * dec, GstEvent *event)
 {
 	GstAcmH264Dec *me = GST_ACMH264DEC (dec);
 	gboolean ret = FALSE;
+	GstBuffer* eosBuffer = NULL;
 
 	GST_DEBUG_OBJECT (me, "RECEIVED EVENT (%d)", GST_EVENT_TYPE(event));
 	switch (GST_EVENT_TYPE(event)) {
@@ -1487,7 +1488,6 @@ gst_acm_h264_dec_sink_event (GstVideoDecoder * dec, GstEvent *event)
 		gboolean isEOS = FALSE;
 		GstVideoCodecFrame *frame = NULL;
 		GstMapInfo map;
-		GstBuffer* eosBuffer = NULL;
 		GstBuffer *v4l2buf_out = NULL;
 		struct v4l2_buffer* v4l2buf_in = NULL;
 		guint32 bytesused = 0;
@@ -1527,14 +1527,12 @@ gst_acm_h264_dec_sink_event (GstVideoDecoder * dec, GstEvent *event)
 			}
 
 			ret = gst_acm_h264_dec_handle_in_frame(me, v4l2buf_in, eosBuffer);
-			gst_buffer_unref(eosBuffer);
 			
 			if (GST_FLOW_OK != ret) {
 				goto handle_in_failed;
 			}
 		}
 		else if (r < 0) {
-			gst_buffer_unref(eosBuffer);
 			goto select_failed;
 		}
 		else if (0 == r) {
@@ -1678,6 +1676,8 @@ gst_acm_h264_dec_sink_event (GstVideoDecoder * dec, GstEvent *event)
 	}
 	
 out:
+	if(eosBuffer)
+		gst_buffer_unref(eosBuffer);
 	return ret;
 	
 select_failed:
