@@ -268,43 +268,6 @@ log_buf_status_of_input(GstAcmH264Dec * me)
 	}
 }
 
-static int
-queued_buf_status_of_input(GstAcmH264Dec * me)
-{
-	struct v4l2_buffer vbuffer;
-	int index;
-	int r = 0;
-	int num_queued = 0;
-	
-//	GST_INFO_OBJECT (me, "BUF STATUS (OUTPUT)");
-	
-	for (index = 0; index < DEFAULT_NUM_BUFFERS_IN; index++) {
-		memset(&vbuffer, 0, sizeof(struct v4l2_buffer));
-		
-		vbuffer.index	= index;
-		vbuffer.type	= V4L2_BUF_TYPE_VIDEO_OUTPUT;
-		vbuffer.memory = V4L2_MEMORY_USERPTR;
-		r = gst_acm_v4l2_ioctl (me->video_fd, VIDIOC_QUERYBUF, &vbuffer);
-		if (r < 0) {
-			GST_ERROR_OBJECT (me,
-							  "OUT: - Failed QUERYBUF: %s",
-							  g_strerror (errno));
-		}
-		
-//		GST_INFO_OBJECT (me, "  index:     %u", vbuffer.index);
-//		GST_INFO_OBJECT (me, "  flags:     %08x", vbuffer.flags);
-		if (V4L2_BUF_FLAG_QUEUED == (vbuffer.flags & V4L2_BUF_FLAG_QUEUED)) {
-//			GST_INFO_OBJECT (me, "  V4L2_BUF_FLAG_QUEUED");
-			num_queued++;
-		}
-		if (V4L2_BUF_FLAG_DONE == (vbuffer.flags & V4L2_BUF_FLAG_DONE)) {
-//			GST_INFO_OBJECT (me, "  V4L2_BUF_FLAG_DONE");
-		}
-	}
-	
-	return num_queued;
-}
-
 /* GstVideoDecoder base class method */
 static gboolean gst_acm_h264_dec_open (GstVideoDecoder * dec);
 static gboolean gst_acm_h264_dec_close (GstVideoDecoder * dec);
