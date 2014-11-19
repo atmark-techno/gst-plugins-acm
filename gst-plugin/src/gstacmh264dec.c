@@ -1453,25 +1453,26 @@ gst_acm_h264_dec_handle_frame (GstVideoDecoder * dec,
 		else {
 			GstMapInfo map;
 			GstMapInfo map_dst;
+			GstBuffer *buf_dst;
 
 			/* SPS/PPS の挿入 */
 			gst_buffer_map (frame->input_buffer, &map, GST_MAP_READ);
 			GST_INFO_OBJECT(me, "insert SPS/PPS to frame");
 			
-			buffer = gst_buffer_new_allocate (NULL,
+			buf_dst = gst_buffer_new_allocate (NULL,
 				gst_buffer_get_size(frame->input_buffer) + me->spspps_size, NULL);
-			if (NULL == buffer) {
+			if (NULL == buf_dst) {
 				GST_ELEMENT_ERROR (me, STREAM, DECODE, (NULL),
 					("no mem with gst_buffer_new_allocate()"));
 				ret = GST_FLOW_ERROR;
 			}
 			
-			gst_buffer_map (buffer, &map_dst, GST_MAP_WRITE);
+			gst_buffer_map (buf_dst, &map_dst, GST_MAP_WRITE);
 			/* SPS/PPS コピー */
 			memcpy(map_dst.data, me->spspps, me->spspps_size);
 			/* フレームデータ コピー */
 			memcpy(map_dst.data + me->spspps_size, map.data, map.size);
-			gst_buffer_unmap (buffer, &map_dst);
+			gst_buffer_unmap (buf_dst, &map_dst);
 			gst_buffer_unmap (frame->input_buffer, &map);
 			
 			/* 初回の入力		*/
@@ -1479,7 +1480,7 @@ gst_acm_h264_dec_handle_frame (GstVideoDecoder * dec,
 			v4l2buf_in = &(me->priv->input_vbuffer[me->num_inbuf_acquired]);
 			me->num_inbuf_acquired++;
 
-			ret = gst_acm_h264_dec_handle_in_frame(me, v4l2buf_in, buffer);
+			ret = gst_acm_h264_dec_handle_in_frame(me, v4l2buf_in, buf_dst);
 			if (GST_FLOW_OK != ret) {
 				goto handle_in_failed;
 			}
@@ -1488,8 +1489,8 @@ gst_acm_h264_dec_handle_frame (GstVideoDecoder * dec,
 #else
 			me->priv->in_out_frame_count++;
 #endif
-			gst_buffer_unref(buffer);
-			buffer = NULL;
+			gst_buffer_unref(buf_dst);
+			buf_dst = NULL;
 		}
 
 		me->is_handled_1stframe = TRUE;
