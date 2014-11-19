@@ -1203,7 +1203,6 @@ gst_acm_h264_dec_parse (GstVideoDecoder *dec, GstVideoCodecFrame *frame,
 static gboolean
 gst_acm_h264_dec_parse_nal(GstAcmH264Dec *me, GstVideoCodecFrame * frame)
 {
-	GstBuffer *buffer = frame->input_buffer;
 	GstMapInfo map_parse;
 	GstH264ParserResult parse_res;
 	GstH264NalUnit nalu;
@@ -1214,7 +1213,7 @@ gst_acm_h264_dec_parse_nal(GstAcmH264Dec *me, GstVideoCodecFrame * frame)
 	gboolean hasTopField = FALSE;
 	gboolean hasBottomField = FALSE;
 
-	gst_buffer_map (buffer, &map_parse, GST_MAP_READ);
+	gst_buffer_map (frame->input_buffer, &map_parse, GST_MAP_READ);
 
 	parse_res = gst_h264_parser_identify_nalu_avc (me->priv->nalparser,
 					map_parse.data, 0, map_parse.size, nl, &nalu);
@@ -1318,7 +1317,7 @@ gst_acm_h264_dec_parse_nal(GstAcmH264Dec *me, GstVideoCodecFrame * frame)
 		}
 	}
 
-	gst_buffer_unmap (buffer, &map_parse);
+	gst_buffer_unmap (frame->input_buffer, &map_parse);
 	
 	return TRUE;
 
@@ -1336,7 +1335,6 @@ gst_acm_h264_dec_handle_frame (GstVideoDecoder * dec,
     GstVideoCodecFrame * frame)
 {
 	GstAcmH264Dec *me = GST_ACMH264DEC (dec);
-	GstBuffer *buffer = frame->input_buffer;
 	GstFlowReturn ret = GST_FLOW_OK;
 	int r = 0;
 	fd_set write_fds;
@@ -1374,7 +1372,7 @@ gst_acm_h264_dec_handle_frame (GstVideoDecoder * dec,
 
 #if 0
     GST_DEBUG_OBJECT (me, "H264DEC HANDLE FRMAE - size:%d, ref:%d ...",
-					  gst_buffer_get_size(buffer),
+					  gst_buffer_get_size(frame->input_buffer),
 					  GST_OBJECT_REFCOUNT_VALUE(frame->input_buffer));
 	GST_DEBUG_OBJECT (me, "frame no:%d, timestamp:%"
 					  GST_TIME_FORMAT ", duration:%" GST_TIME_FORMAT,
@@ -1385,9 +1383,9 @@ gst_acm_h264_dec_handle_frame (GstVideoDecoder * dec,
 	GST_DEBUG_OBJECT (me, "frame no:%d, PTS:%" GST_TIME_FORMAT
 					 ", DTS:%" GST_TIME_FORMAT ", duration:%" GST_TIME_FORMAT,
 					 frame->system_frame_number,
-					 GST_TIME_ARGS (GST_BUFFER_PTS(buffer)),
-					 GST_TIME_ARGS (GST_BUFFER_DTS(buffer)),
-					 GST_TIME_ARGS (GST_BUFFER_DURATION(buffer)));
+					 GST_TIME_ARGS (GST_BUFFER_PTS(frame->input_buffer)),
+					 GST_TIME_ARGS (GST_BUFFER_DTS(frame->input_buffer)),
+					 GST_TIME_ARGS (GST_BUFFER_DURATION(frame->input_buffer)));
 #endif
 
 	/* Seek が行われた際は、gst_video_decoder_reset() により、dec->priv->frames が、
@@ -1408,7 +1406,7 @@ gst_acm_h264_dec_handle_frame (GstVideoDecoder * dec,
 		
 		FILE* fp = fopen(fileNameBuf, "w");
 		if (fp) {
-			gst_buffer_map (buffer, &map_debug, GST_MAP_READ);
+			gst_buffer_map (frame->input_buffer, &map_debug, GST_MAP_READ);
 			for (i = 0; i < map_debug.size; i++) {
 #if 0
 				fprintf(fp, "0x%02X, ", map_debug.data[i]);
@@ -1418,7 +1416,7 @@ gst_acm_h264_dec_handle_frame (GstVideoDecoder * dec,
 				fputc(map_debug.data[i], fp);
 #endif
 			}
-			gst_buffer_unmap (buffer, &map_debug);
+			gst_buffer_unmap (frame->input_buffer, &map_debug);
 			fclose(fp);
 		}
 	}
@@ -1440,7 +1438,7 @@ gst_acm_h264_dec_handle_frame (GstVideoDecoder * dec,
 			v4l2buf_in = &(me->priv->input_vbuffer[me->num_inbuf_acquired]);
 			me->num_inbuf_acquired++;
 
-			ret = gst_acm_h264_dec_handle_in_frame(me, v4l2buf_in, buffer);
+			ret = gst_acm_h264_dec_handle_in_frame(me, v4l2buf_in, frame->input_buffer);
 			if (GST_FLOW_OK != ret) {
 				goto handle_in_failed;
 			}
@@ -1764,7 +1762,7 @@ gst_acm_h264_dec_handle_frame (GstVideoDecoder * dec,
 	GST_INFO_OBJECT (me, "H264DEC-CHAIN DQBUF END");
 #endif
 
-	ret = gst_acm_h264_dec_handle_in_frame(me, v4l2buf_in, buffer);
+	ret = gst_acm_h264_dec_handle_in_frame(me, v4l2buf_in, frame->input_buffer);
 	if (GST_FLOW_OK != ret) {
 		goto handle_in_failed;
 	}
