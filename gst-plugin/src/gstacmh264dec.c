@@ -1270,6 +1270,7 @@ gst_acm_h264_dec_handle_frame (GstVideoDecoder * dec,
 	GstBuffer *v4l2buf_out = NULL;
 	struct v4l2_buffer* v4l2buf_in = NULL;
 	guint32 bytesused = 0;
+	gboolean handled_inframe = FALSE;
 
 	/* Seek が行われた際は、gst_video_decoder_reset() により、dec->priv->frames が、
 	 * 空になる。
@@ -1357,7 +1358,7 @@ gst_acm_h264_dec_handle_frame (GstVideoDecoder * dec,
 		goto out;
 	}
 
-	while(1){
+	while(handled_inframe != TRUE){
 
 		FD_ZERO(&read_fds);
 		FD_ZERO(&write_fds);
@@ -1376,6 +1377,29 @@ gst_acm_h264_dec_handle_frame (GstVideoDecoder * dec,
 		else if (r == 0) {
 			GST_INFO_OBJECT(me, "select() timeout");
 			goto select_timeout;
+		}
+
+		if (FD_ISSET(me->video_fd, &write_fds)){
+
+			v4l2buf_in = &(me->priv->input_vbuffer[0]);
+			memset (v4l2buf_in, 0x00, sizeof (struct v4l2_buffer));
+			v4l2buf_in->type = V4L2_BUF_TYPE_VIDEO_OUTPUT;
+			v4l2buf_in->memory = V4L2_MEMORY_USERPTR;
+			r = gst_acm_v4l2_ioctl (me->video_fd, VIDIOC_DQBUF, v4l2buf_in);
+			if (r < 0) {
+				goto dqbuf_failed;
+			}
+
+			ret = gst_acm_h264_dec_handle_in_frame(me, v4l2buf_in, frame->input_buffer);
+			if (GST_FLOW_OK != ret) {
+				goto handle_in_failed;
+			}
+#if USE_THREAD
+			g_atomic_int_inc (&(me->priv->in_out_frame_count));
+#else
+			me->priv->in_out_frame_count++;
+#endif
+			handled_inframe = TRUE;
 		}
 
 		if (FD_ISSET(me->video_fd, &read_fds)){
@@ -1412,31 +1436,6 @@ gst_acm_h264_dec_handle_frame (GstVideoDecoder * dec,
 					goto handle_out_failed;
 				}
 			}
-
-			continue;
-
-		}
-		if (FD_ISSET(me->video_fd, &write_fds)){
-
-			v4l2buf_in = &(me->priv->input_vbuffer[0]);
-			memset (v4l2buf_in, 0x00, sizeof (struct v4l2_buffer));
-			v4l2buf_in->type = V4L2_BUF_TYPE_VIDEO_OUTPUT;
-			v4l2buf_in->memory = V4L2_MEMORY_USERPTR;
-			r = gst_acm_v4l2_ioctl (me->video_fd, VIDIOC_DQBUF, v4l2buf_in);
-			if (r < 0) {
-				goto dqbuf_failed;
-			}
-
-			ret = gst_acm_h264_dec_handle_in_frame(me, v4l2buf_in, frame->input_buffer);
-			if (GST_FLOW_OK != ret) {
-				goto handle_in_failed;
-			}
-#if USE_THREAD
-			g_atomic_int_inc (&(me->priv->in_out_frame_count));
-#else
-			me->priv->in_out_frame_count++;
-#endif
-			break;
 		}
 	}
 
