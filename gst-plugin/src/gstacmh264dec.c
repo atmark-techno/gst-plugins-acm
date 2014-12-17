@@ -100,7 +100,6 @@
 /* select() による待ち時間の計測		*/
 #define DBG_MEASURE_PERF				0
 #if DBG_MEASURE_PERF
-# define DBG_MEASURE_PERF_FINISH_FRAME	0
 # define DBG_MEASURE_PERF_Q_IN			0
 #endif
 
@@ -2123,10 +2122,6 @@ gst_acm_h264_dec_handle_out_frame(GstAcmH264Dec * me,
 	GstClockTimeDiff deadline;
 #endif
 	GstVideoCodecFrame *frame = NULL;
-#if DBG_MEASURE_PERF_FINISH_FRAME
-	static double interval_time_start = 0, interval_time_end = 0;
-	double time_start = 0, time_end = 0;
-#endif
 
 	/* 出力引数初期化	*/
 	if (NULL != is_eos) {
@@ -2263,17 +2258,6 @@ gst_acm_h264_dec_handle_out_frame(GstAcmH264Dec * me,
 			}
 		}
 
-#if DBG_MEASURE_PERF_FINISH_FRAME
-		interval_time_end = gettimeofday_sec();
-		if (interval_time_start > 0) {
-//			if ((interval_time_end - interval_time_start) > 0.022) {
-			GST_INFO_OBJECT(me, "finish_frame() at(ms) : %10.10f",
-							(interval_time_end - interval_time_start)*1e+3);
-//			}
-		}
-		interval_time_start = gettimeofday_sec();
-		time_start = gettimeofday_sec();
-#endif
 #if 1	/* 2013-06-05 */
 		/* Bピクチャを含む場合、demux より入力されたバッファは、DTS順であり、PTS順とは異なる
 		 * HWデコーダのVCP1はBピクチャのリオーダリングをした後出力しているので、出力結果の
@@ -2283,12 +2267,6 @@ gst_acm_h264_dec_handle_out_frame(GstAcmH264Dec * me,
 		GST_BUFFER_PTS(frame->input_buffer) = GST_BUFFER_DTS(frame->input_buffer);
 #endif
 		ret = gst_video_decoder_finish_frame (GST_VIDEO_DECODER (me), frame);
-#if DBG_MEASURE_PERF_FINISH_FRAME
-		time_end = gettimeofday_sec();
-//		if ((time_end - time_start) > 0.022) {
-			GST_INFO_OBJECT(me, "finish_frame() : %10.10f", time_end - time_start);
-//		}
-#endif
 		if (GST_FLOW_OK != ret) {
 			GST_WARNING_OBJECT (me, "gst_video_decoder_finish_frame() returns %s",
 								gst_flow_get_name (ret));
