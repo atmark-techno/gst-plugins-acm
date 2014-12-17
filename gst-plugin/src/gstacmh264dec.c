@@ -96,25 +96,6 @@
 /* デバッグログ出力フラグ		*/
 #define DBG_LOG_INTERLACED			0
 
-
-/* select() による待ち時間の計測		*/
-#define DBG_MEASURE_PERF				0
-#if DBG_MEASURE_PERF
-# define DBG_MEASURE_PERF_Q_IN			0
-#endif
-
-#if DBG_MEASURE_PERF
-static double
-gettimeofday_sec()
-{
-	struct timeval t;
-	
-	gettimeofday(&t, NULL);
-	return (double)t.tv_sec + (double)t.tv_usec * 1e-6;
-}
-#endif
-
-
 struct _GstAcmH264DecPrivate
 {
 	/* V4L2_BUF_TYPE_VIDEO_OUTPUT 側に入力したフレーム数と、
@@ -2065,9 +2046,6 @@ gst_acm_h264_dec_handle_in_frame(GstAcmH264Dec * me,
 	GstFlowReturn ret = GST_FLOW_OK;
 	GstMapInfo map;
 	int r;
-#if DBG_MEASURE_PERF_Q_IN
-	static double interval_time_start_q_in = 0, interval_time_end_q_in = 0;
-#endif
 
 	GST_DEBUG_OBJECT(me, "inbuf size=%d", gst_buffer_get_size(inbuf));
 
@@ -2081,14 +2059,6 @@ gst_acm_h264_dec_handle_in_frame(GstAcmH264Dec * me,
 	v4l2buf_in->m.userptr = (unsigned long)map.data;
 	
 	/* enqueue buffer	*/
-#if DBG_MEASURE_PERF_Q_IN
-	interval_time_end_q_in = gettimeofday_sec();
-	if (interval_time_start_q_in > 0) {
-		GST_INFO_OBJECT(me, "queue_in at(ms) : %10.10f",
-			(interval_time_end_q_in - interval_time_start_q_in)*1e+3);
-	}
-	interval_time_start_q_in = gettimeofday_sec();
-#endif
 	r = gst_acm_v4l2_ioctl (me->video_fd, VIDIOC_QBUF, v4l2buf_in);
 	gst_buffer_unmap(inbuf, &map);
 	if (r < 0) {
