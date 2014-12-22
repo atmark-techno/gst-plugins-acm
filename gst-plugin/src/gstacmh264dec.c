@@ -264,7 +264,7 @@ static gboolean gst_acm_h264_dec_sink_event (GstVideoDecoder * dec,
 static gboolean gst_acm_h264_dec_init_decoder (GstAcmH264Dec * me);
 static gboolean gst_acm_h264_dec_cleanup_decoder (GstAcmH264Dec * me);
 static GstFlowReturn gst_acm_h264_dec_handle_in_frame(GstAcmH264Dec * me,
-	struct v4l2_buffer* v4l2buf_in, GstBuffer *inbuf);
+	struct v4l2_buffer* v4l2buf_in, GstBuffer *inbuf, GstVideoCodecFrame * frame);
 static GstFlowReturn gst_acm_h264_dec_handle_out_frame(GstAcmH264Dec * me,
 	GstBuffer *v4l2buf_out, gboolean* is_eos);
 
@@ -1220,7 +1220,7 @@ gst_acm_h264_dec_handle_frame (GstVideoDecoder * dec,
 
 			v4l2buf_in = get_v4l2buf_in(me);
 
-			ret = gst_acm_h264_dec_handle_in_frame(me, v4l2buf_in, frame->input_buffer);
+			ret = gst_acm_h264_dec_handle_in_frame(me, v4l2buf_in, frame->input_buffer, frame);
 			if (GST_FLOW_OK != ret) {
 				goto handle_in_failed;
 			}
@@ -1254,7 +1254,7 @@ gst_acm_h264_dec_handle_frame (GstVideoDecoder * dec,
 			/* 初回の入力		*/
 			v4l2buf_in = get_v4l2buf_in(me);
 
-			ret = gst_acm_h264_dec_handle_in_frame(me, v4l2buf_in, buf_dst);
+			ret = gst_acm_h264_dec_handle_in_frame(me, v4l2buf_in, buf_dst, frame);
 			if (GST_FLOW_OK != ret) {
 				goto handle_in_failed;
 			}
@@ -1270,7 +1270,7 @@ gst_acm_h264_dec_handle_frame (GstVideoDecoder * dec,
 
 	if (me->num_inbuf_acquired < DEFAULT_NUM_BUFFERS_IN) {
 		v4l2buf_in = get_v4l2buf_in(me);
-		ret = gst_acm_h264_dec_handle_in_frame(me, v4l2buf_in, frame->input_buffer);
+		ret = gst_acm_h264_dec_handle_in_frame(me, v4l2buf_in, frame->input_buffer, frame);
 		if (GST_FLOW_OK != ret) {
 			goto handle_in_failed;
 		}
@@ -1309,7 +1309,7 @@ gst_acm_h264_dec_handle_frame (GstVideoDecoder * dec,
 				goto dqbuf_failed;
 			}
 
-			ret = gst_acm_h264_dec_handle_in_frame(me, v4l2buf_in, frame->input_buffer);
+			ret = gst_acm_h264_dec_handle_in_frame(me, v4l2buf_in, frame->input_buffer, frame);
 			if (GST_FLOW_OK != ret) {
 				goto handle_in_failed;
 			}
@@ -1472,7 +1472,7 @@ gst_acm_h264_dec_sink_event (GstVideoDecoder * dec, GstEvent *event)
 				goto dqbuf_failed;
 			}
 
-			ret = gst_acm_h264_dec_handle_in_frame(me, v4l2buf_in, eosBuffer);
+			ret = gst_acm_h264_dec_handle_in_frame(me, v4l2buf_in, eosBuffer, NULL);
 			
 			if (GST_FLOW_OK != ret) {
 				goto handle_in_failed;
@@ -1988,18 +1988,43 @@ stop_failed:
 	}
 }
 
+static void
+gst_acm_h264_dec_user_data_free(GstMemory * mem)
+{
+	if (mem) {
+		GST_DEBUG("Releasing memory %p", mem);
+		gst_memory_unref(mem);
+	}
+}
+
 static GstFlowReturn
 gst_acm_h264_dec_handle_in_frame(GstAcmH264Dec * me,
-	struct v4l2_buffer* v4l2buf_in, GstBuffer *inbuf)
+	struct v4l2_buffer* v4l2buf_in, GstBuffer *inbuf, GstVideoCodecFrame * frame)
 {
 	GstFlowReturn ret = GST_FLOW_OK;
 	GstMapInfo map;
+	GstMemory * merged_mem;
+	gboolean handle_single_mem = (gst_buffer_n_memory(inbuf) == 1);
 	int r;
 
 	GST_DEBUG_OBJECT(me, "inbuf size=%d", gst_buffer_get_size(inbuf));
 
 	/* 入力データを設定	*/
-	gst_buffer_map(inbuf, &map, GST_MAP_READ);
+	if (handle_single_mem) {
+		gst_buffer_map(inbuf, &map, GST_MAP_READ);
+	} else {
+		if (!frame) {
+			GST_ERROR_OBJECT (me, "inbuf contains multiple frames, but frame is NULL");
+			goto qbuf_failed;
+		}
+
+		/* merged_mem will be released via _gst_video_codec_frame_free */
+		merged_mem = gst_buffer_get_all_memory(inbuf);
+		gst_memory_map(merged_mem, &map, GST_MAP_READ);
+		gst_video_codec_frame_set_user_data(frame, merged_mem,
+				(GDestroyNotify) gst_acm_h264_dec_user_data_free);
+	}
+
 	/* 入力データサイズを設定		*/
 	v4l2buf_in->bytesused = map.size;
 	v4l2buf_in->length = map.size;
@@ -2009,7 +2034,11 @@ gst_acm_h264_dec_handle_in_frame(GstAcmH264Dec * me,
 	
 	/* enqueue buffer	*/
 	r = gst_acm_v4l2_ioctl (me->video_fd, VIDIOC_QBUF, v4l2buf_in);
-	gst_buffer_unmap(inbuf, &map);
+	if (handle_single_mem)
+		gst_buffer_unmap(inbuf, &map);
+	else
+		gst_memory_unmap(merged_mem, &map);
+
 	if (r < 0) {
 		goto qbuf_failed;
 	}
