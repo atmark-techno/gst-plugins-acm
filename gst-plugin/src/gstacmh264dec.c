@@ -1227,40 +1227,33 @@ gst_acm_h264_dec_handle_frame (GstVideoDecoder * dec,
 			me->priv->in_out_frame_count++;
 		}
 		else {
-			GstMapInfo map;
-			GstMapInfo map_dst;
-			GstBuffer *buf_dst;
+			GstMapInfo spspps_map;
+			GstMemory *spspps_mem;
 
 			/* SPS/PPS の挿入 */
-			gst_buffer_map (frame->input_buffer, &map, GST_MAP_READ);
 			GST_INFO_OBJECT(me, "insert SPS/PPS to frame");
-			
-			buf_dst = gst_buffer_new_allocate (NULL,
-				gst_buffer_get_size(frame->input_buffer) + me->spspps_size, NULL);
-			if (NULL == buf_dst) {
-				GST_ELEMENT_ERROR (me, STREAM, DECODE, (NULL),
-					("no mem with gst_buffer_new_allocate()"));
+
+			spspps_mem = gst_allocator_alloc(NULL, me->spspps_size, NULL);
+			if (NULL == spspps_mem) {
+				GST_ELEMENT_ERROR(me, STREAM, DECODE, (NULL),
+					("no mem with gst_allocator_alloc()"));
 				ret = GST_FLOW_ERROR;
 			}
-			
-			gst_buffer_map (buf_dst, &map_dst, GST_MAP_WRITE);
-			/* SPS/PPS コピー */
-			memcpy(map_dst.data, me->spspps, me->spspps_size);
-			/* フレームデータ コピー */
-			memcpy(map_dst.data + me->spspps_size, map.data, map.size);
-			gst_buffer_unmap (buf_dst, &map_dst);
-			gst_buffer_unmap (frame->input_buffer, &map);
-			
+			gst_memory_map(spspps_mem, &spspps_map, GST_MAP_WRITE);
+			memcpy(spspps_map.data, me->spspps, me->spspps_size);
+			gst_memory_unmap(spspps_mem, &spspps_map);
+
+			frame->input_buffer = gst_buffer_make_writable(frame->input_buffer);
+			gst_buffer_prepend_memory(frame->input_buffer, spspps_mem);
+
 			/* 初回の入力		*/
 			v4l2buf_in = get_v4l2buf_in(me);
 
-			ret = gst_acm_h264_dec_handle_in_frame(me, v4l2buf_in, buf_dst, frame);
+			ret = gst_acm_h264_dec_handle_in_frame(me, v4l2buf_in, frame->input_buffer, frame);
 			if (GST_FLOW_OK != ret) {
 				goto handle_in_failed;
 			}
 			me->priv->in_out_frame_count++;
-			gst_buffer_unref(buf_dst);
-			buf_dst = NULL;
 		}
 
 		me->is_handled_1stframe = TRUE;
