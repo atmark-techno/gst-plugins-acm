@@ -90,9 +90,6 @@
 /* select() の timeout */
 #define SELECT_TIMEOUT_MSEC			1000
 
-/* アトミックな操作が必要か		*/
-#define USE_THREAD					0
-
 /* デバッグログ出力フラグ		*/
 #define DBG_LOG_INTERLACED			0
 
@@ -539,12 +536,7 @@ gst_acm_h264_dec_start (GstVideoDecoder * dec)
 
 	/* never mind a few errors */
 	gst_video_decoder_set_max_errors (dec, 20);
-
-#if USE_THREAD
-	g_atomic_int_set (&(me->priv->in_out_frame_count), 0);
-#else
 	me->priv->in_out_frame_count = 0;
-#endif
 
 	/* プロパティ以外の変数を再初期化		*/
 	me->width = 0;
@@ -1240,11 +1232,7 @@ gst_acm_h264_dec_handle_frame (GstVideoDecoder * dec,
 			if (GST_FLOW_OK != ret) {
 				goto handle_in_failed;
 			}
-#if USE_THREAD
-			g_atomic_int_inc (&(me->priv->in_out_frame_count));
-#else
 			me->priv->in_out_frame_count++;
-#endif
 		}
 		else {
 			GstMapInfo map;
@@ -1278,11 +1266,7 @@ gst_acm_h264_dec_handle_frame (GstVideoDecoder * dec,
 			if (GST_FLOW_OK != ret) {
 				goto handle_in_failed;
 			}
-#if USE_THREAD
-			g_atomic_int_inc (&(me->priv->in_out_frame_count));
-#else
 			me->priv->in_out_frame_count++;
-#endif
 			gst_buffer_unref(buf_dst);
 			buf_dst = NULL;
 		}
@@ -1337,11 +1321,7 @@ gst_acm_h264_dec_handle_frame (GstVideoDecoder * dec,
 			if (GST_FLOW_OK != ret) {
 				goto handle_in_failed;
 			}
-#if USE_THREAD
-			g_atomic_int_inc (&(me->priv->in_out_frame_count));
-#else
 			me->priv->in_out_frame_count++;
-#endif
 			handled_inframe = TRUE;
 		}
 
@@ -1362,11 +1342,7 @@ gst_acm_h264_dec_handle_frame (GstVideoDecoder * dec,
 					v4l2buf_out, gst_buffer_get_size(v4l2buf_out));
 				continue;
 			}
-#if USE_THREAD
-			g_atomic_int_dec_and_test (&(me->priv->in_out_frame_count));
-#else
 			me->priv->in_out_frame_count--;
-#endif
 
 			ret = gst_acm_h264_dec_handle_out_frame(me, v4l2buf_out, NULL);
 			if (GST_FLOW_OK != ret) {
@@ -1574,11 +1550,7 @@ gst_acm_h264_dec_sink_event (GstVideoDecoder * dec, GstEvent *event)
 					continue;
 				}
 
-#if USE_THREAD
-				g_atomic_int_dec_and_test (&(me->priv->in_out_frame_count));
-#else
 				me->priv->in_out_frame_count--;
-#endif
 				ret = gst_acm_h264_dec_handle_out_frame(me, v4l2buf_out, &isEOS);
 				if (GST_FLOW_OK != ret) {
 					goto handle_out_failed;
@@ -1593,19 +1565,10 @@ gst_acm_h264_dec_sink_event (GstVideoDecoder * dec, GstEvent *event)
 		 * これを取り出しきらないと、クリーンアップ時、VIDIOC_STREAMOFF が 
 		 * timeout でエラーしてしまう。
 		 */
-#if USE_THREAD
-		GST_INFO_OBJECT(me, "in_out_frame_count : %d",
-						g_atomic_int_get(&(me->priv->in_out_frame_count)));
-#else
 		GST_INFO_OBJECT(me, "in_out_frame_count : %d",
 						me->priv->in_out_frame_count);
-#endif
 		while (
-#if USE_THREAD
-			   g_atomic_int_get(&(me->priv->in_out_frame_count)) > 0
-#else
 			   me->priv->in_out_frame_count > 0
-#endif
 			   ) {
 			do {
 				FD_ZERO(&read_fds);
@@ -1625,11 +1588,7 @@ gst_acm_h264_dec_sink_event (GstVideoDecoder * dec, GstEvent *event)
 				if (GST_FLOW_OK != ret) {
 					goto qbuf_failed;
 				}
-#if USE_THREAD
-				g_atomic_int_dec_and_test (&(me->priv->in_out_frame_count));
-#else
 				me->priv->in_out_frame_count--;
-#endif
 			}
 			else if (r < 0) {
 				goto select_failed;
@@ -2142,11 +2101,7 @@ gst_acm_h264_dec_handle_out_frame(GstAcmH264Dec * me,
 				}
 				gst_video_codec_frame_unref(frame);
 
-#if USE_THREAD
-				g_atomic_int_dec_and_test (&(me->priv->in_out_frame_count));
-#else
 				me->priv->in_out_frame_count--;
-#endif
 			}
 	}
 #endif
