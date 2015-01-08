@@ -1207,14 +1207,6 @@ gst_acm_h264_dec_handle_frame (GstVideoDecoder * dec,
 	guint32 bytesused = 0;
 	gboolean handled_inframe = FALSE;
 
-	/* Seek が行われた際は、gst_video_decoder_reset() により、dec->priv->frames が、
-	 * 空になる。
-	 * これにより、本関数の引数 frame->input_buffer は、gst_video_decoder_finish_frame()
-	 * を call した際に、unref される。そのため、本関数の処理中は、ref して保持しておく必要
-	 * がある。
-	 */
-	gst_buffer_ref(frame->input_buffer);
-
 #if SUPPORT_CODED_FIELD
 	if (me->priv->is_interlaced) {
 		gst_acm_h264_dec_parse_nal(me, frame);
@@ -1359,8 +1351,6 @@ gst_acm_h264_dec_handle_frame (GstVideoDecoder * dec,
 	}
 
 out:
-	gst_buffer_unref(frame->input_buffer);
-
 	return ret;
 	
 	/* ERRORS */
