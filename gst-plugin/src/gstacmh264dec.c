@@ -93,6 +93,9 @@
 /* デバッグログ出力フラグ		*/
 #define DBG_LOG_INTERLACED			0
 
+/* 一度に刈り取る出力バッファの数 */
+#define NUM_HANDLE_OUTBUF 2
+
 struct _GstAcmH264DecPrivate
 {
 	/* V4L2_BUF_TYPE_VIDEO_OUTPUT 側に入力したフレーム数と、
@@ -1199,6 +1202,7 @@ gst_acm_h264_dec_handle_frame (GstVideoDecoder * dec,
 	GstAcmH264Dec *me = GST_ACMH264DEC (dec);
 	GstFlowReturn ret = GST_FLOW_OK;
 	int r = 0;
+	int i;
 	fd_set write_fds;
 	fd_set read_fds;
 	struct timeval tv;
@@ -1311,33 +1315,42 @@ gst_acm_h264_dec_handle_frame (GstVideoDecoder * dec,
 		}
 
 		if (FD_ISSET(me->video_fd, &read_fds)){
-			ret = gst_acm_v4l2_buffer_pool_dqbuf_ex(me->pool_out,&v4l2buf_out, &bytesused);
-			if (GST_FLOW_OK != ret) {
-				goto dqbuf_failed;
-			}
 
-			/* H.264のMMCO(Memory Management Control Operation)の機能で、
-			 * DPB(Decoded Picture Buffer)から削除される場合がある。
-			 * この際、出力不可フラグが設定され、bytesused がゼロになる。
-			 * この出力は、down stream に流さず、無視する。
-			 */
-			if (0 == bytesused) {
-				GST_WARNING_OBJECT(me, "drop frame by bytesused(0)");
-				gst_acm_v4l2_buffer_pool_qbuf(me->pool_out,
-					v4l2buf_out, gst_buffer_get_size(v4l2buf_out));
-				continue;
-			}
-			me->priv->in_out_frame_count--;
+			for (i = 0; i < NUM_HANDLE_OUTBUF; i++) {
 
-			ret = gst_acm_h264_dec_handle_out_frame(me, v4l2buf_out, NULL);
-			if (GST_FLOW_OK != ret) {
-				if (GST_FLOW_FLUSHING == ret) {
-					GST_DEBUG_OBJECT(me, "FLUSHING - continue.");
-
-					/* エラーとせず、m2mデバイスへのデータ入力は行う	*/
+				ret = gst_acm_v4l2_buffer_pool_dqbuf_ex(me->pool_out,&v4l2buf_out, &bytesused);
+				if (GST_FLOW_DQBUF_EAGAIN == ret) {
+					/* decoded frame is not available. do it later */
+					ret = GST_FLOW_OK;
+					continue;
 				}
-				else {
-					goto handle_out_failed;
+				else if (GST_FLOW_OK != ret) {
+					goto dqbuf_failed;
+				}
+
+				/* H.264のMMCO(Memory Management Control Operation)の機能で、
+				 * DPB(Decoded Picture Buffer)から削除される場合がある。
+				 * この際、出力不可フラグが設定され、bytesused がゼロになる。
+				 * この出力は、down stream に流さず、無視する。
+				 */
+				if (0 == bytesused) {
+					GST_WARNING_OBJECT(me, "drop frame by bytesused(0)");
+					gst_acm_v4l2_buffer_pool_qbuf(me->pool_out,
+						v4l2buf_out, gst_buffer_get_size(v4l2buf_out));
+					continue;
+				}
+				me->priv->in_out_frame_count--;
+
+				ret = gst_acm_h264_dec_handle_out_frame(me, v4l2buf_out, NULL);
+				if (GST_FLOW_OK != ret) {
+					if (GST_FLOW_FLUSHING == ret) {
+						GST_DEBUG_OBJECT(me, "FLUSHING - continue.");
+
+						/* エラーとせず、m2mデバイスへのデータ入力は行う	*/
+					}
+					else {
+						goto handle_out_failed;
+					}
 				}
 			}
 		}
