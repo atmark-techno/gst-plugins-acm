@@ -235,11 +235,13 @@ gst_acm_v4l2_getdev (gchar *driver)
 			if (!g_strcmp0 ((gchar *)vcap.driver, driver)) {
 				GST_INFO ("Found device '%s' - %s", driver, video_dev);
 
+				closedir(dp);
 				return video_dev;
 			}
 		}
 	}
 
+	closedir(dp);
 	g_free(video_dev);
 	return NULL;
 }
