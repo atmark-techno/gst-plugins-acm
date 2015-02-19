@@ -1,4 +1,11 @@
-gst-plugins-at-acm (1.0.0) UNRELEASED; urgency=low
+gst-plugins-at-acm (1.0.1) stable; urgency=medium
+
+  * acmh264dec: fix data corruption bug
+  * acmv4l2_utils: fix file descriptor leak
+
+ -- Yasushi SHOJI <yashi@atmark-techno.com>  Thu, 19 Feb 2015 19:41:01 +0900
+
+gst-plugins-at-acm (1.0.0) stable; urgency=low
 
   * acm*enc: Fix property's default value and range
   * acmh264dec: Add RGB16 format for src capability
