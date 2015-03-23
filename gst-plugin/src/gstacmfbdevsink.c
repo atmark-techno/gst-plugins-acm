@@ -597,6 +597,7 @@ gst_acm_fbdevsink_stop (GstBaseSink * bsink)
 	GstAcmFBDevSink *me;
 	gboolean ret = TRUE;
 	int r = 0;
+	gint i;
 
 	me = GST_ACMFBDEVSINK (bsink);
 
@@ -623,6 +624,24 @@ gst_acm_fbdevsink_stop (GstBaseSink * bsink)
 		if (me->priv->displaying_buf && GST_IS_BUFFER(me->priv->displaying_buf)) {
 			gst_buffer_unref(me->priv->displaying_buf);
 			me->priv->displaying_buf = NULL;
+		}
+
+		GST_INFO_OBJECT (me, "Closing all dmabuf file descriptors");
+		for (i = NUM_FB_DMABUF - 1; i >= 0; i--) {
+			r = close (me->priv->fb_dmabuf_exp[i].fd);
+			if (0 != r) {
+				GST_ERROR_OBJECT (me, "Failed to close the dmabuf fd[%d]=%d",
+							i, me->priv->fb_dmabuf_exp[i].fd);
+
+				GST_ELEMENT_ERROR (me, RESOURCE, FAILED, (NULL),
+							("Failed to close a dmabuf file descriptor %d (%s)",
+							errno, g_strerror (errno)));
+				ret = FALSE;
+				goto out;
+			}
+
+			GST_INFO_OBJECT (me, "closed dmabuf fd[%d]=%d",
+							i, me->priv->fb_dmabuf_exp[i].fd);
 		}
 	}
 
