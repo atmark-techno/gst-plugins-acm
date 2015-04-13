@@ -532,6 +532,9 @@ gst_acm_fbdevsink_start (GstBaseSink * bsink)
 			me->priv->fb_dmabuf_exp[i].index = i;
 			me->priv->fb_dmabuf_exp[i].flags = O_CLOEXEC;
 			if (0 != ioctl (me->fd, FBIOGET_DMABUF, &(me->priv->fb_dmabuf_exp[i]))) {
+				for (i -= 1; i >= 0; i--)
+					close (me->priv->fb_dmabuf_exp[i].fd);
+
 				goto fbioget_dmabuf_failed;
 			}
 			GST_INFO_OBJECT (me, "got the dma buf's fd[%d]=%d",
