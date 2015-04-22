@@ -1,3 +1,9 @@
+gst-plugins-at-acm (1.0.2) stable; urgency=medium
+
+  * acmfbdevsink: fix fd leak
+
+ -- Yasushi SHOJI <yashi@atmark-techno.com>  Wed, 22 Apr 2015 11:17:36 +0900
+
 gst-plugins-at-acm (1.0.1) stable; urgency=medium
 
   * acmh264dec: fix data corruption bug
