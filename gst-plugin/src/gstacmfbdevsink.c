@@ -1051,7 +1051,7 @@ gst_acm_fbdevsink_preroll (GstBaseSink * bsink, GstBuffer * buf)
 	GST_INFO_OBJECT(me, "preroll : %10.10f", time_end - time_start);
 #endif
 
-	return GST_FLOW_OK;
+	return gst_acm_fbdevsink_render(bsink, buf);
 
 	/* ERRORS */
 fbio_waitforvsync_failed:
