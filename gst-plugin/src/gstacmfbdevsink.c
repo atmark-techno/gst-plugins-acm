@@ -43,6 +43,7 @@
 #define DEFAULT_FB_DEVICE		"/dev/fb0"
 #define DEFAULT_USE_DMABUF		TRUE
 #define DEFAULT_ENABLE_VSYNC	TRUE
+#define DEFAULT_ENABLE_BLANK_SCREEN	FALSE
 
 /* デバッグログ出力フラグ		*/
 #define DBG_LOG_RENDER				0
@@ -110,6 +111,7 @@ enum
 	PROP_DEVICE,
 	PROP_USE_DMABUF,
 	PROP_ENABLE_VSYNC,
+	PROP_ENABLE_BLANK_SCREEN,
 };
 
 #define GST_FBDEV_TEMPLATE_CAPS_RGB \
@@ -385,6 +387,11 @@ gst_acm_fbdevsink_class_init (GstAcmFBDevSinkClass * klass)
 			"FALSE: disable, TRUE: enable",
 			DEFAULT_ENABLE_VSYNC, G_PARAM_READWRITE));
 
+	g_object_class_install_property (gobject_class, PROP_ENABLE_BLANK_SCREEN,
+		g_param_spec_boolean ("enable-blank-screen", "Enable do_blank_screen on PAUSED",
+			"FALSE: disable, TRUE: enable",
+			DEFAULT_ENABLE_BLANK_SCREEN, G_PARAM_READWRITE));
+
 	gst_element_class_set_details_simple (gstelement_class,
 		"ACM fbdev video sink", "Sink/Video",
 		"A linux framebuffer videosink", "Atmark Techno, Inc.");
@@ -449,6 +456,7 @@ gst_acm_fbdevsink_init (GstAcmFBDevSink * me)
 
 	me->use_dmabuf = DEFAULT_USE_DMABUF;
 	me->enable_vsync = DEFAULT_ENABLE_VSYNC;
+	me->enable_blank_screen = DEFAULT_ENABLE_BLANK_SCREEN;
 
 	/* retrieve and intercept base class chain. */
 	me->priv->base_chain = GST_PAD_CHAINFUNC (GST_BASE_SINK_PAD (me));
@@ -1328,6 +1336,9 @@ gst_acm_fbdevsink_set_property (GObject * object, guint prop_id,
 	case PROP_ENABLE_VSYNC:
 		me->enable_vsync = g_value_get_boolean (value);
 		break;
+	case PROP_ENABLE_BLANK_SCREEN:
+		me->enable_blank_screen = g_value_get_boolean (value);
+		break;
 	default:
 		G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
 		break;
@@ -1352,6 +1363,9 @@ gst_acm_fbdevsink_get_property (GObject * object, guint prop_id, GValue * value,
 	case PROP_ENABLE_VSYNC:
 		g_value_set_boolean (value, me->enable_vsync);
 		break;
+	case PROP_ENABLE_BLANK_SCREEN:
+		g_value_set_boolean (value, me->enable_blank_screen);
+		break;
 	default:
 		G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
 		break;
@@ -1373,8 +1387,8 @@ gst_acm_fbdevsink_change_state (GstElement * element, GstStateChange transition)
 	switch (transition) {
 	case GST_STATE_CHANGE_PLAYING_TO_PAUSED:
 	{
-		/* PAUSE 時、ブランクスクリーンにする	*/
-		do_blank_screen(me);
+		if (me->enable_blank_screen)
+			do_blank_screen(me);
 		break;
 	}
 	default:

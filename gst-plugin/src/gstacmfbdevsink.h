@@ -79,6 +79,8 @@ struct _GstAcmFBDevSink {
 	 */
 	gboolean enable_vsync;
 
+	gboolean enable_blank_screen;
+
 	/*< private >*/
 	GstAcmFBDevSinkPrivate *priv;
 };
