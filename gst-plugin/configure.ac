@@ -16,6 +16,7 @@ AM_INIT_AUTOMAKE([1.10])
 
 dnl enable mainainer mode by default
 AM_MAINTAINER_MODE([enable])
+AM_SILENT_RULES([yes])
 
 dnl check for tools (compiler etc.)
 AC_PROG_CC
