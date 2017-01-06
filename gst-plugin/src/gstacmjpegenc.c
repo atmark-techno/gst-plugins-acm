@@ -793,13 +793,11 @@ gst_acm_jpeg_enc_handle_frame (GstVideoEncoder * enc,
 #if DBG_LOG_PERF_CHAIN
 	GST_INFO_OBJECT (me, "# JPEGENC-CHAIN HANDLE FRMAE START");
 #endif
-	GST_DEBUG_OBJECT (me, "JPEGENC HANDLE FRMAE - frame no:%d, timestamp:%"
-					  GST_TIME_FORMAT ", duration:%" GST_TIME_FORMAT,
-					  ", size:%d, ref:%d",
-					  frame->system_frame_number,
-					  GST_TIME_ARGS (frame->pts), GST_TIME_ARGS (frame->duration),
-					  gst_buffer_get_size(frame->input_buffer),
-					  GST_OBJECT_REFCOUNT_VALUE(frame->input_buffer));
+	GST_DEBUG_OBJECT (me, "JPEGENC HANDLE FRMAE - frame no:%d, timestamp:%" GST_TIME_FORMAT ", duration:%" GST_TIME_FORMAT ", size:%" G_GSIZE_FORMAT ", ref:%d",
+			  frame->system_frame_number,
+			  GST_TIME_ARGS (frame->pts), GST_TIME_ARGS (frame->duration),
+			  gst_buffer_get_size(frame->input_buffer),
+			  GST_OBJECT_REFCOUNT_VALUE(frame->input_buffer));
 
 #if DBG_MEASURE_PERF_HANDLE_FRAME
 	interval_time_end = gettimeofday_sec();
@@ -1268,15 +1266,15 @@ gst_acm_jpeg_enc_handle_in_frame(GstAcmJpegEnc * me,
 	GstMapInfo map;
 	gsize inputDataSize = 0;
 
-	GST_DEBUG_OBJECT(me, "inbuf size=%d", gst_buffer_get_size(inbuf));
+	GST_DEBUG_OBJECT(me, "inbuf size=%" G_GSIZE_FORMAT, gst_buffer_get_size(inbuf));
 
 	/* 入力データをコピー	*/
 	gst_buffer_map(inbuf, &map, GST_MAP_READ);
 	inputDataSize = map.size;
 	gst_buffer_fill(v4l2buf_in, 0, map.data, map.size);
 	gst_buffer_unmap(inbuf, &map);
-	GST_DEBUG_OBJECT(me, "v4l2buf_in size:%d, input_size:%d",
-					 gst_buffer_get_size(v4l2buf_in), inputDataSize);
+	GST_DEBUG_OBJECT(me, "v4l2buf_in size:%" G_GSIZE_FORMAT ", input_size:%" G_GSIZE_FORMAT,
+			 gst_buffer_get_size(v4l2buf_in), inputDataSize);
 
 	/* enqueue buffer	*/
 	flowRet = gst_acm_v4l2_buffer_pool_qbuf (me->pool_in, v4l2buf_in, inputDataSize);
@@ -1429,9 +1427,9 @@ gst_acm_jpeg_enc_handle_out_frame(GstAcmJpegEnc * me,
 #endif
 
 	GST_DEBUG_OBJECT(me, "JPEGENC HANDLE OUT FRAME : %p", v4l2buf_out);
-	GST_DEBUG_OBJECT(me, "v4l2buf_out size=%d, ref:%d",
-					 gst_buffer_get_size(v4l2buf_out),
-					 GST_OBJECT_REFCOUNT_VALUE(v4l2buf_out));
+	GST_DEBUG_OBJECT(me, "v4l2buf_out size=%" G_GSIZE_FORMAT ", ref:%d",
+			 gst_buffer_get_size(v4l2buf_out),
+			 GST_OBJECT_REFCOUNT_VALUE(v4l2buf_out));
 	GST_DEBUG_OBJECT(me, "pool_out->num_queued : %d", me->pool_out->num_queued);
 
 #if DBG_DUMP_OUT_BUF	/* for debug	*/
@@ -1456,13 +1454,13 @@ gst_acm_jpeg_enc_handle_out_frame(GstAcmJpegEnc * me,
 
 	/* 出力データをコピー	*/
 	gst_buffer_map (v4l2buf_out, &map, GST_MAP_READ);
-	GST_DEBUG_OBJECT(me, "copy buf size=%d", map.size);
+	GST_DEBUG_OBJECT(me, "copy buf size=%" G_GSIZE_FORMAT, map.size);
 	gst_buffer_fill(me->priv->current_frame->output_buffer, 0, map.data, map.size);
 	gst_buffer_unmap (v4l2buf_out, &map);
 	gst_buffer_resize(me->priv->current_frame->output_buffer, 0, encodedSize);
 
-	GST_DEBUG_OBJECT(me, "outbuf size=%d",
-					 gst_buffer_get_size(me->priv->current_frame->output_buffer));
+	GST_DEBUG_OBJECT(me, "outbuf size=%" G_GSIZE_FORMAT,
+			 gst_buffer_get_size(me->priv->current_frame->output_buffer));
 
 	/* enqueue buffer	*/
 	flowRet = gst_acm_v4l2_buffer_pool_qbuf (me->pool_out, v4l2buf_out, encodedSize);

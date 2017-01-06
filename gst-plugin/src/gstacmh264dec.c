@@ -2013,7 +2013,7 @@ gst_acm_h264_dec_handle_in_frame(GstAcmH264Dec * me,
 	gboolean handle_single_mem = (gst_buffer_n_memory(inbuf) == 1);
 	int r;
 
-	GST_DEBUG_OBJECT(me, "inbuf size=%d", gst_buffer_get_size(inbuf));
+	GST_DEBUG_OBJECT(me, "inbuf size=%" G_GSIZE_FORMAT, gst_buffer_get_size(inbuf));
 
 	/* 入力データを設定	*/
 	if (handle_single_mem) {
@@ -2082,7 +2082,7 @@ gst_acm_h264_dec_handle_out_frame(GstAcmH264Dec * me,
 		*is_eos = FALSE;
 	}
 
-	GST_DEBUG_OBJECT(me, "v4l2buf_out size=%d", gst_buffer_get_size(v4l2buf_out));
+	GST_DEBUG_OBJECT(me, "v4l2buf_out size=%" G_GSIZE_FORMAT, gst_buffer_get_size(v4l2buf_out));
 
 	if (! me->priv->using_fb_dmabuf) {
 		/* check EOS	*/
@@ -2147,9 +2147,9 @@ gst_acm_h264_dec_handle_out_frame(GstAcmH264Dec * me,
 	{
 		GstBuffer* displayingBuf = NULL;
 
-		GST_DEBUG_OBJECT(me, "outbuf size=%d, ref:%d",
-						 gst_buffer_get_size(v4l2buf_out),
-						 GST_OBJECT_REFCOUNT_VALUE(v4l2buf_out));
+		GST_DEBUG_OBJECT(me, "outbuf size=%" G_GSIZE_FORMAT ", ref:%d",
+				 gst_buffer_get_size(v4l2buf_out),
+				 GST_OBJECT_REFCOUNT_VALUE(v4l2buf_out));
 
 		GST_DEBUG_OBJECT(me, "H264DEC FINISH FRAME:%p", v4l2buf_out);
 		GST_DEBUG_OBJECT (me, "pool_out->num_queued is %d",

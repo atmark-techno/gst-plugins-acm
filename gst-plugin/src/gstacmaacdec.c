@@ -647,11 +647,11 @@ gst_acm_aac_dec_analyze_codecdata(GstAcmAacDec *me, GstBuffer * codec_data)
 	channels = channelConfiguration;
 
 	GST_INFO_OBJECT (me,
-					 "codec_data(%d): object_type=%d, sample_rate=%d(%dHz), channels=%d",
-					 csize,
-					 audioObjectType,
-					 samplingFrequencyIndex, samplerate,
-					 channels);
+			 "codec_data(%" G_GSIZE_FORMAT "): object_type=%d, sample_rate=%d(%dHz), channels=%d",
+			 csize,
+			 audioObjectType,
+			 samplingFrequencyIndex, samplerate,
+			 channels);
 	
 	/* 
 	 * GASpecificConfig() 
@@ -1326,10 +1326,10 @@ gst_acm_aac_dec_handle_frame (GstAudioDecoder * dec, GstBuffer * buffer)
 	interval_time_start = gettimeofday_sec();
 #endif
 
-	GST_DEBUG_OBJECT (me, "AACDEC HANDLE FRMAE - size:%d, ref:%d, flags:%d ...",
-					  gst_buffer_get_size(buffer),
-					  GST_OBJECT_REFCOUNT_VALUE(buffer),
-					  GST_BUFFER_FLAGS(buffer));
+	GST_DEBUG_OBJECT (me, "AACDEC HANDLE FRMAE - size:%" G_GSIZE_FORMAT ", ref:%d, flags:%d ...",
+			  gst_buffer_get_size(buffer),
+			  GST_OBJECT_REFCOUNT_VALUE(buffer),
+			  GST_BUFFER_FLAGS(buffer));
 
 
 	/* Seek が行われた際は、gst_audio_decoder_reset() により、dec->priv->frames が、
@@ -1968,7 +1968,7 @@ gst_acm_aac_dec_handle_in_frame(GstAcmAacDec * me,
 	GstMapInfo map;
 	gsize inputDataSize = 0;
 	
-	GST_DEBUG_OBJECT(me, "inbuf size=%d", gst_buffer_get_size(inbuf));
+	GST_DEBUG_OBJECT(me, "inbuf size=%" G_GSIZE_FORMAT, gst_buffer_get_size(inbuf));
 
 	/* 入力データをコピー	*/
 #if DBG_LOG_PERF_CHAIN
@@ -1979,8 +1979,8 @@ gst_acm_aac_dec_handle_in_frame(GstAcmAacDec * me,
 	gst_buffer_fill(v4l2buf_in, 0, map.data, map.size);
 	gst_buffer_unmap(inbuf, &map);
 //    gst_buffer_resize (v4l2buf_in, 0, gst_buffer_get_size(inbuf));
-	GST_DEBUG_OBJECT(me, "v4l2buf_in size:%d, input_size:%d",
-					 gst_buffer_get_size(v4l2buf_in), inputDataSize);
+	GST_DEBUG_OBJECT(me, "v4l2buf_in size:%" G_GSIZE_FORMAT ", input_size:%" G_GSIZE_FORMAT,
+			 gst_buffer_get_size(v4l2buf_in), inputDataSize);
 #if DBG_LOG_PERF_CHAIN
 	GST_INFO_OBJECT (me, "AACDEC-CHAIN COPY END");
 #endif
@@ -2031,7 +2031,7 @@ gst_acm_aac_dec_handle_out_frame(GstAcmAacDec * me,
 		*is_eos = FALSE;
 	}
 
-	GST_DEBUG_OBJECT(me, "v4l2buf_out size=%d", gst_buffer_get_size(v4l2buf_out));
+	GST_DEBUG_OBJECT(me, "v4l2buf_out size=%" G_GSIZE_FORMAT, gst_buffer_get_size(v4l2buf_out));
 
 #if 0	/* for debug	*/
 	{

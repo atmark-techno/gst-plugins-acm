@@ -230,7 +230,7 @@ change_fb_varinfo_bpp(GstAcmFBDevSink *me, gint new_bpp)
 			goto fbioget_failed;
 		}
 		GST_INFO_OBJECT(me,
-			"FBIOGET_FSCREENINFO - smem_start:%p, smem_len:%u, line_length:%u",
+			"FBIOGET_FSCREENINFO - smem_start:%lu, smem_len:%u, line_length:%u",
 			me->fixinfo.smem_start, me->fixinfo.smem_len, me->fixinfo.line_length);
 		GST_INFO_OBJECT(me,
 			"FBIOGET_VSCREENINFO - xres:%u, yres:%u, xres_v:%u, yres_v:%u, xoffset:%u, yoffset:%u, bits_per_pixel:%u",
@@ -500,7 +500,7 @@ gst_acm_fbdevsink_start (GstBaseSink * bsink)
 		goto fbioget_failed;
 	}
 	GST_INFO_OBJECT(me,
-		"FBIOGET_FSCREENINFO - smem_start:%p, smem_len:%u, line_length:%u",
+		"FBIOGET_FSCREENINFO - smem_start:%lu, smem_len:%u, line_length:%u",
 		me->fixinfo.smem_start, me->fixinfo.smem_len, me->fixinfo.line_length);
 
 	/* get the variable screen info */
@@ -1113,7 +1113,7 @@ gst_acm_fbdevsink_render (GstBaseSink * bsink, GstBuffer * buf)
 		 in framebuffer memory, but would only work when xres matches
 		 the video width */
 		gst_buffer_map (buf, &map, GST_MAP_READ);
-		GST_DEBUG_OBJECT (me, "RENDER - map.size:%u", map.size);
+		GST_DEBUG_OBJECT (me, "RENDER - map.size:%" G_GSIZE_FORMAT, map.size);
 
 #if 0	/* 2013-06-18 : stride, offset 対応 */
 		if (0 == me->cx && 0 == me->cy) {

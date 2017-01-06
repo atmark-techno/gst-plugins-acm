@@ -1008,10 +1008,10 @@ gst_acm_aac_enc_handle_frame (GstAudioEncoder * enc, GstBuffer * buffer)
 		goto out;
 	}
 
-	GST_DEBUG_OBJECT (me, "AACENC HANDLE FRMAE - size:%d, ref:%d, flags:%d ...",
-					  gst_buffer_get_size(buffer),
-					  GST_OBJECT_REFCOUNT_VALUE(buffer),
-					  GST_BUFFER_FLAGS(buffer));
+	GST_DEBUG_OBJECT (me, "AACENC HANDLE FRMAE - size:%" G_GSIZE_FORMAT ", ref:%d, flags:%d ...",
+			  gst_buffer_get_size(buffer),
+			  GST_OBJECT_REFCOUNT_VALUE(buffer),
+			  GST_BUFFER_FLAGS(buffer));
 
 #if DBG_MEASURE_PERF_HANDLE_FRAME
 	interval_time_end = gettimeofday_sec();
@@ -1586,7 +1586,7 @@ gst_acm_aac_enc_handle_in_frame(GstAcmAacEnc * me,
 	GstMapInfo map;
 	gsize inputDataSize = 0;
 	
-	GST_DEBUG_OBJECT(me, "inbuf size=%d", gst_buffer_get_size(inbuf));
+	GST_DEBUG_OBJECT(me, "inbuf size=%" G_GSIZE_FORMAT, gst_buffer_get_size(inbuf));
 
 	/* 入力データをコピー	*/
 	gst_buffer_map(inbuf, &map, GST_MAP_READ);
@@ -1598,8 +1598,8 @@ gst_acm_aac_enc_handle_in_frame(GstAcmAacEnc * me,
 		gst_buffer_fill(v4l2buf_in, 0, map.data, map.size);
 	}
 	gst_buffer_unmap(inbuf, &map);
-	GST_DEBUG_OBJECT(me, "v4l2buf_in size:%d, input_size:%d",
-					 gst_buffer_get_size(v4l2buf_in), inputDataSize);
+	GST_DEBUG_OBJECT(me, "v4l2buf_in size:%" G_GSIZE_FORMAT ", input_size:%" G_GSIZE_FORMAT,
+			 gst_buffer_get_size(v4l2buf_in), inputDataSize);
 
 	/* enqueue buffer	*/
 	flowRet = gst_acm_v4l2_buffer_pool_qbuf (me->pool_in, v4l2buf_in, inputDataSize);
@@ -1745,9 +1745,9 @@ gst_acm_aac_enc_handle_out_frame(GstAcmAacEnc * me, GstBuffer *v4l2buf_out)
 #endif
 
 	GST_DEBUG_OBJECT(me, "AACENC HANDLE OUT FRAME : %p", v4l2buf_out);
-	GST_DEBUG_OBJECT(me, "v4l2buf_out size=%d, ref:%d",
-					 gst_buffer_get_size(v4l2buf_out),
-					 GST_OBJECT_REFCOUNT_VALUE(v4l2buf_out));
+	GST_DEBUG_OBJECT(me, "v4l2buf_out size=%" G_GSIZE_FORMAT ", ref:%d",
+			 gst_buffer_get_size(v4l2buf_out),
+			 GST_OBJECT_REFCOUNT_VALUE(v4l2buf_out));
 	GST_DEBUG_OBJECT(me, "pool_out->num_queued : %d", me->pool_out->num_queued);
 
 #if DBG_DUMP_OUT_BUF	/* for debug	*/

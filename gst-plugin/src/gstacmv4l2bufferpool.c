@@ -591,7 +591,7 @@ gst_acm_v4l2_buffer_pool_qbuf (GstAcmV4l2BufferPool * pool, GstBuffer * buf, gsi
 #endif
 		goto queue_failed;
 	}
-	GST_DEBUG_OBJECT (pool, "%s: - VIDIOC_QBUF - END");
+	GST_DEBUG_OBJECT (pool, "%s: - VIDIOC_QBUF - END", TYPE_STR(pool->init_param.type));
 
 #if 0	/* for debug (video ouput)	*/
 	if (V4L2_BUF_TYPE_VIDEO_CAPTURE == pool->init_param.type

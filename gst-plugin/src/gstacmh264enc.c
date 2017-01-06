@@ -663,7 +663,7 @@ gst_acm_h264_enc_stop (GstVideoEncoder * enc)
 
 	/* cleanup frame list	*/
 	if (me->priv->in_frames) {
-		GST_INFO_OBJECT (me, "LIST length : %lu", g_list_length(me->priv->in_frames));
+		GST_INFO_OBJECT (me, "LIST length : %u", g_list_length(me->priv->in_frames));
 		g_list_foreach (me->priv->in_frames, (GFunc) gst_video_codec_frame_unref, NULL);
 		g_list_free (me->priv->in_frames);
 		me->priv->in_frames = NULL;
@@ -1961,7 +1961,7 @@ gst_acm_h264_enc_handle_in_frame(GstAcmH264Enc * me,
 	GstMapInfo map;
 	gsize inputDataSize = 0;
 
-	GST_DEBUG_OBJECT(me, "inbuf size=%d", gst_buffer_get_size(inbuf));
+	GST_DEBUG_OBJECT(me, "inbuf size=%" G_GSIZE_FORMAT, gst_buffer_get_size(inbuf));
 
 	/* 入力データをコピー	*/
 	gst_buffer_map(inbuf, &map, GST_MAP_READ);
@@ -1973,8 +1973,8 @@ gst_acm_h264_enc_handle_in_frame(GstAcmH264Enc * me,
 		gst_buffer_fill(v4l2buf_in, 0, map.data, map.size);
 	}
 	gst_buffer_unmap(inbuf, &map);
-	GST_DEBUG_OBJECT(me, "v4l2buf_in size:%d, input_size:%d",
-					 gst_buffer_get_size(v4l2buf_in), inputDataSize);
+	GST_DEBUG_OBJECT(me, "v4l2buf_in size:%" G_GSIZE_FORMAT ", input_size:%" G_GSIZE_FORMAT,
+			 gst_buffer_get_size(v4l2buf_in), inputDataSize);
 
 	/* enqueue buffer	*/
 	flowRet = gst_acm_v4l2_buffer_pool_qbuf (me->pool_in, v4l2buf_in, inputDataSize);
@@ -2279,9 +2279,9 @@ gst_acm_h264_enc_handle_out_frame(GstAcmH264Enc * me,
 #endif
 
 	GST_DEBUG_OBJECT(me, "H264ENC HANDLE OUT FRAME : %p", v4l2buf_out);
-	GST_DEBUG_OBJECT(me, "v4l2buf_out size=%d, ref:%d",
-					 gst_buffer_get_size(v4l2buf_out),
-					 GST_OBJECT_REFCOUNT_VALUE(v4l2buf_out));
+	GST_DEBUG_OBJECT(me, "v4l2buf_out size=%" G_GSIZE_FORMAT ", ref:%d",
+			 gst_buffer_get_size(v4l2buf_out),
+			 GST_OBJECT_REFCOUNT_VALUE(v4l2buf_out));
 	GST_DEBUG_OBJECT(me, "pool_out->num_queued : %d", me->pool_out->num_queued);
 
 	pictureType = get_encoded_picture_type(me, v4l2buf_out);
@@ -2335,8 +2335,8 @@ gst_acm_h264_enc_handle_out_frame(GstAcmH264Enc * me,
 		captCounter = get_capture_counter(me, v4l2buf_out);
 		pts_frame = gst_acm_h264_enc_pop_frame(me, captCounter);
 		if (NULL == pts_frame) {
-			GST_ERROR_OBJECT (me, "failed get frame by capture counter %lu (0x%x)",
-							  captCounter, captCounter);
+			GST_ERROR_OBJECT (me, "failed get frame by capture counter %lu (0x%lx)",
+					  captCounter, captCounter);
 
 			goto no_frame_by_capture_counter;
 		}
@@ -2402,7 +2402,7 @@ gst_acm_h264_enc_handle_out_frame(GstAcmH264Enc * me,
 
 	/* エンコード済みデータをコピー	*/
 	gst_buffer_map (v4l2buf_out, &map, GST_MAP_READ);
-	GST_DEBUG_OBJECT(me, "copy buf size=%d", map.size);
+	GST_DEBUG_OBJECT(me, "copy buf size=%" G_GSIZE_FORMAT, map.size);
 	if (! me->priv->is_handled_1stframe_out) {
 		// SLICE only
 		if (V4L2_PIX_FMT_H264_NO_SC == me->priv->output_format) {
@@ -2458,8 +2458,8 @@ gst_acm_h264_enc_handle_out_frame(GstAcmH264Enc * me,
 	gst_buffer_unmap (v4l2buf_out, &map);
 	gst_buffer_resize(frame->output_buffer, 0, outputSize);
 
-	GST_DEBUG_OBJECT(me, "outbuf size=%d",
-					 gst_buffer_get_size(frame->output_buffer));
+	GST_DEBUG_OBJECT(me, "outbuf size=%" G_GSIZE_FORMAT,
+			 gst_buffer_get_size(frame->output_buffer));
 
 #if DBG_DUMP_OUT_BUF	/* for debug	*/
 	dump_output_buf(frame->output_buffer);
@@ -2579,7 +2579,7 @@ gst_acm_h264_enc_pop_frame (GstAcmH264Enc * me, guint32 frame_number)
 	GList *g;
 	GstVideoCodecFrame *tmp = NULL;
 	
-	GST_DEBUG_OBJECT (me, "frame_number : %lu", frame_number);
+	GST_DEBUG_OBJECT (me, "frame_number : %u", frame_number);
 	
 	/* 該当フレームを検索	*/
 	for (g = me->priv->in_frames; g; g = g->next) {
@@ -2593,12 +2593,12 @@ gst_acm_h264_enc_pop_frame (GstAcmH264Enc * me, guint32 frame_number)
 	
 	/* 見つからなければ、キャプチャ順カウンタの折り返しを考慮して検索	*/
 	if (NULL == frame) {
-		GST_WARNING_OBJECT (me, "failed get frame by capture counter %lu (0x%x)",
-							frame_number, frame_number);
+		GST_WARNING_OBJECT (me, "failed get frame by capture counter %u (0x%x)",
+				    frame_number, frame_number);
 		// SH からのキャプチャ順カウンタは、0x7FFFFFFE で折り返す
 		frame_number += 0x7FFFFFFF;
-		GST_WARNING_OBJECT (me, "try get frame by capture counter %lu (0x%x)",
-							frame_number, frame_number);
+		GST_WARNING_OBJECT (me, "try get frame by capture counter %u (0x%x)",
+				    frame_number, frame_number);
 		
 		for (g = me->priv->in_frames; g; g = g->next) {
 			tmp = g->data;
