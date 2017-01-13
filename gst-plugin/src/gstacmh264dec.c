@@ -488,8 +488,15 @@ gst_acm_h264_dec_open (GstVideoDecoder * dec)
 	GstAcmH264Dec *me = GST_ACMH264DEC (dec);
 
 	/* プロパティとしてセットされていなければ、デバイスを検索		*/
-	if (NULL == me->videodev) {
+	if (NULL == me->videodev)
 		me->videodev = gst_acm_v4l2_getdev(DRIVER_NAME);
+
+	if (!me->videodev) {
+		GST_ELEMENT_ERROR(me, RESOURCE, NOT_FOUND,
+				  ("Unable to find any device node for %s driver under /dev", DRIVER_NAME),
+				  ("Perhaps, you need to load ACM firmware or no decoder is selected.\n"
+				   "Check /sys/devices/platform/acm.0/codec"));
+		return FALSE;
 	}
 
 	GST_INFO_OBJECT (me, "H264DEC OPEN ACM DECODER. (%s)", me->videodev);
