@@ -65,3 +65,5 @@ fbdevsink = library('gstacmfbdevsink',
                     dependencies : [video],
                     include_directories : inc,
                     link_with : v4l2)
+
+subdir('tests')
