@@ -982,7 +982,7 @@ check_encode_avc(gint B_pic_mode, gint max_GOP_length, gint rate_control_mode)
 								GST_DEBUG_FUNCPTR (test_encode_sink_chain));
 	g_nOutputBuffers = 0;
 	
-	sprintf(g_output_data_file_path, "data/h264_enc/avc_propset%02d%02d%02d/",
+	sprintf(g_output_data_file_path, GST_TEST_FILES_PATH "data/h264_enc/avc_propset%02d%02d%02d/",
 			B_pic_mode, max_GOP_length, rate_control_mode);
 	strcat(g_output_data_file_path, "h264_%03d.data");
 	
@@ -991,7 +991,7 @@ check_encode_avc(gint B_pic_mode, gint max_GOP_length, gint rate_control_mode)
 	gst_pad_set_caps (mysrcpad, srccaps);
 	
 	/* input buffers */
-	input_buffers(PUSH_BUFFERS, "data/h264_enc/input01/yuv_%03d.data");
+	input_buffers(PUSH_BUFFERS, GST_TEST_FILES_PATH "data/h264_enc/input01/yuv_%03d.data");
 	
 	/* cleanup */
 	cleanup_acmh264enc (acmh264enc);
@@ -1021,7 +1021,7 @@ check_encode_bs(gint B_pic_mode, gint max_GOP_length, gint rate_control_mode)
 								GST_DEBUG_FUNCPTR (test_encode_sink_chain));
 	g_nOutputBuffers = 0;
 
-	sprintf(g_output_data_file_path, "data/h264_enc/bs_propset%02d%02d%02d/",
+	sprintf(g_output_data_file_path, "GST_TEST_FILES_PATH data/h264_enc/bs_propset%02d%02d%02d/",
 			B_pic_mode, max_GOP_length, rate_control_mode);
 	strcat(g_output_data_file_path, "h264_%03d.data");
 	
@@ -1030,7 +1030,7 @@ check_encode_bs(gint B_pic_mode, gint max_GOP_length, gint rate_control_mode)
 	gst_pad_set_caps (mysrcpad, srccaps);
 	
 	/* input buffers */
-	input_buffers(PUSH_BUFFERS, "data/h264_enc/input01/yuv_%03d.data");
+	input_buffers(PUSH_BUFFERS, GST_TEST_FILES_PATH "data/h264_enc/input01/yuv_%03d.data");
 	
 	/* cleanup */
 	cleanup_acmh264enc (acmh264enc);
