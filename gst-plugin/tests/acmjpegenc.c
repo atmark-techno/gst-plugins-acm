@@ -752,7 +752,7 @@ check_encode(gint srcfmt, gint quality)
 								GST_DEBUG_FUNCPTR (test_encode_sink_chain));
 	g_nOutputBuffers = 0;
 
-	sprintf(g_output_data_file_path, "data/jpeg_enc/propset%02d/", quality);
+	sprintf(g_output_data_file_path, GST_TEST_FILES_PATH "data/jpeg_enc/propset%02d/", quality);
 	strcat(g_output_data_file_path, "jpeg_%03d.data");
 
 	/* set src caps */
@@ -771,11 +771,11 @@ check_encode(gint srcfmt, gint quality)
 
 	/* input buffers */
 	if (FMT_NV12 == srcfmt) {
-		input_buffers(PUSH_BUFFERS, "data/jpeg_enc/input01/yuv420_%03d.data");
+		input_buffers(PUSH_BUFFERS, GST_TEST_FILES_PATH "data/jpeg_enc/input01/yuv420_%03d.data");
 	}
 #if SUPPORT_NV16
 	else if (FMT_NV16 == srcfmt) {
-		input_buffers(PUSH_BUFFERS, "data/jpeg_enc/input02/yuv422_%03d.data");
+		input_buffers(PUSH_BUFFERS, GST_TEST_FILES_PATH "data/jpeg_enc/input02/yuv422_%03d.data");
 	}
 #endif
 	else {

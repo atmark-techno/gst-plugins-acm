@@ -828,7 +828,7 @@ GST_START_TEST (test_encode_prop01)
 	gst_pad_set_chain_function (mysinkpad,
 		GST_DEBUG_FUNCPTR (test_encode_sink_chain));
 
-	strcpy(g_output_data_file_path, "data/aac_enc/propset01/aac_%03d.data");
+	strcpy(g_output_data_file_path, GST_TEST_FILES_PATH "data/aac_enc/propset01/aac_%03d.data");
 
 	/* set src caps */
 	srccaps = gst_caps_from_string (AUDIO_1CH_CAPS_STRING);
@@ -864,7 +864,7 @@ GST_START_TEST (test_encode_prop02)
 	gst_pad_set_chain_function (mysinkpad,
 								GST_DEBUG_FUNCPTR (test_encode_sink_chain));
 	
-	strcpy(g_output_data_file_path, "data/aac_enc/propset02/aac_%03d.data");
+	strcpy(g_output_data_file_path, GST_TEST_FILES_PATH "data/aac_enc/propset02/aac_%03d.data");
 	
 	/* set src caps */
 	srccaps = gst_caps_from_string (AUDIO_1CH_CAPS_STRING);
@@ -901,7 +901,7 @@ GST_START_TEST (test_encode_prop03)
 	gst_pad_set_chain_function (mysinkpad,
 								GST_DEBUG_FUNCPTR (test_encode_sink_chain));
 	
-	strcpy(g_output_data_file_path, "data/aac_enc/propset03/aac_%03d.data");
+	strcpy(g_output_data_file_path, GST_TEST_FILES_PATH "data/aac_enc/propset03/aac_%03d.data");
 	
 	/* set src caps */
 	srccaps = gst_caps_from_string (AUDIO_1CH_CAPS_STRING);
@@ -938,7 +938,7 @@ GST_START_TEST (test_encode_prop11)
 	gst_pad_set_chain_function (mysinkpad,
 								GST_DEBUG_FUNCPTR (test_encode_sink_chain));
 	
-	strcpy(g_output_data_file_path, "data/aac_enc/propset11/aac_%03d.data");
+	strcpy(g_output_data_file_path, GST_TEST_FILES_PATH "data/aac_enc/propset11/aac_%03d.data");
 	
 	/* set src caps */
 	srccaps = gst_caps_from_string (AUDIO_2CH_CAPS_STRING);
@@ -974,7 +974,7 @@ GST_START_TEST (test_encode_prop12)
 	gst_pad_set_chain_function (mysinkpad,
 								GST_DEBUG_FUNCPTR (test_encode_sink_chain));
 	
-	strcpy(g_output_data_file_path, "data/aac_enc/propset12/aac_%03d.data");
+	strcpy(g_output_data_file_path, GST_TEST_FILES_PATH "data/aac_enc/propset12/aac_%03d.data");
 	
 	/* set src caps */
 	srccaps = gst_caps_from_string (AUDIO_2CH_CAPS_STRING);
@@ -1011,7 +1011,7 @@ GST_START_TEST (test_encode_prop13)
 	gst_pad_set_chain_function (mysinkpad,
 								GST_DEBUG_FUNCPTR (test_encode_sink_chain));
 	
-	strcpy(g_output_data_file_path, "data/aac_enc/propset13/aac_%03d.data");
+	strcpy(g_output_data_file_path, GST_TEST_FILES_PATH "data/aac_enc/propset13/aac_%03d.data");
 	
 	/* set src caps */
 	srccaps = gst_caps_from_string (AUDIO_2CH_CAPS_STRING);
@@ -1052,7 +1052,7 @@ GST_START_TEST (test_encode_prop21)
 	gst_pad_set_chain_function (mysinkpad,
 								GST_DEBUG_FUNCPTR (test_encode_sink_chain));
 	
-	strcpy(g_output_data_file_path, "data/aac_enc/propset21/aac_%03d.data");
+	strcpy(g_output_data_file_path, GST_TEST_FILES_PATH "data/aac_enc/propset21/aac_%03d.data");
 	
 	/* set src caps */
 	srccaps = gst_caps_from_string (AUDIO_2CH_CAPS_STRING);
@@ -1092,7 +1092,7 @@ GST_START_TEST (test_encode_prop22)
 	gst_pad_set_chain_function (mysinkpad,
 								GST_DEBUG_FUNCPTR (test_encode_sink_chain));
 	
-	strcpy(g_output_data_file_path, "data/aac_enc/propset22/aac_%03d.data");
+	strcpy(g_output_data_file_path, GST_TEST_FILES_PATH "data/aac_enc/propset22/aac_%03d.data");
 	
 	/* set src caps */
 	srccaps = gst_caps_from_string (AUDIO_2CH_CAPS_STRING);
@@ -1133,7 +1133,7 @@ GST_START_TEST (test_encode_prop23)
 	gst_pad_set_chain_function (mysinkpad,
 								GST_DEBUG_FUNCPTR (test_encode_sink_chain));
 	
-	strcpy(g_output_data_file_path, "data/aac_enc/propset23/aac_%03d.data");
+	strcpy(g_output_data_file_path, GST_TEST_FILES_PATH "data/aac_enc/propset23/aac_%03d.data");
 	
 	/* set src caps */
 	srccaps = gst_caps_from_string (AUDIO_2CH_CAPS_STRING);

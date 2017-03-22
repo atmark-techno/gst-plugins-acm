@@ -214,7 +214,7 @@ test_decode_mp4_chain(GstPad * pad, GstObject * parent, GstBuffer * buf)
 		fail_if (outbuffer == NULL);
 		fail_unless (GST_IS_BUFFER (outbuffer));
 		
-		sprintf(file, "data/h264/mp4/rgb_%03d.data", nOutputBuffers);
+		sprintf(file, GST_TEST_FILES_PATH "data/h264/mp4/rgb_%03d.data", nOutputBuffers);
 		g_print("%s\n", file);
 
 		get_data(file, &size, &p);
@@ -248,7 +248,7 @@ GST_START_TEST (test_decode_mp4)
 	GstBuffer *inbuffer;
 	gint nInputBuffers = 0;
 
-	sprintf(file, "data/h264/mp4/_codec_data.data");
+	sprintf(file, GST_TEST_FILES_PATH "data/h264/mp4/_codec_data.data");
 	g_print("%s\n", file);
 	get_data(file, &size, &p);
 	codec_buf = gst_buffer_new_and_alloc (size);
@@ -272,7 +272,7 @@ GST_START_TEST (test_decode_mp4)
 	while (TRUE) {
 		/* バッファの入力 */
 		if (++nInputBuffers < PUSH_BUFFERS) {
-			sprintf(file, "data/h264/mp4/h264_%03d.data", nInputBuffers);
+			sprintf(file, GST_TEST_FILES_PATH "data/h264/mp4/h264_%03d.data", nInputBuffers);
 			g_print("%s\n", file);
 
 			get_data(file, &size, &p);
@@ -331,7 +331,7 @@ test_decode_ts_chain(GstPad * pad, GstObject * parent, GstBuffer * buf)
 		fail_if (outbuffer == NULL);
 		fail_unless (GST_IS_BUFFER (outbuffer));
 		
-		sprintf(file, "data/h264/ts/rgb_%03d.data", nOutputBuffers);
+		sprintf(file, GST_TEST_FILES_PATH "data/h264/ts/rgb_%03d.data", nOutputBuffers);
 		g_print("%s\n", file);
 		
 		get_data(file, &size, &p);
@@ -365,7 +365,7 @@ GST_START_TEST (test_decode_ts)
 	GstBuffer *inbuffer;
 	gint nInputBuffers = 0;
 	
-	sprintf(file, "data/h264/ts/_codec_data.data");
+	sprintf(file, GST_TEST_FILES_PATH "data/h264/ts/_codec_data.data");
 	g_print("%s\n", file);
 	get_data(file, &size, &p);
 	codec_buf = gst_buffer_new_and_alloc (size);
@@ -389,7 +389,7 @@ GST_START_TEST (test_decode_ts)
 	while (TRUE) {
 		/* バッファの入力 */
 		if (++nInputBuffers < PUSH_BUFFERS) {
-			sprintf(file, "data/h264/ts/h264_%03d.data", nInputBuffers);
+			sprintf(file, GST_TEST_FILES_PATH "data/h264/ts/h264_%03d.data", nInputBuffers);
 			g_print("%s\n", file);
 			
 			get_data(file, &size, &p);

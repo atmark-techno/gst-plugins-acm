@@ -220,7 +220,7 @@ test_decode_adts_chain(GstPad * pad, GstObject * parent, GstBuffer * buf)
 		fail_if (outbuffer == NULL);
 		fail_unless (GST_IS_BUFFER (outbuffer));
 		
-		sprintf(file, "data/aac/adts/pcm_%03d.data", nOutputBuffers);
+		sprintf(file, GST_TEST_FILES_PATH "data/aac/adts/pcm_%03d.data", nOutputBuffers);
 		g_print("%s\n", file);
 		get_data(file, &size, &p);
 		
@@ -269,7 +269,7 @@ GST_START_TEST (test_decode_adts)
 	while (TRUE) {
 		/* バッファの入力 */
 		if (++nInputBuffers < PUSH_BUFFERS) {
-			sprintf(file, "data/aac/adts/aac_%03d.data", nInputBuffers);
+			sprintf(file, GST_TEST_FILES_PATH "data/aac/adts/aac_%03d.data", nInputBuffers);
 			g_print("%s\n", file);
 			get_data(file, &size, &p);
 			inbuffer = gst_buffer_new_and_alloc (size);
@@ -325,7 +325,7 @@ test_decode_raw_chain(GstPad * pad, GstObject * parent, GstBuffer * buf)
 		fail_if (outbuffer == NULL);
 		fail_unless (GST_IS_BUFFER (outbuffer));
 		
-		sprintf(file, "data/aac/raw/pcm_%03d.data", nOutputBuffers);
+		sprintf(file, GST_TEST_FILES_PATH "data/aac/raw/pcm_%03d.data", nOutputBuffers);
 		g_print("%s\n", file);
 		get_data(file, &size, &p);
 		
@@ -358,7 +358,7 @@ GST_START_TEST (test_decode_raw)
 	GstBuffer *inbuffer;
 	gint nInputBuffers = 0;
 
-	sprintf(file, "data/aac/raw/_codec_data.data");
+	sprintf(file, GST_TEST_FILES_PATH "data/aac/raw/_codec_data.data");
 	g_print("%s\n", file);
 	get_data(file, &size, &p);
 	codec_buf = gst_buffer_new_and_alloc (size);
@@ -383,7 +383,7 @@ GST_START_TEST (test_decode_raw)
 	while (TRUE) {
 		/* バッファの入力 */
 		if (++nInputBuffers < PUSH_BUFFERS) {
-			sprintf(file, "data/aac/raw/aac_%03d.data", nInputBuffers);
+			sprintf(file, GST_TEST_FILES_PATH "data/aac/raw/aac_%03d.data", nInputBuffers);
 			g_print("%s\n", file);
 			get_data(file, &size, &p);
 			inbuffer = gst_buffer_new_and_alloc (size);
